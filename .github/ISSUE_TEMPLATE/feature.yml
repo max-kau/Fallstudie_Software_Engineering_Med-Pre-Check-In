@@ -22,17 +22,6 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: user_stories
-    attributes:
-      label: Zugehörige User Stories
-      description: Welche User Stories gehören zu diesem Feature?
-      value: |
-        - [ ] US1:
-        - [ ] US2:
-        - [ ] US3:
-    validations:
-      required: false
 
   - type: textarea
     id: acceptance
