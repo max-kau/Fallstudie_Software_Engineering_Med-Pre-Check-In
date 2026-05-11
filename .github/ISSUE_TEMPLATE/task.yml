@@ -38,13 +38,4 @@ body:
     validations:
       required: false
 
-  - type: textarea
-    id: done
-    attributes:
-      label: Fertig, wenn...
-      value: |
-        - [ ] umgesetzt
-        - [ ] getestet
-        - [ ] reviewed
-    validations:
-      required: true
+
