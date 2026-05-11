@@ -4,23 +4,7 @@ title: "US: "
 labels: ["user-story", "mvp"]
 
 body:
-  - type: input
-    id: story_id
-    attributes:
-      label: User Story ID
-      description: Nummer oder Kürzel der User Story
-      placeholder: "z. B. US1, US2, US3"
-    validations:
-      required: true
 
-  - type: input
-    id: parent_feature
-    attributes:
-      label: Zugehöriges Feature
-      description: Zu welchem Feature gehört diese User Story?
-      placeholder: "z. B. Feature: Pre-Check-Formular"
-    validations:
-      required: true
 
   - type: textarea
     id: user_story
@@ -51,15 +35,3 @@ body:
         - [ ] 
     validations:
       required: true
-
-  - type: textarea
-    id: tasks
-    attributes:
-      label: Mögliche Tasks
-      description: Welche technischen Aufgaben könnten daraus entstehen?
-      value: |
-        - [ ] 
-        - [ ] 
-        - [ ] 
-    validations:
-      required: false
