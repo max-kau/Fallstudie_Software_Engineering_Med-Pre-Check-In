@@ -1,0 +1,58 @@
+name: Task
+description: Konkrete technische Aufgabe
+title: "Task: "
+labels: ["task"]
+
+body:
+  - type: input
+    id: parent_story
+    attributes:
+      label: Zugehörige User Story
+      description: Zu welcher User Story gehört dieser Task?
+      placeholder: "z. B. US1: Formular öffnen"
+    validations:
+      required: true
+
+  - type: textarea
+    id: task_description
+    attributes:
+      label: Aufgabe
+      description: Was soll konkret umgesetzt werden?
+      placeholder: "z. B. Button „Pre-Check starten“ auf der Startseite erstellen."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Bereich
+      description: Welcher Bereich ist betroffen?
+      options:
+        - Frontend
+        - Backend
+        - Database
+        - Testing
+        - Documentation
+        - Design
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Umsetzungshinweise
+      description: Gibt es technische Hinweise oder Abhängigkeiten?
+      placeholder: "z. B. Route /pre-check verwenden."
+    validations:
+      required: false
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Fertig, wenn...
+      value: |
+        - [ ] umgesetzt
+        - [ ] getestet
+        - [ ] reviewed
+    validations:
+      required: true
