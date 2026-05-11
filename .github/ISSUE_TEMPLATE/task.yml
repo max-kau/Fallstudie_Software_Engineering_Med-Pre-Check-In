@@ -4,14 +4,6 @@ title: "Task: "
 labels: ["task"]
 
 body:
-  - type: input
-    id: parent_story
-    attributes:
-      label: Zugehörige User Story
-      description: Zu welcher User Story gehört dieser Task?
-      placeholder: "z. B. US1: Formular öffnen"
-    validations:
-      required: true
 
   - type: textarea
     id: task_description
