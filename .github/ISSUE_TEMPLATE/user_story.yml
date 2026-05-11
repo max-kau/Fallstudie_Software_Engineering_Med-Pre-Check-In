@@ -1,22 +1,24 @@
 name: User Story
-description: Erstelle eine agile Aufgabe für das Board
+description: Funktion aus Sicht eines Nutzers
 title: "US: "
 labels: ["user-story", "mvp"]
 
 body:
   - type: input
-    id: user_story_id
+    id: story_id
     attributes:
       label: User Story ID
+      description: Nummer oder Kürzel der User Story
       placeholder: "z. B. US1, US2, US3"
     validations:
       required: true
 
   - type: input
-    id: role
+    id: parent_feature
     attributes:
-      label: Rolle
-      placeholder: "z. B. Patient, Praxisteam"
+      label: Zugehöriges Feature
+      description: Zu welchem Feature gehört diese User Story?
+      placeholder: "z. B. Feature: Pre-Check-Formular"
     validations:
       required: true
 
@@ -24,46 +26,25 @@ body:
     id: user_story
     attributes:
       label: User Story
-      placeholder: "Als Patient möchte ich ..., damit ..."
+      description: Formuliere die Story aus Sicht des Nutzers.
+      value: "Als [Rolle] möchte ich [Funktion], damit [Nutzen]."
     validations:
       required: true
 
   - type: textarea
-    id: task
+    id: description
     attributes:
-      label: Aufgabe
-      placeholder: "Was soll umgesetzt werden?"
+      label: Beschreibung
+      description: Was soll fachlich umgesetzt werden?
+      placeholder: "Kurze Beschreibung der gewünschten Funktion."
     validations:
-      required: true
-
-  - type: dropdown
-    id: area
-    attributes:
-      label: Bereich
-      options:
-        - Frontend
-        - Backend
-        - Datenbank
-        - Testing
-        - Dokumentation
-    validations:
-      required: true
-
-  - type: dropdown
-    id: priority
-    attributes:
-      label: Priorität
-      options:
-        - High
-        - Medium
-        - Low
-    validations:
-      required: true
+      required: false
 
   - type: textarea
-    id: acceptance_criteria
+    id: acceptance
     attributes:
       label: Akzeptanzkriterien
+      description: Wann ist die User Story erfüllt?
       value: |
         - [ ] 
         - [ ] 
@@ -72,11 +53,13 @@ body:
       required: true
 
   - type: textarea
-    id: definition_of_done
+    id: tasks
     attributes:
-      label: Definition of Done
+      label: Mögliche Tasks
+      description: Welche technischen Aufgaben könnten daraus entstehen?
       value: |
-        - [ ] Funktion umgesetzt
-        - [ ] getestet
-        - [ ] Review durchgeführt
-        - [ ] im Board auf Done gesetzt
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: false
