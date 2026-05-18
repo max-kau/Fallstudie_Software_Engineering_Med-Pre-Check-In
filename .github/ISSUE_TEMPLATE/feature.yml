@@ -1,0 +1,36 @@
+name: Feature
+description: Größerer Funktionsbereich des MVP
+title: "Feature: "
+labels: ["feature", "mvp"]
+
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Ziel des Features
+      description: Was soll dieses Feature insgesamt ermöglichen?
+      placeholder: "z. B. Patienten sollen vor dem Termin ein Pre-Check-Formular nutzen können."
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Beschreibung
+      description: Beschreibe kurz den Funktionsbereich.
+      placeholder: "Dieses Feature umfasst ..."
+    validations:
+      required: true
+
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien auf Feature-Ebene
+      description: Wann gilt das Feature insgesamt als fertig?
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true

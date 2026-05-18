@@ -1,0 +1,41 @@
+name: Task
+description: Konkrete technische Aufgabe
+title: "Task: "
+labels: ["task"]
+
+body:
+
+  - type: textarea
+    id: task_description
+    attributes:
+      label: Aufgabe
+      description: Was soll konkret umgesetzt werden?
+      placeholder: "z. B. Button „Pre-Check starten“ auf der Startseite erstellen."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Bereich
+      description: Welcher Bereich ist betroffen?
+      options:
+        - Frontend
+        - Backend
+        - Database
+        - Testing
+        - Documentation
+        - Design
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Umsetzungshinweise
+      description: Gibt es technische Hinweise oder Abhängigkeiten?
+      placeholder: "z. B. Route /pre-check verwenden."
+    validations:
+      required: false
+
+

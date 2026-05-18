@@ -1,0 +1,37 @@
+name: User Story
+description: Funktion aus Sicht eines Nutzers
+title: "User Story: "
+labels: ["user-story", "mvp"]
+
+body:
+
+
+  - type: textarea
+    id: user_story
+    attributes:
+      label: User Story
+      description: Formuliere die Story aus Sicht des Nutzers.
+      value: "Als [Rolle] möchte ich [Funktion], damit [Nutzen]."
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Beschreibung
+      description: Was soll fachlich umgesetzt werden?
+      placeholder: "Kurze Beschreibung der gewünschten Funktion."
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      description: Wann ist die User Story erfüllt?
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
