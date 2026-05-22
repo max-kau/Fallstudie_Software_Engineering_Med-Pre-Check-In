@@ -1,7 +1,7 @@
 name: Feature
 description: Größerer Funktionsbereich des MVP
 title: "Feature: "
-labels: ["feature", "mvp"]
+labels: ["feature"]
 
 body:
   - type: textarea
