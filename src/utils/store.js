@@ -45,8 +45,10 @@ function getDefaultData() {
     beschwerden: {
       freitext: '',
       chips: [],
+      customKeywords: [],
+      showCustomInput: false,
       dauer: '',
-      staerke: 3,
+      staerke: null,
     },
     medikamente: {
       liste: [],
@@ -85,9 +87,41 @@ function clear() {
   sessionStorage.removeItem(getStoreKey());
 }
 
-function getTerminInfo() {
-  return {
-    code: getTerminCode(),
+/* ============================================
+   DATA SOURCE ABSTRACTION
+   ============================================
+   By default, the app uses the example dataset below.
+   To connect your own database / API, call:
+
+     store.setDataProvider(async (terminCode) => {
+       const res = await fetch(`https://your-api.com/termin/${terminCode}`);
+       const data = await res.json();
+       return {
+         termin: {
+           code: terminCode,
+           doctor: data.doctor,
+           fachrichtung: data.fachrichtung,
+           adresse: data.adresse,
+           date: data.date,
+           time: data.time,
+           art: data.art,
+           praxis: data.praxis,
+           tags: data.tags,
+         },
+         patient: {
+           vorname: data.patient.vorname,
+           nachname: data.patient.nachname,
+         },
+       };
+     });
+
+   Until you set a provider, the example data is used.
+   ============================================ */
+
+// --- Example / Placeholder Data ---
+const EXAMPLE_DATA = {
+  termin: {
+    code: 'demo_12345',
     doctor: 'Dr. med. Anna Hartmann',
     fachrichtung: 'Allgemeinmedizin · Innere Medizin',
     adresse: 'Leopoldstraße 12, 80802 München',
@@ -96,7 +130,51 @@ function getTerminInfo() {
     art: 'Routineuntersuchung',
     praxis: 'Hausarztpraxis',
     tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche'],
-  };
+  },
+  patient: {
+    vorname: 'Max',
+    nachname: 'Mustermann',
+  },
+};
+
+// Custom data provider – replace this with your DB/API fetch
+let _dataProvider = null;
+
+function setDataProvider(providerFn) {
+  _dataProvider = providerFn;
+}
+
+// Cache for loaded data (per session)
+let _cachedData = null;
+
+async function loadData() {
+  if (_cachedData) return _cachedData;
+
+  const terminCode = getTerminCode();
+
+  if (_dataProvider) {
+    try {
+      _cachedData = await _dataProvider(terminCode);
+      return _cachedData;
+    } catch (err) {
+      console.warn('Data provider failed, falling back to example data:', err);
+    }
+  }
+
+  // Fallback: use example data
+  _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
+  return _cachedData;
+}
+
+// Synchronous getter (uses cached or example data)
+function getTerminInfo() {
+  if (_cachedData) return _cachedData.termin;
+  return { ...EXAMPLE_DATA.termin, code: getTerminCode() };
+}
+
+function getPatientInfo() {
+  if (_cachedData) return _cachedData.patient;
+  return EXAMPLE_DATA.patient;
 }
 
 export const store = {
@@ -107,5 +185,8 @@ export const store = {
   clear,
   getTerminCode,
   getTerminInfo,
+  getPatientInfo,
   getDefaultData,
+  setDataProvider,
+  loadData,
 };
