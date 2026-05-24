@@ -1,7 +1,7 @@
 import { renderHeader } from '../components/Header.js';
 import { renderProgressBar } from '../components/ProgressBar.js';
 import { renderTagInput, initTagInput } from '../components/TagInput.js';
-import { renderStepNavigation, initStepNavigation } from '../components/StepNavigation.js';
+import { renderStepNavigation, initStepNavigation, updateNextButtonState } from '../components/StepNavigation.js';
 import { store } from '../utils/store.js';
 
 const COMMON_MEDS = ['Ibuprofen', 'Paracetamol', 'Aspirin', 'Omeprazol', 'Metformin', 'Ramipril'];
@@ -37,6 +37,14 @@ export function renderMedikamenteView() {
   `;
 }
 
+function validateMedikamente() {
+  const data = store.get('medikamente');
+  if (!data.keine && data.liste.length === 0) {
+    return { valid: false, message: 'Bitte geben Sie mindestens ein Medikament ein oder wählen Sie "Keine Medikamente".' };
+  }
+  return { valid: true };
+}
+
 export function initMedikamenteView() {
   const data = store.get('medikamente');
   const inputArea = document.getElementById('medikamente-input-area');
@@ -47,8 +55,7 @@ export function initMedikamenteView() {
   initTagInput('medikamente', data.liste, (tags) => {
     data.liste = tags;
     store.set('medikamente', data);
-    // Re-render to update tags display
-    const wrapper = document.getElementById('medikamente-wrapper');
+    updateNextButtonState(validateMedikamente);
     reRenderTags();
   }, COMMON_MEDS);
 
@@ -64,6 +71,7 @@ export function initMedikamenteView() {
       initTagInput('medikamente', data.liste, (tags) => {
         data.liste = tags;
         store.set('medikamente', data);
+        updateNextButtonState(validateMedikamente);
         reRenderTags();
       }, COMMON_MEDS);
     }
@@ -85,8 +93,12 @@ export function initMedikamenteView() {
         toggleLabel.classList.toggle('active', data.keine);
       }
       if (data.keine) reRenderTags();
+      updateNextButtonState(validateMedikamente);
     });
   }
 
-  initStepNavigation();
+  // Init with validation
+  initStepNavigation(validateMedikamente);
+  updateNextButtonState(validateMedikamente);
 }
+

@@ -113,6 +113,63 @@
   text-align: center; font-size: var(--font-size-2xl); font-weight: 700; color: var(--primary); margin-bottom: var(--space-2);
 }
 
+/* --- Slider with arrows --- */
+.slider-track--with-arrows {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.slider-track--with-arrows .slider-input {
+  flex: 1;
+}
+
+.slider-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.slider-arrow svg {
+  display: inline;
+  width: 18px;
+  height: 18px;
+}
+
+/* Show arrows only when slider is unset */
+.slider-unset .slider-arrow {
+  opacity: 1;
+}
+
+.slider-unset .slider-arrow--left {
+  animation: arrowPulseLeft 1.5s ease-in-out infinite;
+}
+
+.slider-unset .slider-arrow--right {
+  animation: arrowPulseRight 1.5s ease-in-out infinite;
+}
+
+@keyframes arrowPulseLeft {
+  0%, 100% { transform: translateX(0); opacity: 0.5; }
+  50% { transform: translateX(-4px); opacity: 1; }
+}
+
+@keyframes arrowPulseRight {
+  0%, 100% { transform: translateX(0); opacity: 0.5; }
+  50% { transform: translateX(4px); opacity: 1; }
+}
+
+/* Unset slider thumb is gray */
+.slider-unset .slider-input::-webkit-slider-thumb {
+  background: var(--gray-400);
+  border-color: white;
+}
+
 /* --- Step Navigation --- */
 .step-nav { display: flex; gap: var(--space-4); padding: var(--space-6) 0 var(--space-4); margin-top: auto; }
 .step-nav .btn { flex: 1; }
@@ -315,3 +372,313 @@
   .dl-precheck-banner { padding: var(--space-5); }
 }
 
+/* ============================================
+   CONFIRMATION VIEW
+   ============================================ */
+
+.confirm-card {
+  background: var(--white);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-10) var(--space-8);
+  box-shadow: var(--shadow-xl);
+  max-width: 540px;
+  margin: var(--space-8) auto;
+  text-align: center;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.confirm-greeting {
+  margin-bottom: var(--space-6);
+}
+
+.confirm-wave {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: var(--space-3);
+  animation: wave 1.8s ease-in-out infinite;
+  transform-origin: 70% 70%;
+  display: inline-block;
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+  60%, 100% { transform: rotate(0deg); }
+}
+
+.confirm-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--gray-900);
+  line-height: 1.3;
+}
+
+.confirm-question {
+  font-size: var(--font-size-base);
+  color: var(--gray-600);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
+}
+
+/* --- Appointment Detail Card --- */
+.confirm-termin {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: linear-gradient(135deg, #EBF5FF 0%, #E8F4FD 100%);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(0, 99, 190, 0.1);
+  margin-bottom: var(--space-6);
+  text-align: left;
+}
+
+.confirm-termin-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.confirm-termin-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.confirm-termin-art {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.confirm-termin-praxis {
+  font-size: var(--font-size-sm);
+  color: var(--gray-500);
+}
+
+.confirm-termin-datetime {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--doctolib-blue);
+  margin-top: var(--space-1);
+}
+
+.confirm-termin-datetime svg {
+  display: inline;
+  flex-shrink: 0;
+}
+
+/* --- Privacy Note --- */
+.confirm-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--gray-500);
+  line-height: 1.6;
+  margin-bottom: var(--space-8);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+}
+
+.confirm-privacy svg {
+  flex-shrink: 0;
+  display: inline;
+  color: var(--gray-400);
+}
+
+/* --- Action Buttons --- */
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.confirm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-base);
+  width: 100%;
+}
+
+.confirm-btn svg {
+  display: inline;
+  flex-shrink: 0;
+}
+
+.confirm-btn--start {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.confirm-btn--start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+}
+
+.confirm-btn--start:active {
+  transform: translateY(0);
+}
+
+.confirm-btn--cancel {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
+}
+
+.confirm-btn--cancel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+}
+
+.confirm-btn--cancel:active {
+  transform: translateY(0);
+}
+
+/* --- Responsive for confirm --- */
+@media (max-width: 640px) {
+  .confirm-card {
+    margin: var(--space-4) auto;
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .confirm-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .confirm-termin {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .confirm-termin-details {
+    align-items: center;
+  }
+}
+
+/* ============================================
+   VALIDATION MESSAGE
+   ============================================ */
+
+.validation-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--error-light);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-lg);
+  color: var(--error);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  margin-top: var(--space-4);
+}
+
+.validation-message svg {
+  flex-shrink: 0;
+  display: inline;
+}
+
+.validation-shake {
+  animation: validationShake 0.5s ease-in-out;
+}
+
+@keyframes validationShake {
+  0%, 100% { transform: translateX(0); }
+  15%, 55% { transform: translateX(-6px); }
+  35%, 75% { transform: translateX(6px); }
+}
+
+/* ============================================
+   "WAS ANDERES" CHIP & CUSTOM INPUT
+   ============================================ */
+
+.chip--other {
+  border: 2px dashed var(--primary);
+  background: var(--primary-lightest);
+  color: var(--primary);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.chip--other svg {
+  display: inline;
+  width: 14px;
+  height: 14px;
+  transition: transform var(--transition-fast);
+}
+
+.chip--other:hover {
+  background: var(--primary);
+  color: white;
+  border-style: solid;
+}
+
+.chip--other:hover svg {
+  transform: rotate(90deg);
+}
+
+.chip--other.selected {
+  background: var(--primary);
+  color: white;
+  border-style: solid;
+  border-color: var(--primary);
+}
+
+.chip--other.selected svg {
+  transform: rotate(45deg);
+}
+
+/* Custom keyword input area – slide-down animation */
+.custom-input-area {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s ease,
+              margin 0.3s ease;
+  margin-bottom: 0;
+}
+
+.custom-input-area--visible {
+  max-height: 300px;
+  opacity: 1;
+  margin-bottom: var(--space-6);
+}
+
+.custom-input-area .form-hint {
+  color: var(--gray-500);
+  display: flex;
+  align-items: center;
+}
+
+.custom-input-area .form-hint svg {
+  color: var(--primary);
+}

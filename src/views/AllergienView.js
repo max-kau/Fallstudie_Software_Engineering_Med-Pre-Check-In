@@ -1,7 +1,7 @@
 import { renderHeader } from '../components/Header.js';
 import { renderProgressBar } from '../components/ProgressBar.js';
 import { renderTagInput, initTagInput } from '../components/TagInput.js';
-import { renderStepNavigation, initStepNavigation } from '../components/StepNavigation.js';
+import { renderStepNavigation, initStepNavigation, updateNextButtonState } from '../components/StepNavigation.js';
 import { store } from '../utils/store.js';
 
 const COMMON_ALLERGIES = ['Penicillin', 'Pollen', 'Hausstaubmilben', 'Nüsse', 'Latex', 'Jod', 'Tierhaare', 'Schimmelpilze'];
@@ -36,6 +36,14 @@ export function renderAllergienView() {
     </div>`;
 }
 
+function validateAllergien() {
+  const data = store.get('allergien');
+  if (!data.keine && data.liste.length === 0) {
+    return { valid: false, message: 'Bitte geben Sie mindestens eine Allergie ein oder wählen Sie "Keine Allergien".' };
+  }
+  return { valid: true };
+}
+
 export function initAllergienView() {
   const data = store.get('allergien');
   const inputArea = document.getElementById('allergien-input-area');
@@ -47,12 +55,23 @@ export function initAllergienView() {
     if (!area) return;
     const anmVal = data.anmerkungen;
     area.innerHTML = `<div class="form-group" style="margin-bottom:var(--space-6)"><label class="form-label">Allergien hinzufügen</label>${renderTagInput('allergien', data.liste, 'Allergie eingeben + Enter', COMMON_ALLERGIES)}</div><div class="form-group"><label class="form-label" for="allergien-anmerkungen">Anmerkungen für die Praxis <span style="font-weight:400;color:var(--gray-400)">(optional)</span></label><textarea class="form-textarea" id="allergien-anmerkungen" placeholder="z.B. Reaktion auf bestimmte Medikamente..." style="min-height:80px">${anmVal}</textarea></div>`;
-    initTagInput('allergien', data.liste, (tags) => { data.liste = tags; store.set('allergien', data); reRenderTags(); }, COMMON_ALLERGIES);
+    initTagInput('allergien', data.liste, (tags) => {
+      data.liste = tags;
+      store.set('allergien', data);
+      updateNextButtonState(validateAllergien);
+      reRenderTags();
+    }, COMMON_ALLERGIES);
     const a = document.getElementById('allergien-anmerkungen');
     if (a) a.addEventListener('input', () => { data.anmerkungen = a.value; store.set('allergien', data); });
   }
 
-  initTagInput('allergien', data.liste, (tags) => { data.liste = tags; store.set('allergien', data); reRenderTags(); }, COMMON_ALLERGIES);
+  initTagInput('allergien', data.liste, (tags) => {
+    data.liste = tags;
+    store.set('allergien', data);
+    updateNextButtonState(validateAllergien);
+    reRenderTags();
+  }, COMMON_ALLERGIES);
+
   const anm = document.getElementById('allergien-anmerkungen');
   if (anm) anm.addEventListener('input', () => { data.anmerkungen = anm.value; store.set('allergien', data); });
 
@@ -64,7 +83,11 @@ export function initAllergienView() {
       if (inputArea) { inputArea.style.opacity = data.keine ? '0.4' : '1'; inputArea.style.pointerEvents = data.keine ? 'none' : 'auto'; }
       if (toggleLabel) toggleLabel.classList.toggle('active', data.keine);
       if (data.keine) reRenderTags();
+      updateNextButtonState(validateAllergien);
     });
   }
-  initStepNavigation();
+
+  // Init with validation
+  initStepNavigation(validateAllergien);
+  updateNextButtonState(validateAllergien);
 }
