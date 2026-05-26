@@ -109,15 +109,20 @@ export function initSummaryView() {
   const submitBtn = document.getElementById('btn-submit');
   if (checkbox && submitBtn) {
     checkbox.addEventListener('change', () => { submitBtn.disabled = !checkbox.checked; });
-    submitBtn.addEventListener('click', () => {
+    submitBtn.addEventListener('click', async () => {
       if (!checkbox.checked) return;
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="shimmer" style="display:inline-block;width:120px;height:20px;border-radius:10px"></span>';
-      setTimeout(() => {
-        store.set('submitted', true);
+      try {
+        await store.submitPreCheckIn();
         const app = document.getElementById('app');
         app.innerHTML = renderSuccessScreen();
-      }, 1200);
+      } catch (err) {
+        console.error('Submission failed:', err);
+        alert('Fehler beim Absenden. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '✓ Pre-Check absenden';
+      }
     });
   }
 }
