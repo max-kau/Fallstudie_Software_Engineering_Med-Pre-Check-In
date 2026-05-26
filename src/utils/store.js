@@ -42,6 +42,7 @@ function getDefaultData() {
   return {
     terminCode: getTerminCode(),
     sessionId: getSessionId(),
+    currentStep: 'intro',
     beschwerden: {
       freitext: '',
       chips: [],
@@ -60,6 +61,9 @@ function getDefaultData() {
       keine: false,
       anmerkungen: '',
     },
+    dokumente: {
+      liste: [],
+    },
     submitted: false,
   };
 }
@@ -77,45 +81,142 @@ function get(key) {
   return data[key];
 }
 
+let _autosaveTimeout = null;
+function triggerAutosave() {
+  if (_autosaveTimeout) clearTimeout(_autosaveTimeout);
+  _autosaveTimeout = setTimeout(async () => {
+    try {
+      const allData = getAll();
+      if (!allData.sessionId || allData.submitted) return;
+
+      await fetch('/api/precheckin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId: allData.sessionId,
+          terminCode: allData.terminCode,
+          beschwerden: allData.beschwerden,
+          medikamente: allData.medikamente,
+          allergien: allData.allergien,
+          dokumente: allData.dokumente,
+          currentStep: allData.currentStep,
+          submitted: allData.submitted
+        })
+      });
+      console.log('Pre-check-in automatically saved to database.');
+    } catch (e) {
+      console.warn('Autosave to database failed:', e);
+    }
+  }, 1000); // 1-second debounce
+}
+
 function set(key, value) {
   const data = getAll();
   data[key] = value;
   saveAll(data);
+
+  // Trigger background autosave for any questionnaire changes
+  if (key !== 'submitted' && !data.submitted) {
+    triggerAutosave();
+  }
 }
 
 function clear() {
   sessionStorage.removeItem(getStoreKey());
 }
 
+function hasSavedProgress() {
+  const data = getAll();
+  if (data.submitted) return false;
+
+  const hasBeschwerden = (data.beschwerden.chips && data.beschwerden.chips.length > 0) ||
+                         (data.beschwerden.customKeywords && data.beschwerden.customKeywords.length > 0) ||
+                         (data.beschwerden.freitext && data.beschwerden.freitext.trim().length > 0);
+  const hasMedikamente = (data.medikamente.liste && data.medikamente.liste.length > 0) || data.medikamente.keine;
+  const hasAllergien = (data.allergien.liste && data.allergien.liste.length > 0) ||
+                       (data.allergien.chips && data.allergien.chips.length > 0) ||
+                       data.allergien.keine;
+  const hasDokumente = data.dokumente && data.dokumente.liste && data.dokumente.liste.length > 0;
+
+  const hasNavigated = !['landing', 'confirm', 'intro'].includes(data.currentStep);
+
+  return hasBeschwerden || hasMedikamente || hasAllergien || hasDokumente || hasNavigated;
+}
+
+function resetProgress() {
+  clear();
+  // Generate a brand new session ID so we start completely clean
+  _sessionId = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  sessionStorage.setItem('_doctolib_session_id', _sessionId);
+
+  const freshData = getDefaultData();
+  saveAll(freshData);
+
+  // Trigger an autosave to override/initialize the database record with the clean state
+  triggerAutosave();
+}
+
+async function uploadFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result.split(',')[1];
+        const terminCode = getTerminCode();
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            terminCode,
+            filename: file.name,
+            mimeType: file.type,
+            fileData: base64Data
+          })
+        });
+
+        if (!res.ok) throw new Error('Upload failed');
+        const result = await res.json();
+
+        if (result.success) {
+          const currentDocs = get('dokumente') || { liste: [] };
+          currentDocs.liste.push(result.file);
+          set('dokumente', currentDocs);
+          resolve(result.file);
+        } else {
+          reject(new Error('Upload failed on server'));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (error) => reject(error);
+  });
+}
+
+async function deleteFile(fileId) {
+  try {
+    const res = await fetch(`/api/file/${fileId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Delete failed');
+
+    const currentDocs = get('dokumente') || { liste: [] };
+    currentDocs.liste = currentDocs.liste.filter(f => f.id !== fileId);
+    set('dokumente', currentDocs);
+  } catch (err) {
+    console.error('Failed to delete file:', err);
+    throw err;
+  }
+}
+
 /* ============================================
    DATA SOURCE ABSTRACTION
-   ============================================
-   By default, the app uses the example dataset below.
-   To connect your own database / API, call:
-
-     store.setDataProvider(async (terminCode) => {
-       const res = await fetch(`https://your-api.com/termin/${terminCode}`);
-       const data = await res.json();
-       return {
-         termin: {
-           code: terminCode,
-           doctor: data.doctor,
-           fachrichtung: data.fachrichtung,
-           adresse: data.adresse,
-           date: data.date,
-           time: data.time,
-           art: data.art,
-           praxis: data.praxis,
-           tags: data.tags,
-         },
-         patient: {
-           vorname: data.patient.vorname,
-           nachname: data.patient.nachname,
-         },
-       };
-     });
-
-   Until you set a provider, the example data is used.
    ============================================ */
 
 // --- Example / Placeholder Data ---
@@ -137,7 +238,6 @@ const EXAMPLE_DATA = {
   },
 };
 
-// Custom data provider – defaults to API fetch from PostgreSQL backend
 let _dataProvider = async (terminCode) => {
   const res = await fetch(`/api/termin/${terminCode}`);
   if (!res.ok) throw new Error(`HTTP error ${res.status}`);
@@ -148,7 +248,6 @@ function setDataProvider(providerFn) {
   _dataProvider = providerFn;
 }
 
-// Cache for loaded data (per session)
 let _cachedData = null;
 
 async function loadData() {
@@ -156,21 +255,51 @@ async function loadData() {
 
   const terminCode = getTerminCode();
 
+  // Load appointment and patient info first
   if (_dataProvider) {
     try {
       _cachedData = await _dataProvider(terminCode);
-      return _cachedData;
     } catch (err) {
       console.warn('Data provider failed, falling back to example data:', err);
+      _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
     }
+  } else {
+    _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
   }
 
-  // Fallback: use example data
-  _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
+  // Load existing saved pre-check-in from the database for this appointment (resumption)
+  try {
+    const res = await fetch(`/api/precheckin/${terminCode}`);
+    if (res.ok) {
+      const result = await res.json();
+      if (result.exists) {
+        console.log('Restoring existing database pre-check-in record:', result.sessionId);
+
+        // Keep the saved sessionId active in the client session
+        _sessionId = result.sessionId;
+        sessionStorage.setItem('_doctolib_session_id', _sessionId);
+
+        // Restore entire state
+        const savedState = {
+          terminCode: result.terminCode,
+          sessionId: result.sessionId,
+          currentStep: result.currentStep || 'intro',
+          beschwerden: result.beschwerden,
+          medikamente: result.medikamente,
+          allergien: result.allergien,
+          dokumente: result.dokumente || { liste: [] },
+          submitted: result.submitted || false
+        };
+        saveAll(savedState);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load existing pre-check-in from database:', err);
+  }
+
   return _cachedData;
 }
 
-// Synchronous getter (uses cached or example data)
 function getTerminInfo() {
   if (_cachedData) return _cachedData.termin;
   return { ...EXAMPLE_DATA.termin, code: getTerminCode() };
@@ -183,6 +312,12 @@ function getPatientInfo() {
 
 async function submitPreCheckIn() {
   const allData = getAll();
+  
+  // Set locally first
+  allData.submitted = true;
+  allData.currentStep = 'zusammenfassung';
+  saveAll(allData);
+
   const res = await fetch('/api/precheckin', {
     method: 'POST',
     headers: {
@@ -193,16 +328,18 @@ async function submitPreCheckIn() {
       terminCode: allData.terminCode,
       beschwerden: allData.beschwerden,
       medikamente: allData.medikamente,
-      allergien: allData.allergien
+      allergien: allData.allergien,
+      dokumente: allData.dokumente,
+      currentStep: 'zusammenfassung',
+      submitted: true
     })
   });
 
   if (!res.ok) {
+    allData.submitted = false;
+    saveAll(allData);
     throw new Error('Failed to submit precheck-in data to server');
   }
-
-  // Update state locally
-  set('submitted', true);
 }
 
 export const store = {
@@ -218,4 +355,9 @@ export const store = {
   setDataProvider,
   loadData,
   submitPreCheckIn,
+  hasSavedProgress,
+  resetProgress,
+  triggerAutosave,
+  uploadFile,
+  deleteFile
 };

@@ -1,8 +1,9 @@
-export function renderProgressBar(currentStep, totalSteps = 3) {
+export function renderProgressBar(currentStep, totalSteps = 4) {
   const steps = [
     { num: 1, label: 'Beschwerden' },
     { num: 2, label: 'Medikamente' },
     { num: 3, label: 'Allergien' },
+    { num: 4, label: 'Dokumente' },
   ];
 
   const fillPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;

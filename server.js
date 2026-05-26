@@ -10,9 +10,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Enable CORS and JSON parsing
+// Enable CORS and JSON parsing with limits suitable for file upload
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Database connection pool setup
 const { Pool } = pg;
@@ -60,18 +61,60 @@ async function initDb() {
     `);
     console.log('Table "termine" verified/created.');
 
-    // 2. Create pre-check-ins table
+    // 2. Drop the old table if it had session_id as PRIMARY KEY, and recreate it with termin_code as PRIMARY KEY
+    const checkPk = await pool.query(`
+      SELECT a.attname
+      FROM pg_index i
+      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+      WHERE i.indrelid = 'precheckins'::regclass AND i.indisprimary;
+    `).catch(() => ({ rows: [] }));
+
+    if (checkPk.rows.length > 0 && checkPk.rows[0].attname === 'session_id') {
+      console.log('Migrating "precheckins" table structure (dropping old table)...');
+      await pool.query('DROP TABLE IF EXISTS precheckins CASCADE;');
+    }
+
+    // 3. Create pre-check-ins table with progress columns
     await pool.query(`
       CREATE TABLE IF NOT EXISTS precheckins (
-        session_id VARCHAR(100) PRIMARY KEY,
-        termin_code VARCHAR(50) REFERENCES termine(code) ON DELETE CASCADE,
+        termin_code VARCHAR(50) PRIMARY KEY REFERENCES termine(code) ON DELETE CASCADE,
+        session_id VARCHAR(100) NOT NULL,
         beschwerden JSONB NOT NULL,
         medikamente JSONB NOT NULL,
         allergien JSONB NOT NULL,
+        current_step VARCHAR(50) DEFAULT 'intro',
+        submitted BOOLEAN DEFAULT FALSE,
         submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
     console.log('Table "precheckins" verified/created.');
+
+    // Ensure progress columns exist in case the table was created previously without them
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS current_step VARCHAR(50) DEFAULT 'intro';
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS submitted BOOLEAN DEFAULT FALSE;
+    `);
+
+    // 4. Add the "dokumente" column to precheckins for document metadata
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS dokumente JSONB NOT NULL DEFAULT '{"liste":[]}'::jsonb;
+    `);
+    console.log('Columns "current_step", "submitted" and "dokumente" verified.');
+
+    // 5. Create uploaded files table for binary data storage
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS uploaded_files (
+        id SERIAL PRIMARY KEY,
+        termin_code VARCHAR(50) REFERENCES termine(code) ON DELETE CASCADE,
+        filename VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100) NOT NULL,
+        file_size INTEGER NOT NULL,
+        file_data BYTEA NOT NULL,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "uploaded_files" verified/created.');
+
   } catch (err) {
     console.error('Database initialization failed:', err);
     isDbConnected = false;
@@ -189,45 +232,183 @@ app.get('/api/termin/:code', async (req, res) => {
   }
 });
 
-// API: Submit pre-check-in data
+// API: Get existing pre-check-in info by appointment code
+app.get('/api/precheckin/:terminCode', async (req, res) => {
+  const { terminCode } = req.params;
+
+  if (!isDbConnected || !pool) {
+    return res.json({ exists: false });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, current_step, submitted FROM precheckins WHERE termin_code = $1',
+      [terminCode]
+    );
+
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      return res.json({
+        exists: true,
+        sessionId: row.session_id,
+        terminCode: row.termin_code,
+        beschwerden: row.beschwerden,
+        medikamente: row.medikamente,
+        allergien: row.allergien,
+        dokumente: row.dokumente || { liste: [] },
+        currentStep: row.current_step,
+        submitted: row.submitted
+      });
+    }
+
+    res.json({ exists: false });
+  } catch (err) {
+    console.error('Error fetching pre-check-in:', err);
+    res.status(500).json({ error: 'Database fetch error' });
+  }
+});
+
+// API: Submit or autosave pre-check-in data
 app.post('/api/precheckin', async (req, res) => {
-  const { sessionId, terminCode, beschwerden, medikamente, allergien } = req.body;
+  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, currentStep, submitted } = req.body;
 
   if (!sessionId || !terminCode) {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
   }
 
   if (!isDbConnected || !pool) {
-    console.log(`[Offline Mode] Received mock pre-check-in submission for session: ${sessionId}`);
+    console.log(`[Offline Mode] Received mock pre-check-in save for session: ${sessionId}`);
     return res.json({ success: true, offline: true });
   }
 
   try {
-    // Save to database, upsert if the session already exists
+    // Save to database, upsert if the appointment already exists
     await pool.query(
-      `INSERT INTO precheckins (session_id, termin_code, beschwerden, medikamente, allergien)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (session_id)
+      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, current_step, submitted)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (termin_code)
        DO UPDATE SET
-         termin_code = EXCLUDED.termin_code,
+         session_id = EXCLUDED.session_id,
          beschwerden = EXCLUDED.beschwerden,
          medikamente = EXCLUDED.medikamente,
          allergien = EXCLUDED.allergien,
+         dokumente = EXCLUDED.dokumente,
+         current_step = EXCLUDED.current_step,
+         submitted = EXCLUDED.submitted,
          submitted_at = CURRENT_TIMESTAMP`,
       [
-        sessionId,
         terminCode,
+        sessionId,
         JSON.stringify(beschwerden),
         JSON.stringify(medikamente),
-        JSON.stringify(allergien)
+        JSON.stringify(allergien),
+        JSON.stringify(dokumente || { liste: [] }),
+        currentStep || 'intro',
+        submitted || false
       ]
     );
 
-    console.log(`Pre-check-in saved/updated for session: ${sessionId}`);
+    console.log(`Pre-check-in saved/updated for appointment: ${terminCode}`);
     res.json({ success: true });
   } catch (err) {
     console.error('Error saving pre-check-in:', err);
     res.status(500).json({ error: 'Database save error' });
+  }
+});
+
+// API: Upload a document/image (stores binary data via Base64 payload)
+app.post('/api/upload', async (req, res) => {
+  const { terminCode, filename, mimeType, fileData } = req.body;
+
+  if (!terminCode || !filename || !mimeType || !fileData) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const buffer = Buffer.from(fileData, 'base64');
+  const fileSize = buffer.length;
+
+  if (!isDbConnected || !pool) {
+    // Offline mode: generate a mock ID
+    const mockId = Math.floor(Math.random() * 100000);
+    console.log(`[Offline Mode] Mock uploaded file: ${filename} (${fileSize} bytes)`);
+    return res.json({
+      success: true,
+      file: {
+        id: mockId,
+        filename,
+        mimeType,
+        fileSize
+      }
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO uploaded_files (termin_code, filename, mime_type, file_size, file_data)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, filename, mime_type, file_size`,
+      [terminCode, filename, mimeType, fileSize, buffer]
+    );
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      file: {
+        id: row.id,
+        filename: row.filename,
+        mimeType: row.mime_type,
+        fileSize: row.file_size
+      }
+    });
+  } catch (err) {
+    console.error('Error uploading file:', err);
+    res.status(500).json({ error: 'Database upload error' });
+  }
+});
+
+// API: Download/view a file by ID
+app.get('/api/file/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Database offline in mock mode' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT filename, mime_type, file_data FROM uploaded_files WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const { filename, mime_type, file_data } = result.rows[0];
+
+    res.setHeader('Content-Type', mime_type);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+    res.send(file_data);
+  } catch (err) {
+    console.error('Error fetching file:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// API: Delete a file by ID
+app.delete('/api/file/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+
+  try {
+    await pool.query('DELETE FROM uploaded_files WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting file:', err);
+    res.status(500).json({ error: 'Database delete error' });
   }
 });
 
