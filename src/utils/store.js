@@ -64,6 +64,7 @@ function getDefaultData() {
     dokumente: {
       liste: [],
     },
+    signature: null,
     submitted: false,
   };
 }
@@ -101,6 +102,7 @@ function triggerAutosave() {
           medikamente: allData.medikamente,
           allergien: allData.allergien,
           dokumente: allData.dokumente,
+          signatureData: allData.signature,
           currentStep: allData.currentStep,
           submitted: allData.submitted
         })
@@ -139,10 +141,11 @@ function hasSavedProgress() {
                        (data.allergien.chips && data.allergien.chips.length > 0) ||
                        data.allergien.keine;
   const hasDokumente = data.dokumente && data.dokumente.liste && data.dokumente.liste.length > 0;
+  const hasSignature = !!data.signature;
 
   const hasNavigated = !['landing', 'confirm', 'intro'].includes(data.currentStep);
 
-  return hasBeschwerden || hasMedikamente || hasAllergien || hasDokumente || hasNavigated;
+  return hasBeschwerden || hasMedikamente || hasAllergien || hasDokumente || hasSignature || hasNavigated;
 }
 
 function resetProgress() {
@@ -288,6 +291,7 @@ async function loadData() {
           medikamente: result.medikamente,
           allergien: result.allergien,
           dokumente: result.dokumente || { liste: [] },
+          signature: result.signatureData || null,
           submitted: result.submitted || false
         };
         saveAll(savedState);
@@ -330,6 +334,7 @@ async function submitPreCheckIn() {
       medikamente: allData.medikamente,
       allergien: allData.allergien,
       dokumente: allData.dokumente,
+      signatureData: allData.signature,
       currentStep: 'zusammenfassung',
       submitted: true
     })
