@@ -30,7 +30,7 @@ export function renderAllergienView() {
             <input type="checkbox" class="checkbox-input" id="keine-allergien" ${data.keine ? 'checked' : ''} />
             <span class="no-data-text">Ich habe keine bekannten Allergien</span>
           </label>
-          ${renderStepNavigation('medikamente', 'zusammenfassung', 'Zur Zusammenfassung')}
+          ${renderStepNavigation('medikamente', 'dokumente')}
         </div>
       </div>
     </div>`;

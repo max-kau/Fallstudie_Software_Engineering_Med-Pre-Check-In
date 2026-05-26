@@ -3,11 +3,21 @@ import { store } from '../utils/store.js';
 
 const DAUER_MAP = { heute: 'Seit heute', einige_tage: 'Seit einigen Tagen', eine_woche: 'Seit etwa einer Woche', mehrere_wochen: 'Seit mehreren Wochen', monate: 'Seit Monaten', laenger: 'Länger als 6 Monate' };
 
+function formatBytes(bytes, decimals = 1) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 export function renderSummaryView() {
   const allData = store.getAll();
   const b = allData.beschwerden;
   const m = allData.medikamente;
   const a = allData.allergien;
+  const d = allData.dokumente || { liste: [] };
 
   if (allData.submitted) return renderSuccessScreen();
 
@@ -27,6 +37,15 @@ export function renderSummaryView() {
     ? '<div class="summary-item">Keine bekannten Allergien</div>'
     : `${a.liste.length ? `<div class="summary-item">${a.liste.join(', ')}</div>` : '<div class="summary-item text-muted">Keine Angabe</div>'}
        ${a.anmerkungen ? `<div class="summary-item"><div class="summary-item-label">Anmerkungen</div>${a.anmerkungen}</div>` : ''}`;
+
+  const docsContent = d.liste.length
+    ? d.liste.map(file => `
+        <div class="summary-item" style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);">
+          <span>📄 ${file.filename} (${formatBytes(file.fileSize)})</span>
+          <a href="/api/file/${file.id}" target="_blank" style="color: var(--primary); text-decoration: underline; font-size: var(--font-size-xs); font-weight: 500;">Ansehen</a>
+        </div>
+      `).join('')
+    : '<div class="summary-item text-muted">Keine Dokumente hochgeladen</div>';
 
   return `
     ${renderHeader()}
@@ -58,6 +77,14 @@ export function renderSummaryView() {
               <button class="summary-edit" data-edit="allergien">Bearbeiten</button>
             </div>
             <div class="summary-content">${allerContent}</div>
+          </div>
+
+          <div class="summary-section card fade-in-up">
+            <div class="summary-header">
+              <div class="summary-title">📂 Dokumente</div>
+              <button class="summary-edit" data-edit="dokumente">Bearbeiten</button>
+            </div>
+            <div class="summary-content">${docsContent}</div>
           </div>
 
           <label class="checkbox-group" style="margin:var(--space-4) 0">
