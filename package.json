@@ -5,15 +5,20 @@
   "description": "Doctolib Pre-Check-In Web-App – Digitale Anamnese vor dem Arztbesuch",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"vite\" \"node server.js\"",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "serve -s dist -l $PORT"
+    "start": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.21.0",
     "serve": "^14.2.4"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "vite": "^6.3.5"
   }
 }

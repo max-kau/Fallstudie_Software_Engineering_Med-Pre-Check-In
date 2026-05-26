@@ -137,8 +137,12 @@ const EXAMPLE_DATA = {
   },
 };
 
-// Custom data provider – replace this with your DB/API fetch
-let _dataProvider = null;
+// Custom data provider – defaults to API fetch from PostgreSQL backend
+let _dataProvider = async (terminCode) => {
+  const res = await fetch(`/api/termin/${terminCode}`);
+  if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+  return await res.json();
+};
 
 function setDataProvider(providerFn) {
   _dataProvider = providerFn;
@@ -177,6 +181,30 @@ function getPatientInfo() {
   return EXAMPLE_DATA.patient;
 }
 
+async function submitPreCheckIn() {
+  const allData = getAll();
+  const res = await fetch('/api/precheckin', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      sessionId: allData.sessionId,
+      terminCode: allData.terminCode,
+      beschwerden: allData.beschwerden,
+      medikamente: allData.medikamente,
+      allergien: allData.allergien
+    })
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to submit precheck-in data to server');
+  }
+
+  // Update state locally
+  set('submitted', true);
+}
+
 export const store = {
   getAll,
   saveAll,
@@ -189,4 +217,5 @@ export const store = {
   getDefaultData,
   setDataProvider,
   loadData,
+  submitPreCheckIn,
 };
