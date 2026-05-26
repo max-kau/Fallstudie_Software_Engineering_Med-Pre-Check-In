@@ -1,5 +1,6 @@
 import { registerRoute, initRouter } from './utils/router.js';
 import { renderLandingView, initLandingView } from './views/LandingView.js';
+import { renderConfirmView, initConfirmView } from './views/ConfirmView.js';
 import { renderIntroView, initIntroView } from './views/IntroView.js';
 import { renderBeschwerdenView, initBeschwerdenView } from './views/BeschwerdenView.js';
 import { renderMedikamenteView, initMedikamenteView } from './views/MedikamenteView.js';
@@ -8,6 +9,7 @@ import { renderSummaryView, initSummaryView } from './views/SummaryView.js';
 
 // Register all routes
 registerRoute('landing', renderLandingView);
+registerRoute('confirm', renderConfirmView);
 registerRoute('intro', renderIntroView);
 registerRoute('beschwerden', renderBeschwerdenView);
 registerRoute('medikamente', renderMedikamenteView);
@@ -17,6 +19,7 @@ registerRoute('zusammenfassung', renderSummaryView);
 // View initializers map
 const initializers = {
   landing: initLandingView,
+  confirm: initConfirmView,
   intro: initIntroView,
   beschwerden: initBeschwerdenView,
   medikamente: initMedikamenteView,

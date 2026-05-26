@@ -89,7 +89,7 @@ export function initLandingView() {
   const btn = document.getElementById('btn-start-precheck');
   if (btn) {
     btn.addEventListener('click', () => {
-      window.location.hash = 'intro';
+      window.location.hash = 'confirm';
     });
   }
 }

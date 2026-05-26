@@ -1,7 +1,7 @@
 name: User Story
 description: Funktion aus Sicht eines Nutzers
 title: "User Story: "
-labels: ["user-story", "mvp"]
+labels: ["user-story"]
 
 body:
 
