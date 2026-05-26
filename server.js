@@ -99,7 +99,12 @@ async function initDb() {
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS dokumente JSONB NOT NULL DEFAULT '{"liste":[]}'::jsonb;
     `);
-    console.log('Columns "current_step", "submitted" and "dokumente" verified.');
+    
+    // 4.5. Add the "signature_data" column to precheckins for signature image string
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS signature_data TEXT;
+    `);
+    console.log('Columns "current_step", "submitted", "dokumente" and "signature_data" verified.');
 
     // 5. Create uploaded files table for binary data storage
     await pool.query(`
@@ -242,7 +247,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, current_step, submitted FROM precheckins WHERE termin_code = $1',
+      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted FROM precheckins WHERE termin_code = $1',
       [terminCode]
     );
 
@@ -256,6 +261,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
         medikamente: row.medikamente,
         allergien: row.allergien,
         dokumente: row.dokumente || { liste: [] },
+        signatureData: row.signature_data,
         currentStep: row.current_step,
         submitted: row.submitted
       });
@@ -270,7 +276,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
 // API: Submit or autosave pre-check-in data
 app.post('/api/precheckin', async (req, res) => {
-  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, currentStep, submitted } = req.body;
+  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted } = req.body;
 
   if (!sessionId || !terminCode) {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
@@ -284,8 +290,8 @@ app.post('/api/precheckin', async (req, res) => {
   try {
     // Save to database, upsert if the appointment already exists
     await pool.query(
-      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, current_step, submitted)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (termin_code)
        DO UPDATE SET
          session_id = EXCLUDED.session_id,
@@ -293,6 +299,7 @@ app.post('/api/precheckin', async (req, res) => {
          medikamente = EXCLUDED.medikamente,
          allergien = EXCLUDED.allergien,
          dokumente = EXCLUDED.dokumente,
+         signature_data = EXCLUDED.signature_data,
          current_step = EXCLUDED.current_step,
          submitted = EXCLUDED.submitted,
          submitted_at = CURRENT_TIMESTAMP`,
@@ -303,6 +310,7 @@ app.post('/api/precheckin', async (req, res) => {
         JSON.stringify(medikamente),
         JSON.stringify(allergien),
         JSON.stringify(dokumente || { liste: [] }),
+        signatureData || null,
         currentStep || 'intro',
         submitted || false
       ]
