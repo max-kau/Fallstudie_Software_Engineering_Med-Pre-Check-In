@@ -18,20 +18,29 @@ app.use(express.json());
 const { Pool } = pg;
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
-  console.error('DATABASE_URL environment variable is missing.');
-  process.exit(1);
-}
+let pool = null;
+let isDbConnected = false;
 
-const pool = new Pool({
-  connectionString,
-  ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
-    ? false
-    : { rejectUnauthorized: false }
-});
+if (connectionString) {
+  try {
+    pool = new Pool({
+      connectionString,
+      ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
+        ? false
+        : { rejectUnauthorized: false }
+    });
+    isDbConnected = true;
+    console.log('PostgreSQL database pool initialized.');
+  } catch (err) {
+    console.error('Failed to initialize PostgreSQL pool:', err);
+  }
+} else {
+  console.warn('⚠️ WARNING: DATABASE_URL environment variable is missing. Running in offline/mock mode.');
+}
 
 // Initialize database tables
 async function initDb() {
+  if (!isDbConnected || !pool) return;
   try {
     // 1. Create appointments table (termine)
     await pool.query(`
@@ -65,16 +74,37 @@ async function initDb() {
     console.log('Table "precheckins" verified/created.');
   } catch (err) {
     console.error('Database initialization failed:', err);
-    process.exit(1);
+    isDbConnected = false;
   }
 }
 
-// Initialize tables on startup
-await initDb();
+// Mock fallback appointment for offline mode
+const getMockAppointment = (code) => ({
+  termin: {
+    code,
+    doctor: 'Dr. med. Anna Hartmann',
+    fachrichtung: 'Allgemeinmedizin · Innere Medizin',
+    adresse: 'Leopoldstraße 12, 80802 München',
+    date: 'Mo, 25. Mai',
+    time: '09:30',
+    art: 'Routineuntersuchung',
+    praxis: 'Hausarztpraxis',
+    tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche']
+  },
+  patient: {
+    vorname: 'Max',
+    nachname: 'Mustermann'
+  }
+});
 
 // API: Get appointment info (or auto-seed if it doesn't exist)
 app.get('/api/termin/:code', async (req, res) => {
   const { code } = req.params;
+
+  if (!isDbConnected || !pool) {
+    console.log(`[Offline Mode] Returning mock appointment details for code: ${code}`);
+    return res.json(getMockAppointment(code));
+  }
 
   try {
     const result = await pool.query('SELECT * FROM termine WHERE code = $1', [code]);
@@ -167,6 +197,11 @@ app.post('/api/precheckin', async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
   }
 
+  if (!isDbConnected || !pool) {
+    console.log(`[Offline Mode] Received mock pre-check-in submission for session: ${sessionId}`);
+    return res.json({ success: true, offline: true });
+  }
+
   try {
     // Save to database, upsert if the session already exists
     await pool.query(
@@ -211,6 +246,11 @@ app.get(/.*/, (req, res, next) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+async function startServer() {
+  await initDb();
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+startServer();
