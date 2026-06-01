@@ -4,6 +4,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+import session from 'express-session';
 
 dotenv.config();
 
@@ -14,6 +16,19 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Session middleware for authentication
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'doctolib-precheckin-dev-secret-2026',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false,
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
 
 // Database connection pool setup
 const { Pool } = pg;
@@ -120,6 +135,30 @@ async function initDb() {
     `);
     console.log('Table "uploaded_files" verified/created.');
 
+    // 6. Create users table for authentication
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        vorname VARCHAR(100) NOT NULL,
+        nachname VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "users" verified/created.');
+
+    // Auto-seed a demo user if none exists
+    const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
+    if (parseInt(existingUsers.rows[0].count) === 0) {
+      const demoHash = await bcrypt.hash('passwort123', 10);
+      await pool.query(
+        'INSERT INTO users (email, password_hash, vorname, nachname) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING',
+        ['max@doctolib.de', demoHash, 'Max', 'Mustermann']
+      );
+      console.log('Demo user seeded: max@doctolib.de / passwort123');
+    }
+
   } catch (err) {
     console.error('Database initialization failed:', err);
     isDbConnected = false;
@@ -171,6 +210,112 @@ app.get('/api/health', async (req, res) => {
   }
 
   res.json(health);
+});
+
+// ============================================
+// AUTH API ENDPOINTS
+// ============================================
+
+// API: Register a new user
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, vorname, nachname } = req.body;
+
+  if (!email || !password || !vorname || !nachname) {
+    return res.status(400).json({ error: 'Alle Felder sind erforderlich.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Das Passwort muss mindestens 6 Zeichen lang sein.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbank nicht verfügbar.' });
+  }
+
+  try {
+    // Check if email already exists
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
+    }
+
+    // Hash password and insert user
+    const passwordHash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (email, password_hash, vorname, nachname) VALUES ($1, $2, $3, $4) RETURNING id, email, vorname, nachname',
+      [email.toLowerCase(), passwordHash, vorname, nachname]
+    );
+
+    const user = result.rows[0];
+
+    // Auto-login after registration
+    req.session.userId = user.id;
+    req.session.user = { id: user.id, email: user.email, vorname: user.vorname, nachname: user.nachname };
+
+    console.log(`New user registered: ${user.email}`);
+    res.json({ success: true, user: req.session.user });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'Registrierung fehlgeschlagen.' });
+  }
+});
+
+// API: Login
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbank nicht verfügbar.' });
+  }
+
+  try {
+    const result = await pool.query('SELECT id, email, password_hash, vorname, nachname FROM users WHERE email = $1', [email.toLowerCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'E-Mail oder Passwort ist falsch.' });
+    }
+
+    const user = result.rows[0];
+    const passwordValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'E-Mail oder Passwort ist falsch.' });
+    }
+
+    // Set session
+    req.session.userId = user.id;
+    req.session.user = { id: user.id, email: user.email, vorname: user.vorname, nachname: user.nachname };
+
+    console.log(`User logged in: ${user.email}`);
+    res.json({ success: true, user: req.session.user });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Anmeldung fehlgeschlagen.' });
+  }
+});
+
+// API: Logout
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+      return res.status(500).json({ error: 'Abmeldung fehlgeschlagen.' });
+    }
+    res.clearCookie('connect.sid');
+    res.json({ success: true });
+  });
+});
+
+// API: Get current user
+app.get('/api/auth/me', (req, res) => {
+  if (req.session && req.session.user) {
+    return res.json({ loggedIn: true, user: req.session.user });
+  }
+  res.json({ loggedIn: false });
 });
 
 // API: Get appointment info (or auto-seed if it doesn't exist)

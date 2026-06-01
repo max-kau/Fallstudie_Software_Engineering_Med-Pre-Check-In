@@ -1,4 +1,6 @@
 import { registerRoute, initRouter } from './utils/router.js';
+import { renderHomeView, initHomeView } from './views/HomeView.js';
+import { renderAuthView, initAuthView } from './views/AuthView.js';
 import { renderLandingView, initLandingView } from './views/LandingView.js';
 import { renderConfirmView, initConfirmView } from './views/ConfirmView.js';
 import { renderIntroView, initIntroView } from './views/IntroView.js';
@@ -9,6 +11,8 @@ import { renderDokumenteView, initDokumenteView } from './views/DokumenteView.js
 import { renderSummaryView, initSummaryView } from './views/SummaryView.js';
 
 // Register all routes
+registerRoute('home', renderHomeView);
+registerRoute('auth', renderAuthView);
 registerRoute('landing', renderLandingView);
 registerRoute('confirm', renderConfirmView);
 registerRoute('intro', renderIntroView);
@@ -20,6 +24,8 @@ registerRoute('zusammenfassung', renderSummaryView);
 
 // View initializers map
 const initializers = {
+  home: initHomeView,
+  auth: initAuthView,
   landing: initLandingView,
   confirm: initConfirmView,
   intro: initIntroView,

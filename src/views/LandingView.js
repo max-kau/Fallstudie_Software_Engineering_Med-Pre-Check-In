@@ -1,5 +1,6 @@
 import { store } from '../utils/store.js';
 import { navigate } from '../utils/router.js';
+import { auth } from '../utils/auth.js';
 
 function getStepLabel(step) {
   switch (step) {
@@ -98,9 +99,15 @@ export function renderLandingView() {
           <span class="dl-nav-name">Doctolib</span>
         </div>
         <div class="dl-nav-links">
-          <a href="#" class="dl-nav-link">Suchen</a>
-          <a href="#" class="dl-nav-link">Meine Termine</a>
-          <a href="#" class="dl-nav-link">Anmelden</a>
+          ${auth.isLoggedIn() ? `
+            <div class="dl-nav-user">
+              <div class="dl-nav-user-avatar">${(auth.getUser().vorname || '')[0] || ''}${(auth.getUser().nachname || '')[0] || ''}</div>
+              <span class="dl-nav-user-name">${auth.getUser().vorname} ${auth.getUser().nachname}</span>
+              <button class="dl-nav-logout" id="btn-logout">Abmelden</button>
+            </div>
+          ` : `
+            <a href="#auth" class="dl-nav-link">Anmelden</a>
+          `}
         </div>
       </div>
     </nav>
@@ -173,6 +180,15 @@ export function initLandingView() {
         store.resetProgress();
         navigate('confirm');
       }
+    });
+  }
+
+  // Setup logout button if present
+  const btnLogout = document.getElementById('btn-logout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      await auth.logout();
+      navigate('home');
     });
   }
 }
