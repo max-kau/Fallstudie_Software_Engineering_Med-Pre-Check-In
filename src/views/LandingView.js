@@ -1,6 +1,7 @@
 import { store } from '../utils/store.js';
 import { navigate } from '../utils/router.js';
 import { auth } from '../utils/auth.js';
+import { renderDlNav, initDlNav } from '../components/DlNav.js';
 
 function getStepLabel(step) {
   switch (step) {
@@ -87,30 +88,7 @@ export function renderLandingView() {
   }
 
   return `
-    <!-- Doctolib Top Navigation -->
-    <nav class="dl-nav">
-      <div class="dl-nav-inner">
-        <div class="dl-nav-brand">
-          <svg class="dl-nav-logo" width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="15" stroke="#0063BE" stroke-width="2"/>
-            <path d="M10 16.5C10 13.5 12.5 11 16 11C19.5 11 22 13.5 22 16.5C22 19.5 19.5 22 16 22" stroke="#0063BE" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="16" cy="16.5" r="2" fill="#0063BE"/>
-          </svg>
-          <span class="dl-nav-name">Doctolib</span>
-        </div>
-        <div class="dl-nav-links">
-          ${auth.isLoggedIn() ? `
-            <div class="dl-nav-user">
-              <div class="dl-nav-user-avatar">${(auth.getUser().vorname || '')[0] || ''}${(auth.getUser().nachname || '')[0] || ''}</div>
-              <span class="dl-nav-user-name">${auth.getUser().vorname} ${auth.getUser().nachname}</span>
-              <button class="dl-nav-logout" id="btn-logout">Abmelden</button>
-            </div>
-          ` : `
-            <a href="#auth" class="dl-nav-link">Anmelden</a>
-          `}
-        </div>
-      </div>
-    </nav>
+    ${renderDlNav()}
 
     <!-- Page Content -->
     <div class="dl-page">
@@ -183,12 +161,6 @@ export function initLandingView() {
     });
   }
 
-  // Setup logout button if present
-  const btnLogout = document.getElementById('btn-logout');
-  if (btnLogout) {
-    btnLogout.addEventListener('click', async () => {
-      await auth.logout();
-      navigate('home');
-    });
-  }
+  // Setup nav events
+  initDlNav();
 }

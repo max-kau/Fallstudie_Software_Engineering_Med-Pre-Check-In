@@ -1,21 +1,10 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
+import { renderDlNav, initDlNav } from '../components/DlNav.js';
 
 export function renderAuthView() {
   return `
-    <!-- Doctolib Top Navigation -->
-    <nav class="dl-nav">
-      <div class="dl-nav-inner">
-        <div class="dl-nav-brand" style="cursor: pointer;" id="auth-nav-home">
-          <svg class="dl-nav-logo" width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="15" stroke="#0063BE" stroke-width="2"/>
-            <path d="M10 16.5C10 13.5 12.5 11 16 11C19.5 11 22 13.5 22 16.5C22 19.5 19.5 22 16 22" stroke="#0063BE" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="16" cy="16.5" r="2" fill="#0063BE"/>
-          </svg>
-          <span class="dl-nav-name">Doctolib</span>
-        </div>
-      </div>
-    </nav>
+    ${renderDlNav()}
 
     <!-- Auth Card -->
     <div class="dl-auth-page">
@@ -123,8 +112,7 @@ export function initAuthView() {
   tabLogin?.addEventListener('click', () => switchTab('login'));
   tabRegister?.addEventListener('click', () => switchTab('register'));
 
-  // Navigate home on logo click
-  document.getElementById('auth-nav-home')?.addEventListener('click', () => navigate('home'));
+  initDlNav();
 
   // Password toggle
   const toggleLoginPw = document.getElementById('toggle-login-pw');

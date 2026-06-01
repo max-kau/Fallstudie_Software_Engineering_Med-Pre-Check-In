@@ -158,17 +158,9 @@ function renderSuccessScreen() {
 function setupSuccessHomeButton() {
   const btnSuccessHome = document.getElementById('btn-success-home');
   if (btnSuccessHome) {
-    btnSuccessHome.addEventListener('click', async () => {
-      btnSuccessHome.disabled = true;
-      btnSuccessHome.textContent = 'Wird abgemeldet…';
-      try {
-        await auth.logout();
-        store.resetProgress();
-        navigate('home');
-      } catch (err) {
-        console.error('Logout failed:', err);
-        navigate('home');
-      }
+    btnSuccessHome.addEventListener('click', () => {
+      store.resetProgress();
+      navigate('landing');
     });
   }
 }

@@ -6,8 +6,8 @@
 let _currentUser = null;
 let _checked = false;
 
-async function checkSession() {
-  if (_checked) return _currentUser;
+async function checkSession(force = false) {
+  if (_checked && !force) return _currentUser;
   try {
     const res = await fetch('/api/auth/me');
     const data = await res.json();

@@ -3,6 +3,7 @@
  * Creates a fresh record per session – data is cleared when the browser tab/window is closed.
  * Each Pre-Check-In generates a unique session ID.
  */
+import { auth } from './auth.js';
 
 const STORE_PREFIX = 'doctolib_precheck_';
 
@@ -310,6 +311,19 @@ function getTerminInfo() {
 }
 
 function getPatientInfo() {
+  if (auth.isLoggedIn()) {
+    const user = auth.getUser();
+    return {
+      vorname: user.vorname,
+      nachname: user.nachname,
+      geburtsdatum: user.geburtsdatum || '',
+      telefonnummer: user.telefonnummer || '',
+      strasse_hnr: user.strasse_hnr || '',
+      plz_ort: user.plz_ort || '',
+      krankenversicherung: user.krankenversicherung || 'gesetzlich',
+      krankenkasse: user.krankenkasse || '',
+    };
+  }
   if (_cachedData) return _cachedData.patient;
   return EXAMPLE_DATA.patient;
 }

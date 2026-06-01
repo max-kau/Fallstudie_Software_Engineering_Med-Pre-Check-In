@@ -135,7 +135,7 @@ async function initDb() {
     `);
     console.log('Table "uploaded_files" verified/created.');
 
-    // 6. Create users table for authentication
+     // 6. Create users table for authentication
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -145,8 +145,14 @@ async function initDb() {
         nachname VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS geburtsdatum VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS telefonnummer VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS strasse_hnr VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS plz_ort VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS krankenversicherung VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS krankenkasse VARCHAR(255);
     `);
-    console.log('Table "users" verified/created.');
+    console.log('Table "users" verified/created with profile columns.');
 
     // Auto-seed a demo user if none exists
     const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
@@ -311,11 +317,58 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // API: Get current user
-app.get('/api/auth/me', (req, res) => {
-  if (req.session && req.session.user) {
-    return res.json({ loggedIn: true, user: req.session.user });
+app.get('/api/auth/me', async (req, res) => {
+  if (req.session && req.session.userId) {
+    try {
+      const result = await pool.query(
+        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse FROM users WHERE id = $1',
+        [req.session.userId]
+      );
+      if (result.rows.length > 0) {
+        const user = result.rows[0];
+        req.session.user = user;
+        return res.json({ loggedIn: true, user });
+      }
+    } catch (err) {
+      console.error('Error fetching user profile in /me:', err);
+    }
   }
   res.json({ loggedIn: false });
+});
+
+// API: Update user profile
+app.put('/api/auth/profile', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+
+  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse } = req.body;
+
+  if (!vorname || !nachname) {
+    return res.status(400).json({ error: 'Vorname und Nachname sind erforderlich.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbank nicht verfügbar.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE users 
+       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8 
+       WHERE id = $9 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse`,
+      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, req.session.userId]
+    );
+
+    const user = result.rows[0];
+    req.session.user = user;
+    console.log(`User profile updated: ${user.email}`);
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ error: 'Aktualisierung des Profils fehlgeschlagen.' });
+  }
 });
 
 // API: Get appointment info (or auto-seed if it doesn't exist)
