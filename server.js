@@ -248,7 +248,9 @@ app.post('/api/auth/register', async (req, res) => {
     // Hash password and insert user
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, vorname, nachname) VALUES ($1, $2, $3, $4) RETURNING id, email, vorname, nachname',
+      `INSERT INTO users (email, password_hash, vorname, nachname) 
+       VALUES ($1, $2, $3, $4) 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse`,
       [email.toLowerCase(), passwordHash, vorname, nachname]
     );
 
@@ -256,7 +258,18 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Auto-login after registration
     req.session.userId = user.id;
-    req.session.user = { id: user.id, email: user.email, vorname: user.vorname, nachname: user.nachname };
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      vorname: user.vorname,
+      nachname: user.nachname,
+      geburtsdatum: user.geburtsdatum,
+      telefonnummer: user.telefonnummer,
+      strasse_hnr: user.strasse_hnr,
+      plz_ort: user.plz_ort,
+      krankenversicherung: user.krankenversicherung,
+      krankenkasse: user.krankenkasse
+    };
 
     console.log(`New user registered: ${user.email}`);
     res.json({ success: true, user: req.session.user });
@@ -279,7 +292,12 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT id, email, password_hash, vorname, nachname FROM users WHERE email = $1', [email.toLowerCase()]);
+    const result = await pool.query(
+      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse 
+       FROM users 
+       WHERE email = $1`,
+      [email.toLowerCase()]
+    );
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'E-Mail oder Passwort ist falsch.' });
@@ -294,7 +312,18 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Set session
     req.session.userId = user.id;
-    req.session.user = { id: user.id, email: user.email, vorname: user.vorname, nachname: user.nachname };
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      vorname: user.vorname,
+      nachname: user.nachname,
+      geburtsdatum: user.geburtsdatum,
+      telefonnummer: user.telefonnummer,
+      strasse_hnr: user.strasse_hnr,
+      plz_ort: user.plz_ort,
+      krankenversicherung: user.krankenversicherung,
+      krankenkasse: user.krankenkasse
+    };
 
     console.log(`User logged in: ${user.email}`);
     res.json({ success: true, user: req.session.user });
