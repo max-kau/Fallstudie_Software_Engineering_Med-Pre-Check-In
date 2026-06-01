@@ -1,28 +1,12 @@
 import { store } from '../utils/store.js';
+import { renderDlNav, initDlNav } from '../components/DlNav.js';
 
 export function renderConfirmView() {
   const termin = store.getTerminInfo();
   const patient = store.getPatientInfo();
 
   return `
-    <!-- Doctolib Top Navigation -->
-    <nav class="dl-nav">
-      <div class="dl-nav-inner">
-        <div class="dl-nav-brand">
-          <svg class="dl-nav-logo" width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="15" stroke="#0063BE" stroke-width="2"/>
-            <path d="M10 16.5C10 13.5 12.5 11 16 11C19.5 11 22 13.5 22 16.5C22 19.5 19.5 22 16 22" stroke="#0063BE" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="16" cy="16.5" r="2" fill="#0063BE"/>
-          </svg>
-          <span class="dl-nav-name">Doctolib</span>
-        </div>
-        <div class="dl-nav-links">
-          <a href="#" class="dl-nav-link">Suchen</a>
-          <a href="#" class="dl-nav-link">Meine Termine</a>
-          <a href="#" class="dl-nav-link">Anmelden</a>
-        </div>
-      </div>
-    </nav>
+    ${renderDlNav()}
 
     <!-- Confirmation Page -->
     <div class="dl-page">
@@ -110,4 +94,6 @@ export function initConfirmView() {
       window.location.hash = 'landing';
     });
   }
+
+  initDlNav();
 }
