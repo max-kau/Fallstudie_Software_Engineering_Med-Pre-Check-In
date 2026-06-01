@@ -170,6 +170,7 @@ function setupSuccessHomeButton() {
         navigate('home');
       }
     });
+  }
 }
 
 function generatePDF(allData, signatureDataUrl) {
