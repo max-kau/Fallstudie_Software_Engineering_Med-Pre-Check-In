@@ -1,5 +1,7 @@
 import { renderHeader } from '../components/Header.js';
 import { store } from '../utils/store.js';
+import { auth } from '../utils/auth.js';
+import { navigate } from '../utils/router.js';
 
 const DAUER_MAP = { heute: 'Seit heute', einige_tage: 'Seit einigen Tagen', eine_woche: 'Seit etwa einer Woche', mehrere_wochen: 'Seit mehreren Wochen', monate: 'Seit Monaten', laenger: 'Länger als 6 Monate' };
 
@@ -143,11 +145,31 @@ function renderSuccessScreen() {
               </div>
             </div>
             ${pdfDownloadButton}
+            <button class="btn btn-primary btn-lg btn-block" id="btn-success-home" style="margin-top: var(--space-4);">
+              Zurück zur Startseite
+            </button>
             <p class="text-muted" style="margin-top:var(--space-8);font-size:var(--font-size-sm)">Sie können dieses Fenster jetzt schließen.</p>
           </div>
         </div>
       </div>
     </div>`;
+}
+
+function setupSuccessHomeButton() {
+  const btnSuccessHome = document.getElementById('btn-success-home');
+  if (btnSuccessHome) {
+    btnSuccessHome.addEventListener('click', async () => {
+      btnSuccessHome.disabled = true;
+      btnSuccessHome.textContent = 'Wird abgemeldet…';
+      try {
+        await auth.logout();
+        store.resetProgress();
+        navigate('home');
+      } catch (err) {
+        console.error('Logout failed:', err);
+        navigate('home');
+      }
+    });
 }
 
 function generatePDF(allData, signatureDataUrl) {
@@ -407,6 +429,7 @@ export function initSummaryView() {
 
         const app = document.getElementById('app');
         app.innerHTML = renderSuccessScreen();
+        setupSuccessHomeButton();
       } catch (err) {
         console.error('Submission failed:', err);
         alert('Fehler beim Absenden. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.');
@@ -416,5 +439,6 @@ export function initSummaryView() {
     });
   }
 
+  setupSuccessHomeButton();
   updateSubmitState();
 }
