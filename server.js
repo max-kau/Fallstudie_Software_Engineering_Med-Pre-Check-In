@@ -377,6 +377,11 @@ app.post('/api/upload', async (req, res) => {
 // API: Download/view a file by ID
 app.get('/api/file/:id', async (req, res) => {
   const { id } = req.params;
+  const fileId = parseInt(id, 10);
+
+  if (isNaN(fileId)) {
+    return res.status(400).json({ error: 'Invalid file ID format' });
+  }
 
   if (!isDbConnected || !pool) {
     return res.status(500).json({ error: 'Database offline in mock mode' });
@@ -385,7 +390,7 @@ app.get('/api/file/:id', async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT filename, mime_type, file_data FROM uploaded_files WHERE id = $1',
-      [id]
+      [fileId]
     );
 
     if (result.rows.length === 0) {
@@ -394,9 +399,21 @@ app.get('/api/file/:id', async (req, res) => {
 
     const { filename, mime_type, file_data } = result.rows[0];
 
+    // Ensure binary content is a Buffer (defensively handles DB returning hex-encoded string instead of Buffer)
+    let buffer = file_data;
+    if (typeof file_data === 'string') {
+      if (file_data.startsWith('\\x') || file_data.startsWith('\x')) {
+        const hexStr = file_data.startsWith('\\x') ? file_data.slice(2) : file_data.slice(1);
+        buffer = Buffer.from(hexStr, 'hex');
+      } else {
+        buffer = Buffer.from(file_data, 'utf-8');
+      }
+    }
+
     res.setHeader('Content-Type', mime_type);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-    res.send(file_data);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
   } catch (err) {
     console.error('Error fetching file:', err);
     res.status(500).json({ error: 'Database error' });
@@ -406,13 +423,18 @@ app.get('/api/file/:id', async (req, res) => {
 // API: Delete a file by ID
 app.delete('/api/file/:id', async (req, res) => {
   const { id } = req.params;
+  const fileId = parseInt(id, 10);
+
+  if (isNaN(fileId)) {
+    return res.status(400).json({ error: 'Invalid file ID format' });
+  }
 
   if (!isDbConnected || !pool) {
     return res.json({ success: true });
   }
 
   try {
-    await pool.query('DELETE FROM uploaded_files WHERE id = $1', [id]);
+    await pool.query('DELETE FROM uploaded_files WHERE id = $1', [fileId]);
     res.json({ success: true });
   } catch (err) {
     console.error('Error deleting file:', err);
