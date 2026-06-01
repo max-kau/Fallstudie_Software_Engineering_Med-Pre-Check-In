@@ -10,7 +10,7 @@ let currentView = null;
 const appEl = () => document.getElementById('app');
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['home', 'auth'];
+const PUBLIC_ROUTES = ['home', 'auth', 'praxis', 'suche'];
 
 export function registerRoute(hash, renderFn) {
   routes[hash] = renderFn;
@@ -22,48 +22,53 @@ export function navigate(hash) {
 
 async function handleRoute() {
   const hash = window.location.hash.slice(1) || 'home';
+  let routeKey = hash;
+
+  if (hash.startsWith('praxis/')) {
+    routeKey = 'praxis';
+  }
 
   // Check authentication status
   await auth.checkSession();
   const loggedIn = auth.isLoggedIn();
 
   // Auth guard: redirect to home if not logged in and trying to access protected route
-  if (!loggedIn && !PUBLIC_ROUTES.includes(hash)) {
+  if (!loggedIn && !PUBLIC_ROUTES.includes(routeKey)) {
     navigate('home');
     return;
   }
 
-  // If logged in and trying to access auth or home, redirect to landing
-  if (loggedIn && (hash === 'home' || hash === 'auth')) {
+  // If logged in and trying to access auth, redirect to landing
+  if (loggedIn && routeKey === 'auth') {
     navigate('landing');
     return;
   }
 
   // For protected routes, ensure data is loaded
-  if (!PUBLIC_ROUTES.includes(hash)) {
+  if (!PUBLIC_ROUTES.includes(routeKey)) {
     await store.loadData();
 
     // Guard: If the pre-check-in is already submitted, redirect to summary/success view
     const isSubmitted = store.get('submitted');
-    if (isSubmitted && hash !== 'zusammenfassung') {
+    if (isSubmitted && routeKey !== 'zusammenfassung') {
       navigate('zusammenfassung');
       return;
     }
 
     // Update current step in store for autosave/resumption (if navigating to a valid step)
-    if (['confirm', 'intro', 'beschwerden', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'].includes(hash)) {
+    if (['confirm', 'intro', 'beschwerden', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'].includes(routeKey)) {
       const data = store.getAll();
-      if (data.currentStep !== hash) {
-        data.currentStep = hash;
+      if (data.currentStep !== routeKey) {
+        data.currentStep = routeKey;
         store.saveAll(data);
-        if (['beschwerden', 'medikamente', 'allergien', 'dokumente'].includes(hash)) {
+        if (['beschwerden', 'medikamente', 'allergien', 'dokumente'].includes(routeKey)) {
           store.triggerAutosave();
         }
       }
     }
   }
 
-  const renderFn = routes[hash];
+  const renderFn = routes[routeKey];
 
   if (!renderFn) {
     navigate(loggedIn ? 'landing' : 'home');
@@ -73,7 +78,7 @@ async function handleRoute() {
   const app = appEl();
   
   // Exit animation for current view
-  const currentContent = app.querySelector('.view, .dl-home, .dl-auth-page');
+  const currentContent = app.querySelector('.view, .dl-home, .dl-auth-page, .dl-praxis-view');
   if (currentContent) {
     currentContent.classList.add('view-exit');
     await new Promise(r => setTimeout(r, 200));
@@ -84,7 +89,7 @@ async function handleRoute() {
   app.innerHTML = html;
 
   // Enter animation
-  const newContent = app.querySelector('.view, .dl-home, .dl-auth-page');
+  const newContent = app.querySelector('.view, .dl-home, .dl-auth-page, .dl-praxis-view');
   if (newContent) {
     newContent.classList.add('view-enter');
   }
@@ -93,8 +98,8 @@ async function handleRoute() {
   window.scrollTo(0, 0);
 
   // Dispatch custom event for view-specific init
-  window.dispatchEvent(new CustomEvent('viewChanged', { detail: { view: hash } }));
-  currentView = hash;
+  window.dispatchEvent(new CustomEvent('viewChanged', { detail: { view: routeKey } }));
+  currentView = routeKey;
 }
 
 export function initRouter() {

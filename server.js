@@ -154,6 +154,11 @@ async function initDb() {
     `);
     console.log('Table "users" verified/created with profile columns.');
 
+    // Ensure user_id column exists on termine table with foreign key reference
+    await pool.query(`
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    `);
+
     // Auto-seed a demo user if none exists
     const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
     if (parseInt(existingUsers.rows[0].count) === 0) {
@@ -397,6 +402,130 @@ app.put('/api/auth/profile', async (req, res) => {
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ error: 'Aktualisierung des Profils fehlgeschlagen.' });
+  }
+});
+
+// API: Book a new appointment
+app.post('/api/termine/buchen', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+
+  const { doctor, fachrichtung, adresse, date, time, art, praxis, tags } = req.body;
+
+  if (!doctor || !fachrichtung || !adresse || !date || !time || !art || !praxis) {
+    return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    const code = 't_MOCK' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const mockAppt = {
+      code,
+      doctor,
+      fachrichtung,
+      adresse,
+      date,
+      time,
+      art,
+      praxis,
+      tags: tags || [],
+      patient_vorname: req.session.user?.vorname || 'Max',
+      patient_nachname: req.session.user?.nachname || 'Mustermann',
+      user_id: req.session.userId
+    };
+    
+    if (!req.session.mockAppointments) {
+      req.session.mockAppointments = [];
+    }
+    req.session.mockAppointments.push(mockAppt);
+    
+    console.log('[Offline Mode] Mocked appointment booking saved to session:', mockAppt);
+    return res.json({ success: true, appointment: mockAppt });
+  }
+
+  try {
+    // Get user details for patient name
+    const userResult = await pool.query('SELECT vorname, nachname FROM users WHERE id = $1', [req.session.userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
+    }
+    const user = userResult.rows[0];
+
+    const code = 't_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const query = `
+      INSERT INTO termine (code, doctor, fachrichtung, adresse, date, time, art, praxis, tags, patient_vorname, patient_nachname, user_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `;
+
+    const values = [
+      code,
+      doctor,
+      fachrichtung,
+      adresse,
+      date,
+      time,
+      art,
+      praxis,
+      tags || [],
+      user.vorname,
+      user.nachname,
+      req.session.userId
+    ];
+
+    const result = await pool.query(query, values);
+    res.json({ success: true, appointment: result.rows[0] });
+  } catch (err) {
+    console.error('Error booking appointment:', err);
+    res.status(500).json({ error: 'Terminbuchung fehlgeschlagen.' });
+  }
+});
+
+// API: Get user's appointments
+app.get('/api/user/termine', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    // Return mock appointments from session or seed a default one if empty
+    if (!req.session.mockAppointments) {
+      req.session.mockAppointments = [
+        {
+          code: 'demo_12345',
+          doctor: 'Dr. med. Anna Hartmann',
+          fachrichtung: 'Allgemeinmedizin · Innere Medizin',
+          adresse: 'Leopoldstraße 12, 80802 München',
+          date: 'Mo, 25. Mai',
+          time: '09:30',
+          art: 'Routineuntersuchung',
+          praxis: 'Hausarztpraxis',
+          tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche'],
+          patient_vorname: req.session.user?.vorname || 'Max',
+          patient_nachname: req.session.user?.nachname || 'Mustermann',
+          user_id: req.session.userId,
+          precheck_submitted: false,
+          precheck_step: 'intro'
+        }
+      ];
+    }
+    return res.json({ success: true, appointments: req.session.mockAppointments });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step
+       FROM termine t
+       LEFT JOIN precheckins p ON t.code = p.termin_code
+       WHERE t.user_id = $1
+       ORDER BY t.date DESC, t.time DESC`,
+      [req.session.userId]
+    );
+    res.json({ success: true, appointments: result.rows });
+  } catch (err) {
+    console.error('Error fetching user appointments:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Termine.' });
   }
 });
 
