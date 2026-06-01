@@ -145,6 +145,28 @@ const getMockAppointment = (code) => ({
   }
 });
 
+// Diagnostics endpoint
+app.get('/api/health', async (req, res) => {
+  const health = {
+    database: isDbConnected ? 'connected' : 'offline',
+    mockMode: !isDbConnected || !pool,
+    envHasDatabaseUrl: !!process.env.DATABASE_URL
+  };
+
+  if (isDbConnected && pool) {
+    try {
+      const dbResult = await pool.query('SELECT NOW()');
+      health.queryTest = 'success';
+      health.dbTime = dbResult.rows[0].now;
+    } catch (err) {
+      health.queryTest = 'failed';
+      health.queryError = err.message;
+    }
+  }
+
+  res.json(health);
+});
+
 // API: Get appointment info (or auto-seed if it doesn't exist)
 app.get('/api/termin/:code', async (req, res) => {
   const { code } = req.params;
