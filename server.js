@@ -402,8 +402,8 @@ app.get('/api/file/:id', async (req, res) => {
     // Ensure binary content is a Buffer (defensively handles DB returning hex-encoded string instead of Buffer)
     let buffer = file_data;
     if (typeof file_data === 'string') {
-      if (file_data.startsWith('\\x') || file_data.startsWith('\x')) {
-        const hexStr = file_data.startsWith('\\x') ? file_data.slice(2) : file_data.slice(1);
+      if (file_data.startsWith('\\x') || file_data.startsWith('\\\\x')) {
+        const hexStr = file_data.startsWith('\\\\x') ? file_data.slice(3) : file_data.slice(2);
         buffer = Buffer.from(hexStr, 'hex');
       } else {
         buffer = Buffer.from(file_data, 'utf-8');
