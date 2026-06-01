@@ -147,10 +147,16 @@ const getMockAppointment = (code) => ({
 
 // Diagnostics endpoint
 app.get('/api/health', async (req, res) => {
+  const rawUrl = process.env.DATABASE_URL || '';
   const health = {
     database: isDbConnected ? 'connected' : 'offline',
     mockMode: !isDbConnected || !pool,
-    envHasDatabaseUrl: !!process.env.DATABASE_URL
+    envHasDatabaseUrl: !!rawUrl,
+    databaseUrlType: rawUrl
+      ? (rawUrl.startsWith('postgresql://') || rawUrl.startsWith('postgres://')
+          ? 'starts_with_postgres_protocol'
+          : rawUrl)
+      : 'missing'
   };
 
   if (isDbConnected && pool) {
