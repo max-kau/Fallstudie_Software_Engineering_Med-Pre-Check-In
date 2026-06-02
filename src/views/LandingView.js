@@ -22,6 +22,106 @@ function getStepLabel(step) {
   }
 }
 
+/**
+ * Parse a German date string like "Do, 04. Jun" or "Di, 02. Jun" into a real Date object.
+ * We assume the current year. Month mapping: Jan=0, Feb=1, Mär=2, Apr=3, Mai=4, Jun=5, Jul=6, Aug=7, Sep=8, Okt=9, Nov=10, Dez=11
+ */
+function parseGermanDate(dateStr) {
+  if (!dateStr) return null;
+
+  const monthMap = {
+    'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3, 'mai': 4, 'jun': 5,
+    'jul': 6, 'aug': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'dez': 11
+  };
+
+  // Try to extract day number and month abbreviation
+  // Pattern: optional weekday prefix, then DD. Mon or DD Mon
+  const match = dateStr.match(/(\d{1,2})\.\s*(\w{3})/);
+  if (!match) return null;
+
+  const day = parseInt(match[1], 10);
+  const monthAbbr = match[2].toLowerCase();
+  const month = monthMap[monthAbbr];
+
+  if (month === undefined || isNaN(day)) return null;
+
+  const now = new Date();
+  const year = now.getFullYear();
+  return new Date(year, month, day);
+}
+
+/**
+ * Subtract N business days from a date (Mon-Fri only).
+ * Returns a new Date that is N business days before the given date.
+ */
+function subtractBusinessDays(date, n) {
+  const result = new Date(date);
+  let remaining = n;
+  while (remaining > 0) {
+    result.setDate(result.getDate() - 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) {
+      remaining--;
+    }
+  }
+  return result;
+}
+
+/**
+ * Check if the Pre-Check-In is available for a given appointment date string.
+ * Available = today is within 2 business days before the appointment date (inclusive).
+ */
+function isPrecheckAvailable(dateStr) {
+  const appointmentDate = parseGermanDate(dateStr);
+  if (!appointmentDate) return true; // If we can't parse, default to available
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  appointmentDate.setHours(0, 0, 0, 0);
+
+  // The precheck opens 2 business days before the appointment
+  const openDate = subtractBusinessDays(appointmentDate, 2);
+  openDate.setHours(0, 0, 0, 0);
+
+  return today >= openDate;
+}
+
+/**
+ * Get the date when the Pre-Check-In becomes available (2 business days before appointment).
+ */
+function getPrecheckOpenDate(dateStr) {
+  const appointmentDate = parseGermanDate(dateStr);
+  if (!appointmentDate) return null;
+  appointmentDate.setHours(0, 0, 0, 0);
+  return subtractBusinessDays(appointmentDate, 2);
+}
+
+/**
+ * Format a Date as a readable German string, e.g. "Mo, 02. Jun"
+ */
+function formatGermanDate(date) {
+  if (!date) return '';
+  const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const dow = days[date.getDay()];
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = months[date.getMonth()];
+  return `${dow}, ${d}. ${m}`;
+}
+
+/**
+ * Calculate how many calendar days until a date.
+ */
+function daysUntil(dateStr) {
+  const target = parseGermanDate(dateStr);
+  if (!target) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+  return diff;
+}
+
 export function renderLandingView() {
   return `
     ${renderDlNav()}
@@ -97,53 +197,104 @@ export async function initLandingView() {
       const currentStep = appt.precheck_step;
       const hasProgress = currentStep && currentStep !== 'intro';
 
-      let precheckBadgeHtml = '';
-      let precheckTitle = '';
-      let precheckDesc = '';
-      let precheckBtnHtml = '';
+      // Check availability (2 business days rule)
+      const available = isPrecheckAvailable(appt.date);
+      const openDate = getPrecheckOpenDate(appt.date);
+      const daysLeft = daysUntil(appt.date);
+
+      let precheckBannerHtml = '';
 
       if (isSubmitted) {
-        precheckBadgeHtml = `
-          <span class="dl-precheck-badge" style="background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.2);">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
-            PRE-CHECK-IN ABGESCHLOSSEN
-          </span>
+        // ---- SUBMITTED STATE ----
+        precheckBannerHtml = `
+          <div class="precheck-banner precheck-banner--submitted">
+            <div class="precheck-banner__content">
+              <div class="precheck-banner__info">
+                <span class="precheck-banner__badge precheck-banner__badge--success">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  PRE-CHECK-IN ABGESCHLOSSEN
+                </span>
+                <h4 class="precheck-banner__title">Ihre Angaben wurden übermittelt</h4>
+                <p class="precheck-banner__desc">Ihr Arzt hat alle wichtigen Informationen vorliegen. Sie können die Zusammenfassung jederzeit einsehen.</p>
+              </div>
+              <div class="precheck-banner__action">
+                <button class="precheck-banner__btn precheck-banner__btn--outline-success btn-go-precheck" data-code="${appt.code}" data-target="zusammenfassung">
+                  Zusammenfassung ansehen
+                </button>
+              </div>
+            </div>
+          </div>
         `;
-        precheckTitle = 'Ihre Angaben wurden übermittelt';
-        precheckDesc = 'Ihr Arzt hat alle wichtigen Informationen vorliegen. Sie können die Zusammenfassung jederzeit einsehen.';
-        precheckBtnHtml = `
-          <button class="dl-precheck-btn btn-go-precheck" data-code="${appt.code}" data-target="zusammenfassung" style="border: 2px solid #10B981; color: #10B981; background: transparent;">
-            Zusammenfassung ansehen
-          </button>
+      } else if (hasProgress && available) {
+        // ---- IN PROGRESS STATE ----
+        precheckBannerHtml = `
+          <div class="precheck-banner precheck-banner--progress">
+            <div class="precheck-banner__content">
+              <div class="precheck-banner__info">
+                <span class="precheck-banner__badge precheck-banner__badge--progress">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  LAUFENDER PRE-CHECK
+                </span>
+                <h4 class="precheck-banner__title">Setzen Sie Ihre Vorbereitung fort</h4>
+                <p class="precheck-banner__desc">Fortfahren bei: ${getStepLabel(currentStep)}. Bereiten Sie Ihren Termin weiter digital vor.</p>
+              </div>
+              <div class="precheck-banner__action">
+                <button class="precheck-banner__btn precheck-banner__btn--outline-progress btn-go-precheck" data-code="${appt.code}" data-target="${currentStep}">
+                  Pre-Check fortsetzen
+                </button>
+              </div>
+            </div>
+          </div>
         `;
-      } else if (hasProgress) {
-        precheckBadgeHtml = `
-          <span class="dl-precheck-badge" style="background: rgba(59, 130, 246, 0.15); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.2);">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            LAUFENDER PRE-CHECK
-          </span>
-        `;
-        precheckTitle = 'Setzen Sie Ihre Vorbereitung fort';
-        precheckDesc = `Fortfahren bei: ${getStepLabel(currentStep)}. Bereiten Sie Ihren Termin weiter digital vor.`;
-        precheckBtnHtml = `
-          <button class="dl-precheck-btn btn-go-precheck" data-code="${appt.code}" data-target="${currentStep}" style="border: 2px solid #3B82F6; color: #3B82F6; background: transparent;">
-            Pre-Check fortsetzen
-          </button>
+      } else if (available) {
+        // ---- AVAILABLE – READY TO START ----
+        precheckBannerHtml = `
+          <div class="precheck-banner precheck-banner--available">
+            <div class="precheck-banner__content">
+              <div class="precheck-banner__info">
+                <span class="precheck-banner__badge precheck-banner__badge--available">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  PRE-CHECK VERFÜGBAR
+                </span>
+                <h4 class="precheck-banner__title">Bereiten Sie Ihren Termin online vor</h4>
+                <p class="precheck-banner__desc">Erfassen Sie vorab Ihre Beschwerden, Medikamente und Allergien online. So bleibt mehr Behandlungszeit.</p>
+              </div>
+              <div class="precheck-banner__action">
+                <button class="precheck-banner__btn precheck-banner__btn--start btn-go-precheck" data-code="${appt.code}" data-target="confirm">
+                  Pre-Check starten
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
+            </div>
+          </div>
         `;
       } else {
-        precheckBadgeHtml = `
-          <span class="dl-precheck-badge" style="background: rgba(245, 158, 11, 0.15); color: #D97706; border: 1px solid rgba(245, 158, 11, 0.2);">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            PRE-CHECK VERFÜGBAR
-          </span>
-        `;
-        precheckTitle = 'Bereiten Sie Ihren Termin online vor';
-        precheckDesc = 'Erfassen Sie vorab Ihre Beschwerden, Medikamente und Allergien online. So bleibt mehr Behandlungszeit.';
-        precheckBtnHtml = `
-          <button class="dl-precheck-btn btn-go-precheck" data-code="${appt.code}" data-target="confirm">
-            Pre-Check starten
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-          </button>
+        // ---- NOT YET AVAILABLE – GREYED OUT ----
+        const openDateStr = openDate ? formatGermanDate(openDate) : '–';
+        const daysText = daysLeft !== null ? `Noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''} bis zum Termin` : '';
+
+        precheckBannerHtml = `
+          <div class="precheck-banner precheck-banner--locked">
+            <div class="precheck-banner__content">
+              <div class="precheck-banner__info">
+                <span class="precheck-banner__badge precheck-banner__badge--locked">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  NOCH NICHT VERFÜGBAR
+                </span>
+                <h4 class="precheck-banner__title precheck-banner__title--locked">Pre-Check-In wird freigeschaltet am ${openDateStr}</h4>
+                <p class="precheck-banner__desc precheck-banner__desc--locked">
+                  ${daysText ? `<span class="precheck-banner__countdown">${daysText}</span> · ` : ''}Der Pre-Check-In wird 2 Werktage vor Ihrem Termin automatisch verfügbar.
+                </p>
+              </div>
+              <div class="precheck-banner__action">
+                <button class="precheck-banner__btn precheck-banner__btn--notify btn-notify-email" data-code="${appt.code}" data-open-date="${openDateStr}">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  Per E-Mail benachrichtigen
+                </button>
+              </div>
+            </div>
+            <div class="precheck-banner__locked-overlay"></div>
+          </div>
         `;
       }
 
@@ -174,18 +325,7 @@ export async function initLandingView() {
           </div>
 
           <!-- Precheckin Banner Section inside Card -->
-          <div style="background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: var(--space-5) var(--space-6); display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 280px;">
-              <div style="margin-bottom: 6px;">
-                ${precheckBadgeHtml}
-              </div>
-              <h4 style="font-size: var(--font-size-md); font-weight: 700; margin-bottom: 2px;">${precheckTitle}</h4>
-              <p style="font-size: var(--font-size-xs); opacity: 0.85; line-height: 1.4; margin: 0;">${precheckDesc}</p>
-            </div>
-            <div style="flex-shrink: 0;">
-              ${precheckBtnHtml}
-            </div>
-          </div>
+          ${precheckBannerHtml}
 
         </div>
       `;
@@ -205,6 +345,25 @@ export async function initLandingView() {
       });
     });
 
+    // Attach click events to email notification buttons
+    container.querySelectorAll('.btn-notify-email').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const button = e.currentTarget;
+        const openDate = button.getAttribute('data-open-date');
+
+        // Show success confirmation
+        button.classList.add('precheck-banner__btn--notified');
+        button.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          E-Mail-Erinnerung aktiviert
+        `;
+        button.disabled = true;
+
+        // Show a toast message
+        showNotificationToast(openDate);
+      });
+    });
+
   } catch (err) {
     container.innerHTML = `
       <div class="dl-profile-card fade-in-up" style="text-align: center; padding: var(--space-8) var(--space-6); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); border-radius: var(--radius-xl);">
@@ -214,4 +373,36 @@ export async function initLandingView() {
       </div>
     `;
   }
+}
+
+/**
+ * Show a small toast notification for email reminder confirmation.
+ */
+function showNotificationToast(openDate) {
+  // Remove any existing toast
+  document.querySelector('.notify-toast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'notify-toast';
+  toast.innerHTML = `
+    <div class="notify-toast__icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div class="notify-toast__text">
+      <strong>Erinnerung aktiviert</strong>
+      <span>Sie erhalten eine E-Mail, sobald Ihr Pre-Check-In${openDate ? ` am ${openDate}` : ''} verfügbar ist.</span>
+    </div>
+  `;
+  document.body.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    toast.classList.add('notify-toast--visible');
+  });
+
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    toast.classList.remove('notify-toast--visible');
+    setTimeout(() => toast.remove(), 400);
+  }, 5000);
 }
