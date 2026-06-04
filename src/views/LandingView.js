@@ -365,20 +365,31 @@ export async function initLandingView() {
 
     // Attach click events to email notification buttons
     container.querySelectorAll('.btn-notify-email').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const button = e.currentTarget;
+        const code = button.getAttribute('data-code');
         const openDate = button.getAttribute('data-open-date');
 
-        // Show success confirmation
-        button.classList.add('precheck-banner__btn--notified');
-        button.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          E-Mail-Erinnerung aktiviert
-        `;
         button.disabled = true;
 
-        // Show a toast message
-        showNotificationToast(openDate);
+        try {
+          const res = await fetch(`/api/termine/${code}/notify`, { method: 'POST' });
+          if (!res.ok) throw new Error('API Error');
+
+          // Show success confirmation
+          button.classList.add('precheck-banner__btn--notified');
+          button.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            E-Mail-Erinnerung aktiviert
+          `;
+
+          // Show a toast message
+          showNotificationToast(openDate);
+        } catch (err) {
+          console.error('Error enabling notification:', err);
+          button.disabled = false;
+          alert('Die Aktivierung der E-Mail-Benachrichtigung ist fehlgeschlagen. Bitte versuchen Sie es erneut.');
+        }
       });
     });
 
