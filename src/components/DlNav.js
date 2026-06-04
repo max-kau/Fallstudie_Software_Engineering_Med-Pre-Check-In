@@ -19,20 +19,22 @@ export function renderDlNav() {
         <div class="dl-nav-links">
           ${loggedIn ? `
             <div style="display: flex; align-items: center; gap: var(--space-5);">
+              ${user.role !== 'praxis' ? `
               <a href="#home" class="dl-nav-search-link" style="color: var(--gray-600); font-weight: 600; font-size: var(--font-size-sm); display: flex; align-items: center; gap: 6px; text-decoration: none; transition: color var(--transition-fast);">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 Praxis suchen
               </a>
+              ` : ''}
               <div class="dl-nav-dropdown-wrapper">
                 <button class="dl-nav-dropdown-trigger" id="btn-user-dropdown">
-                  <div class="dl-nav-user-avatar">${(user.vorname || '')[0] || ''}${(user.nachname || '')[0] || ''}</div>
-                  <span class="dl-nav-user-name">${user.vorname} ${user.nachname}</span>
+                  <div class="dl-nav-user-avatar">${user.role === 'praxis' ? '🏥' : `${(user.vorname || '')[0] || ''}${(user.nachname || '')[0] || ''}`}</div>
+                  <span class="dl-nav-user-name">${user.role === 'praxis' ? (user.praxis_name || 'Praxis') : `${user.vorname} ${user.nachname}`}</span>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
               <div class="dl-nav-dropdown-menu" id="user-dropdown-menu" style="display: none;">
                 <button class="dl-dropdown-item" id="btn-menu-appointments">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  Meine Termine
+                  ${user.role === 'praxis' ? 'Dashboard' : 'Meine Termine'}
                 </button>
                 <div class="dl-dropdown-divider"></div>
                 <button class="dl-dropdown-item" id="btn-menu-profile">
@@ -92,9 +94,9 @@ export function initDlNav() {
     navigate('home');
   });
 
-  // Appointments button in dropdown
+  // Appointments / Dashboard button in dropdown
   document.getElementById('btn-menu-appointments')?.addEventListener('click', () => {
-    navigate('landing');
+    navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
   });
 
   // Profile data button in dropdown

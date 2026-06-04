@@ -3228,3 +3228,49 @@
 .dl-calendar-day-empty {
   visibility: hidden;
 }
+
+/* Auth Role Selector */
+.dl-auth-role-selector {
+  display: flex;
+  margin: var(--space-5) var(--space-5) 0 var(--space-5);
+  background: var(--gray-100);
+  border-radius: var(--radius-xl);
+  padding: 4px;
+}
+
+.dl-auth-role-btn {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--gray-500);
+}
+
+.dl-auth-role-btn.active {
+  background: var(--white) !important;
+  color: var(--primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Praxis Dashboard Custom styles */
+.praxis-main-card {
+  background: var(--white);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-6);
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-view-precheck:hover {
+  background: var(--primary) !important;
+  color: white !important;
+}

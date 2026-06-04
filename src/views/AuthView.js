@@ -9,13 +9,26 @@ export function renderAuthView() {
     <!-- Auth Card -->
     <div class="dl-auth-page">
       <div class="dl-auth-card fade-in-up">
+
+        <!-- Role Selector -->
+        <div class="dl-auth-role-selector">
+          <button class="dl-auth-role-btn active" data-role="patient" id="role-patient">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Als Patient
+          </button>
+          <button class="dl-auth-role-btn" data-role="praxis" id="role-praxis">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Als Praxis
+          </button>
+        </div>
+
         <!-- Tabs -->
         <div class="dl-auth-tabs">
           <button class="dl-auth-tab active" data-tab="login" id="tab-login">Anmelden</button>
           <button class="dl-auth-tab" data-tab="register" id="tab-register">Registrieren</button>
         </div>
 
-        <!-- Login Form -->
+        <!-- Login Form (same for both roles) -->
         <form class="dl-auth-form" id="form-login">
           <div class="dl-auth-form-inner">
             <div class="form-group">
@@ -42,7 +55,7 @@ export function renderAuthView() {
           </div>
         </form>
 
-        <!-- Register Form -->
+        <!-- Register Form: Patient -->
         <form class="dl-auth-form" id="form-register" style="display:none;">
           <div class="dl-auth-form-inner">
             <div class="dl-auth-name-row">
@@ -79,46 +92,152 @@ export function renderAuthView() {
             </button>
           </div>
         </form>
+
+        <!-- Register Form: Praxis -->
+        <form class="dl-auth-form" id="form-register-praxis" style="display:none;">
+          <div class="dl-auth-form-inner">
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-name">Praxisname *</label>
+              <input type="text" id="register-praxis-name" class="form-input" placeholder="Praxis am Stadtpark" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-fachbereich">Fachbereich *</label>
+              <select id="register-praxis-fachbereich" class="form-input" required style="height: 42px;">
+                <option value="">Bitte wählen...</option>
+                <option value="Allgemeinmedizin">Allgemeinmedizin</option>
+                <option value="Dermatologie">Dermatologie</option>
+                <option value="Orthopädie">Orthopädie</option>
+                <option value="Kinder- und Jugendmedizin">Kinder- und Jugendmedizin</option>
+                <option value="Gynäkologie">Gynäkologie</option>
+                <option value="HNO-Heilkunde">HNO-Heilkunde</option>
+                <option value="Zahnmedizin">Zahnmedizin</option>
+                <option value="Kardiologie">Kardiologie</option>
+                <option value="Augenheilkunde">Augenheilkunde</option>
+                <option value="Psychotherapie">Psychotherapie</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-adresse">Adresse</label>
+              <input type="text" id="register-praxis-adresse" class="form-input" placeholder="Musterstraße 1, 40210 Düsseldorf" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-telefon">Telefon</label>
+              <input type="tel" id="register-praxis-telefon" class="form-input" placeholder="0211 / 123456" />
+            </div>
+
+            <div style="border-top: 1px solid var(--gray-200); margin: var(--space-4) 0; padding-top: var(--space-4);">
+              <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">Kontaktperson der Praxis</p>
+            </div>
+
+            <div class="dl-auth-name-row">
+              <div class="form-group">
+                <label class="form-label" for="register-praxis-vorname">Vorname *</label>
+                <input type="text" id="register-praxis-vorname" class="form-input" placeholder="Anna" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="register-praxis-nachname">Nachname *</label>
+                <input type="text" id="register-praxis-nachname" class="form-input" placeholder="Hartmann" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-email">E-Mail-Adresse *</label>
+              <input type="email" id="register-praxis-email" class="form-input" placeholder="praxis@email.de" autocomplete="email" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-password">Passwort *</label>
+              <input type="password" id="register-praxis-password" class="form-input" placeholder="Mind. 6 Zeichen" autocomplete="new-password" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-praxis-password2">Passwort wiederholen *</label>
+              <input type="password" id="register-praxis-password2" class="form-input" placeholder="Passwort bestätigen" autocomplete="new-password" required />
+            </div>
+
+            <div class="dl-auth-error" id="register-praxis-error" style="display:none;"></div>
+
+            <button type="submit" class="dl-auth-submit" id="btn-register-praxis">
+              <span class="dl-auth-submit-text">Praxis-Konto erstellen</span>
+              <div class="dl-auth-spinner" style="display:none;"></div>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   `;
 }
 
 export function initAuthView() {
-  // Tab switching
+  initDlNav();
+
+  let currentRole = 'patient';
+
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
   const formLogin = document.getElementById('form-login');
   const formRegister = document.getElementById('form-register');
+  const formRegisterPraxis = document.getElementById('form-register-praxis');
+  const rolePatient = document.getElementById('role-patient');
+  const rolePraxis = document.getElementById('role-praxis');
 
+  // --- Role switching ---
+  function setRole(role) {
+    currentRole = role;
+    rolePatient.classList.toggle('active', role === 'patient');
+    rolePraxis.classList.toggle('active', role === 'praxis');
+
+    // Update register form visibility if on register tab
+    if (tabRegister.classList.contains('active')) {
+      formRegister.style.display = role === 'patient' ? '' : 'none';
+      formRegisterPraxis.style.display = role === 'praxis' ? '' : 'none';
+    }
+  }
+  setRole('patient'); // init styles
+
+  rolePatient?.addEventListener('click', () => setRole('patient'));
+  rolePraxis?.addEventListener('click', () => setRole('praxis'));
+
+  // --- Tab switching ---
   function switchTab(tab) {
     if (tab === 'login') {
       tabLogin.classList.add('active');
       tabRegister.classList.remove('active');
       formLogin.style.display = '';
       formRegister.style.display = 'none';
+      formRegisterPraxis.style.display = 'none';
     } else {
       tabRegister.classList.add('active');
       tabLogin.classList.remove('active');
-      formRegister.style.display = '';
       formLogin.style.display = 'none';
+      formRegister.style.display = currentRole === 'patient' ? '' : 'none';
+      formRegisterPraxis.style.display = currentRole === 'praxis' ? '' : 'none';
     }
   }
 
   tabLogin?.addEventListener('click', () => switchTab('login'));
   tabRegister?.addEventListener('click', () => switchTab('register'));
 
-  initDlNav();
-
   // Password toggle
   const toggleLoginPw = document.getElementById('toggle-login-pw');
   const loginPwInput = document.getElementById('login-password');
   toggleLoginPw?.addEventListener('click', () => {
-    const type = loginPwInput.type === 'password' ? 'text' : 'password';
-    loginPwInput.type = type;
+    loginPwInput.type = loginPwInput.type === 'password' ? 'text' : 'password';
   });
 
-  // Login form
+  // Redirect helper based on role
+  function redirectAfterAuth(user) {
+    if (user.role === 'praxis') {
+      navigate('praxis-dashboard');
+    } else {
+      navigate('landing');
+    }
+  }
+
+  // --- Login form ---
   formLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value.trim();
@@ -132,8 +251,8 @@ export function initAuthView() {
     btn.disabled = true;
 
     try {
-      await auth.login(email, password);
-      navigate('landing');
+      const user = await auth.login(email, password);
+      redirectAfterAuth(user);
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.style.display = '';
@@ -143,7 +262,7 @@ export function initAuthView() {
     }
   });
 
-  // Register form
+  // --- Patient Register form ---
   formRegister?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const vorname = document.getElementById('register-vorname').value.trim();
@@ -161,7 +280,6 @@ export function initAuthView() {
       errorEl.style.display = '';
       return;
     }
-
     if (password.length < 6) {
       errorEl.textContent = 'Das Passwort muss mindestens 6 Zeichen lang sein.';
       errorEl.style.display = '';
@@ -173,12 +291,66 @@ export function initAuthView() {
     btn.disabled = true;
 
     try {
-      await auth.register(vorname, nachname, email, password);
-      navigate('landing');
+      const user = await auth.register(vorname, nachname, email, password, 'patient', {});
+      redirectAfterAuth(user);
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.style.display = '';
       btn.querySelector('.dl-auth-submit-text').textContent = 'Konto erstellen';
+      btn.querySelector('.dl-auth-spinner').style.display = 'none';
+      btn.disabled = false;
+    }
+  });
+
+  // --- Praxis Register form ---
+  formRegisterPraxis?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const praxisName = document.getElementById('register-praxis-name').value.trim();
+    const fachbereich = document.getElementById('register-praxis-fachbereich').value;
+    const adresse = document.getElementById('register-praxis-adresse').value.trim();
+    const telefon = document.getElementById('register-praxis-telefon').value.trim();
+    const vorname = document.getElementById('register-praxis-vorname').value.trim();
+    const nachname = document.getElementById('register-praxis-nachname').value.trim();
+    const email = document.getElementById('register-praxis-email').value.trim();
+    const password = document.getElementById('register-praxis-password').value;
+    const password2 = document.getElementById('register-praxis-password2').value;
+    const errorEl = document.getElementById('register-praxis-error');
+    const btn = document.getElementById('btn-register-praxis');
+
+    errorEl.style.display = 'none';
+
+    if (!praxisName || !fachbereich) {
+      errorEl.textContent = 'Praxisname und Fachbereich sind erforderlich.';
+      errorEl.style.display = '';
+      return;
+    }
+    if (password !== password2) {
+      errorEl.textContent = 'Die Passwörter stimmen nicht überein.';
+      errorEl.style.display = '';
+      return;
+    }
+    if (password.length < 6) {
+      errorEl.textContent = 'Das Passwort muss mindestens 6 Zeichen lang sein.';
+      errorEl.style.display = '';
+      return;
+    }
+
+    btn.querySelector('.dl-auth-submit-text').textContent = 'Wird registriert…';
+    btn.querySelector('.dl-auth-spinner').style.display = 'inline-block';
+    btn.disabled = true;
+
+    try {
+      const user = await auth.register(vorname, nachname, email, password, 'praxis', {
+        praxis_name: praxisName,
+        praxis_fachbereich: fachbereich,
+        praxis_adresse: adresse,
+        praxis_telefon: telefon
+      });
+      redirectAfterAuth(user);
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = '';
+      btn.querySelector('.dl-auth-submit-text').textContent = 'Praxis-Konto erstellen';
       btn.querySelector('.dl-auth-spinner').style.display = 'none';
       btn.disabled = false;
     }
