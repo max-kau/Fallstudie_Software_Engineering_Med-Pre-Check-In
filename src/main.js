@@ -1,4 +1,5 @@
 import { registerRoute, initRouter, navigate } from './utils/router.js';
+import { store } from './utils/store.js';
 import { renderHomeView, initHomeView } from './views/HomeView.js';
 import { renderAuthView, initAuthView } from './views/AuthView.js';
 import { renderLandingView, initLandingView } from './views/LandingView.js';

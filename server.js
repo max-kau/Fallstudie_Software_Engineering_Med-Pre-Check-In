@@ -482,6 +482,57 @@ app.get('/api/praxis/stats', async (req, res) => {
   }
 });
 
+function slugify(text) {
+  if (!text) return '';
+  return text
+    .toString()
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-');
+}
+
+// API: Get all registered practices
+app.get('/api/praxen', async (req, res) => {
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, praxen: [] });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT id, vorname, nachname, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon 
+       FROM users 
+       WHERE role = 'praxis' AND praxis_name IS NOT NULL`
+    );
+    
+    const dbPraxen = result.rows.map(user => {
+      const slug = slugify(user.praxis_name) + '-' + user.id;
+      return {
+        id: 'db_' + user.id,
+        slug: slug,
+        name: user.praxis_name,
+        fachbereich: user.praxis_fachbereich,
+        adresse: user.praxis_adresse || 'Keine Adresse hinterlegt',
+        telefon: user.praxis_telefon || '',
+        behandlungsarten: 'Gesetzlich und privat versichert',
+        beschreibung: `Praxis für ${user.praxis_fachbereich}. Arzt/Ärztin: Dr. med. ${user.vorname} ${user.nachname}. Wir bieten moderne medizinische Versorgung und Pre-Check-In an.`,
+        logo: '🏥',
+        color: '#0063BE',
+        gradient: 'linear-gradient(135deg, #0063BE, #004f98)'
+      };
+    });
+
+    res.json({ success: true, praxen: dbPraxen });
+  } catch (err) {
+    console.error('Error fetching registered practices:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Praxen.' });
+  }
+});
+
 // API: Get blocked slots for a given date and praxis
 app.get('/api/termine/blocked', async (req, res) => {
   const { date, praxis } = req.query;

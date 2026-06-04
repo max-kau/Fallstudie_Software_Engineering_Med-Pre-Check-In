@@ -4,6 +4,7 @@
 
 import { store } from './store.js';
 import { auth } from './auth.js';
+import { fetchPraxen } from '../data/praxen.js';
 
 const routes = {};
 let currentView = null;
@@ -21,6 +22,13 @@ export function navigate(hash) {
 }
 
 async function handleRoute() {
+  // Load dynamic practices from server
+  try {
+    await fetchPraxen();
+  } catch (err) {
+    console.warn('Could not fetch practices in route handler:', err);
+  }
+
   const hash = window.location.hash.slice(1) || 'home';
   let routeKey = hash;
 

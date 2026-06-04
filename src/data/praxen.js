@@ -1,4 +1,4 @@
-export const praxen = [
+const staticPraxen = [
   {
     id: 1,
     slug: 'praxis-am-stadtpark',
@@ -130,3 +130,20 @@ export const praxen = [
     gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)'
   }
 ];
+
+export let praxen = [...staticPraxen];
+
+export async function fetchPraxen() {
+  try {
+    const res = await fetch('/api/praxen');
+    if (!res.ok) throw new Error('Failed to fetch practices');
+    const data = await res.json();
+    if (data.success && data.praxen) {
+      praxen = [...staticPraxen, ...data.praxen];
+    }
+  } catch (err) {
+    console.error('Error fetching dynamic practices:', err);
+  }
+  return praxen;
+}
+
