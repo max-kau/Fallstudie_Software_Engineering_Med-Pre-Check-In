@@ -224,6 +224,11 @@ export async function initLandingView() {
       const pInfo = getPraxisInfo(appt.praxis);
       const tagsHtml = (appt.tags || []).map(t => `<span class="dl-tag">${t}</span>`).join('');
       
+      let displayPraxis = appt.praxis || '';
+      if (displayPraxis && !displayPraxis.includes('(Demo-Praxis)')) {
+        displayPraxis += ' (Demo-Praxis)';
+      }
+
       // Check precheck status
       const isSubmitted = appt.precheck_submitted;
       const currentStep = appt.precheck_step;
@@ -340,7 +345,7 @@ export async function initLandingView() {
                 ${pInfo.logo.includes('.') ? `<img src="${pInfo.logo}" style="width: 100%; height: 100%; object-fit: contain;" />` : pInfo.logo}
               </div>
               <div>
-                <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em;">${appt.praxis.toUpperCase()}</span>
+                <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em;">${displayPraxis.toUpperCase()}</span>
                 <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 2px 0 6px 0;">${appt.doctor}</h3>
                 <p class="text-muted" style="font-size: var(--font-size-sm); line-height: 1.4;">${appt.fachrichtung} · ${appt.adresse}</p>
                 <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">

@@ -238,7 +238,7 @@ const EXAMPLE_DATA = {
     date: 'Mo, 25. Mai',
     time: '09:30',
     art: 'Routineuntersuchung',
-    praxis: 'Hausarztpraxis',
+    praxis: 'Hausarztpraxis (Demo-Praxis)',
     tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche'],
   },
   patient: {
@@ -311,7 +311,13 @@ async function loadData() {
 }
 
 function getTerminInfo() {
-  if (_cachedData) return _cachedData.termin;
+  if (_cachedData) {
+    const info = _cachedData.termin;
+    if (info && info.praxis && !info.praxis.includes('(Demo-Praxis)')) {
+      info.praxis = info.praxis + ' (Demo-Praxis)';
+    }
+    return info;
+  }
   return { ...EXAMPLE_DATA.termin, code: getTerminCode() };
 }
 
