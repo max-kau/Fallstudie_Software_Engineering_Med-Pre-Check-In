@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import session from 'express-session';
+import nodemailer from 'nodemailer';
 
 dotenv.config();
 
@@ -154,21 +155,16 @@ async function initDb() {
     `);
     console.log('Table "users" verified/created with profile columns.');
 
-    // Ensure user_id column exists on termine table with foreign key reference
+    // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS notify_email VARCHAR(255);
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS notify_sent BOOLEAN DEFAULT FALSE;
     `);
 
-    // Auto-seed a demo user if none exists
-    const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
-    if (parseInt(existingUsers.rows[0].count) === 0) {
-      const demoHash = await bcrypt.hash('passwort123', 10);
-      await pool.query(
-        'INSERT INTO users (email, password_hash, vorname, nachname) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING',
-        ['max@doctolib.de', demoHash, 'Max', 'Mustermann']
-      );
-      console.log('Demo user seeded: max@doctolib.de / passwort123');
-    }
+    // Remove the demo user if it exists to allow only custom testing
+    await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
+    console.log('Demo user max@doctolib.de verified removed from database.');
 
   } catch (err) {
     console.error('Database initialization failed:', err);
@@ -405,6 +401,39 @@ app.put('/api/auth/profile', async (req, res) => {
   }
 });
 
+// API: Get blocked slots for a given date and praxis
+app.get('/api/termine/blocked', async (req, res) => {
+  const { date, praxis } = req.query;
+  console.log(`[GET /api/termine/blocked] date=${date}, praxis=${praxis}, session.userId=${req.session?.userId}`);
+  if (!date || !praxis) {
+    return res.status(400).json({ error: 'Datum und Praxis werden benötigt.' });
+  }
+
+  const userId = req.session ? req.session.userId : null;
+
+  if (!isDbConnected || !pool) {
+    // Block if same praxis OR same user
+    const matches = (req.session.mockAppointments || [])
+      .filter(appt => appt.date === date && (appt.praxis === praxis || (userId && appt.user_id === userId)))
+      .map(appt => appt.time);
+    return res.json({ blocked: matches });
+  }
+
+  try {
+    // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user)
+    const result = await pool.query(
+      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3)',
+      [date, praxis, userId || -1]
+    );
+    const blockedSlots = result.rows.map(row => row.time);
+    console.log(`[GET /api/termine/blocked] returning blocked slots:`, blockedSlots);
+    res.json({ blocked: blockedSlots });
+  } catch (err) {
+    console.error('Error fetching blocked slots:', err);
+    res.status(500).json({ error: 'Fehler beim Laden belegter Zeiten.' });
+  }
+});
+
 // API: Book a new appointment
 app.post('/api/termine/buchen', async (req, res) => {
   if (!req.session || !req.session.userId) {
@@ -412,12 +441,29 @@ app.post('/api/termine/buchen', async (req, res) => {
   }
 
   const { doctor, fachrichtung, adresse, date, time, art, praxis, tags } = req.body;
+  console.log(`[POST /api/termine/buchen] date=${date}, time=${time}, praxis=${praxis}, userId=${req.session.userId}`);
 
   if (!doctor || !fachrichtung || !adresse || !date || !time || !art || !praxis) {
     return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
   }
 
   if (!isDbConnected || !pool) {
+    // Check if slot already booked in mockAppointments for this praxis
+    const existing = (req.session.mockAppointments || []).find(
+      appt => appt.date === date && appt.time === time && appt.praxis === praxis
+    );
+    if (existing) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has an appointment at this time
+    const userExisting = (req.session.mockAppointments || []).find(
+      appt => appt.date === date && appt.time === time && appt.user_id === req.session.userId
+    );
+    if (userExisting) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
     const code = 't_MOCK' + Math.random().toString(36).substring(2, 6).toUpperCase();
     const mockAppt = {
       code,
@@ -444,6 +490,24 @@ app.post('/api/termine/buchen', async (req, res) => {
   }
 
   try {
+    // Check if slot already booked in DB for this praxis
+    const blockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3',
+      [date, time, praxis]
+    );
+    if (blockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has an appointment at this time
+    const userBlockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3',
+      [date, time, req.session.userId]
+    );
+    if (userBlockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
     // Get user details for patient name
     const userResult = await pool.query('SELECT vorname, nachname FROM users WHERE id = $1', [req.session.userId]);
     if (userResult.rows.length === 0) {
@@ -825,6 +889,244 @@ app.delete('/api/file/:id', async (req, res) => {
     res.status(500).json({ error: 'Database delete error' });
   }
 });
+
+// API: Register for email notification when pre-check-in becomes available
+app.post('/api/termine/:code/notify', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+
+  const { code } = req.params;
+  const email = req.session.user?.email;
+
+  if (!email) {
+    return res.status(400).json({ error: 'E-Mail-Adresse des Benutzers fehlt.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    // Offline / mock mode
+    if (req.session.mockAppointments) {
+      const appt = req.session.mockAppointments.find(a => a.code === code);
+      if (appt) {
+        appt.notify_email = email;
+        appt.notify_sent = false;
+        console.log(`[Offline Mode] Notification registered for ${email} on appointment ${code}`);
+        return res.json({ success: true });
+      }
+    }
+    return res.json({ success: true });
+  }
+
+  try {
+    const checkResult = await pool.query('SELECT * FROM termine WHERE code = $1 AND user_id = $2', [code, req.session.userId]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden oder nicht autorisiert.' });
+    }
+
+    await pool.query(
+      'UPDATE termine SET notify_email = $1, notify_sent = FALSE WHERE code = $2',
+      [email, code]
+    );
+
+    console.log(`Notification registered for ${email} on appointment ${code}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error registering notification:', err);
+    res.status(500).json({ error: 'Fehler bei der Registrierung.' });
+  }
+});
+
+// --- Date Parsing and Business Days logic for Notification Worker ---
+function parseGermanDate(dateStr) {
+  if (!dateStr) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr + 'T00:00:00');
+  }
+  const monthMap = {
+    'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3, 'mai': 4, 'jun': 5,
+    'jul': 6, 'aug': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'dez': 11
+  };
+  const match = dateStr.match(/(\d{1,2})\.\s*(\w{3})/);
+  if (!match) return null;
+  const day = parseInt(match[1], 10);
+  const monthAbbr = match[2].toLowerCase();
+  const month = monthMap[monthAbbr];
+  if (month === undefined || isNaN(day)) return null;
+  const now = new Date();
+  const year = now.getFullYear();
+  return new Date(year, month, day);
+}
+
+function parseGermanDateTime(dateStr, timeStr) {
+  const dateObj = parseGermanDate(dateStr);
+  if (!dateObj) return null;
+  if (timeStr) {
+    const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      dateObj.setHours(hours, minutes, 0, 0);
+    } else {
+      dateObj.setHours(0, 0, 0, 0);
+    }
+  } else {
+    dateObj.setHours(0, 0, 0, 0);
+  }
+  return dateObj;
+}
+
+function subtractBusinessDays(date, n) {
+  const result = new Date(date);
+  let remaining = n;
+  while (remaining > 0) {
+    result.setDate(result.getDate() - 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) {
+      remaining--;
+    }
+  }
+  return result;
+}
+
+function isPrecheckAvailable(dateStr, timeStr) {
+  const appointmentDateTime = parseGermanDateTime(dateStr, timeStr);
+  if (!appointmentDateTime) return true;
+  const now = new Date();
+  const openDate = subtractBusinessDays(appointmentDateTime, 2);
+  return now >= openDate;
+}
+
+// --- Nodemailer transporter and Background notification worker ---
+let mailTransporter = null;
+
+async function getMailTransporter() {
+  if (mailTransporter) return mailTransporter;
+
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (host && port && user && pass) {
+    try {
+      mailTransporter = nodemailer.createTransport({
+        host,
+        port: parseInt(port, 10),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: { user, pass }
+      });
+      console.log(`📧 Nodemailer initialized using SMTP Server: ${host}:${port}`);
+      return mailTransporter;
+    } catch (err) {
+      console.error(`⚠️ SMTP Transport initialization failed:`, err.message);
+    }
+  }
+
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    mailTransporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass
+      }
+    });
+    console.log('📧 Nodemailer: Using Ethereal sandbox test account.');
+    return mailTransporter;
+  } catch (err) {
+    console.error('⚠️ Nodemailer initialization failed, fallback to console log:', err.message);
+    return {
+      sendMail: async (options) => {
+        console.log('\n---------------- MOCK EMAIL SENT ----------------');
+        console.log(`To: ${options.to}`);
+        console.log(`Subject: ${options.subject}`);
+        console.log(`HTML Body:\n${options.html}`);
+        console.log('--------------------------------------------------\n');
+        return { messageId: 'console-mock-' + Date.now() };
+      }
+    };
+  }
+}
+
+async function sendNotificationEmail(email, appointment) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const landingLink = `${appUrl}/#landing`;
+
+  const subject = `Ihr Pre-Check-In für den Termin bei ${appointment.doctor} ist bereit!`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #0063BE; margin-bottom: 20px;">Hallo,</h2>
+      <p style="font-size: 16px; line-height: 1.5; color: #334155;">
+        Ihr Pre-Check-In für Ihren anstehenden Termin bei <strong>${appointment.doctor}</strong> (${appointment.fachrichtung}) ist ab sofort verfügbar.
+      </p>
+      <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 14px; color: #475569;"><strong>Termin:</strong> ${appointment.date} um ${appointment.time} Uhr</p>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #475569;"><strong>Praxis:</strong> ${appointment.praxis} - ${appointment.adresse}</p>
+      </div>
+      <p style="font-size: 16px; line-height: 1.5; color: #334155;">
+        Bitte führen Sie den Pre-Check-In vorab online durch, um Ihre Beschwerden, Medikamente und Allergien einzutragen.
+      </p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${landingLink}" style="background-color: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">Jetzt Pre-Check-In starten</a>
+      </div>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Benachrichtigung von Doctolib Pre-Check-In.
+      </p>
+    </div>
+  `;
+
+  try {
+    const transporter = await getMailTransporter();
+    const fromAddr = process.env.SMTP_FROM || '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
+    const info = await transporter.sendMail({
+      from: fromAddr,
+      to: email,
+      subject,
+      html
+    });
+
+    console.log(`📧 Notification email sent to ${email} for appointment ${appointment.code}`);
+    if (info && info.messageId && info.messageId.startsWith('console-mock-')) {
+      return;
+    }
+    // Check if it has an ethereal URL
+    if (nodemailer.getTestMessageUrl) {
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log(`🔗 Ethereal Email Preview Link: ${previewUrl}`);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to send notification email:', err);
+  }
+}
+
+async function checkAndSendNotifications() {
+  if (!isDbConnected || !pool) return;
+  try {
+    const result = await pool.query(
+      `SELECT t.*, u.email as user_email
+       FROM termine t
+       JOIN users u ON t.user_id = u.id
+       WHERE t.notify_email IS NOT NULL AND t.notify_sent = FALSE`
+    );
+
+    for (const appt of result.rows) {
+      if (isPrecheckAvailable(appt.date, appt.time)) {
+        await sendNotificationEmail(appt.notify_email, appt);
+        await pool.query('UPDATE termine SET notify_sent = TRUE WHERE code = $1', [appt.code]);
+      }
+    }
+  } catch (err) {
+    console.error('Error running notification worker:', err);
+  }
+}
+
+// Start background worker to check notifications every 10 seconds
+setInterval(checkAndSendNotifications, 10000);
 
 // Serve frontend build static files in production
 const __filename = fileURLToPath(import.meta.url);

@@ -3085,9 +3085,114 @@
 }
 
 .booking-time-slot:disabled {
-  background: var(--gray-100);
-  border-color: var(--gray-150);
-  color: var(--gray-300);
+  background: #FEF2F2 !important;
+  border-color: #FCA5A5 !important;
+  color: #DC2626 !important;
   cursor: not-allowed;
   text-decoration: line-through;
+  opacity: 0.8;
+}
+
+/* Custom Month Calendar Styles */
+.dl-calendar {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-3);
+  background: var(--white);
+  margin-bottom: var(--space-4);
+}
+
+.dl-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.dl-calendar-month-year {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.dl-calendar-btn {
+  background: var(--white);
+  border: 1px solid var(--gray-250);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--gray-600);
+  font-weight: bold;
+  transition: all var(--transition-base);
+}
+
+.dl-calendar-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
+.dl-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: var(--font-size-xxs);
+  font-weight: 850;
+  color: var(--gray-400);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+}
+
+.dl-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.dl-calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--gray-700);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all var(--transition-base);
+  padding: 0;
+  height: 32px;
+  width: 32px;
+  margin: auto;
+}
+
+.dl-calendar-day:hover:not(:disabled) {
+  background: rgba(0, 99, 190, 0.1);
+  color: var(--primary);
+}
+
+.dl-calendar-day.active {
+  background: var(--primary) !important;
+  color: white !important;
+  font-weight: 700;
+}
+
+.dl-calendar-day.today {
+  border: 1.5px solid var(--primary-light);
+}
+
+.dl-calendar-day:disabled {
+  color: var(--gray-300) !important;
+  cursor: not-allowed;
+  font-weight: 400;
+  background: transparent !important;
+}
+
+.dl-calendar-day-empty {
+  visibility: hidden;
 }

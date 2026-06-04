@@ -6,41 +6,122 @@ import { renderDlNav, initDlNav } from '../components/DlNav.js';
 let selectedDate = null;
 let selectedTime = null;
 let bookingSuccess = false;
+let blockedSlots = [];
+let currentMonth = new Date();
 
-// Generate next 7 days starting tomorrow
-function getAvailableDates() {
-  const dates = [];
-  const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-  const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-  
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    
-    // We skip Sundays for medical practices
-    if (d.getDay() === 0) continue;
-
-    const formatted = `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]}`;
-    dates.push({
-      iso: d.toISOString().split('T')[0],
-      label: formatted
-    });
+function getNextAvailableDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1); // Tomorrow
+  while (d.getDay() === 0) { // Skip Sundays
+    d.setDate(d.getDate() + 1);
   }
-  return dates;
+  return d.toISOString().split('T')[0];
 }
 
-const timeslots = [
-  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-  '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-];
+function getAvailableTimeslotsForDate(dateStr) {
+  if (!dateStr) return [];
+  const d = new Date(dateStr + 'T00:00:00');
+  const isSaturday = d.getDay() === 6;
+  if (isSaturday) {
+    // Saturdays: morning only
+    return ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'];
+  }
+  // Weekdays: standard slots
+  return [
+    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+    '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
+  ];
+}
 
-// Deterministic block logic per date to make it look realistic yet stable
-function isSlotBlocked(dateIso, time) {
-  if (!dateIso) return false;
-  // A simple hash function to block 4-5 random slots per day
-  const charSum = dateIso.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const timeVal = parseInt(time.replace(':', ''), 10);
-  return (charSum + timeVal) % 4 === 0;
+async function fetchBlockedSlots(praxisName) {
+  if (!selectedDate) return;
+  try {
+    const res = await fetch(`/api/termine/blocked?date=${selectedDate}&praxis=${encodeURIComponent(praxisName)}`);
+    const data = await res.json();
+    blockedSlots = data.blocked || [];
+  } catch (err) {
+    console.error('Error fetching blocked slots:', err);
+    blockedSlots = [];
+  }
+}
+
+function renderCalendarHtml() {
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth(); // 0-indexed
+  
+  const monthNames = [
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+  ];
+  
+  // First day of the month
+  const firstDay = new Date(year, month, 1);
+  // Get day of week for first day (0 = Sun, 1 = Mon, ..., 6 = Sat)
+  let startDayOfWeek = firstDay.getDay();
+  // Adjust so Monday is 0 and Sunday is 6
+  startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+  
+  // Total days in month
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  
+  // Today's date to disable past dates
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  let daysHtml = '';
+  
+  // Render empty day placeholders for start of month alignment
+  for (let i = 0; i < startDayOfWeek; i++) {
+    daysHtml += `<div class="dl-calendar-day-empty"></div>`;
+  }
+  
+  // Render month days
+  for (let dayNum = 1; dayNum <= totalDays; dayNum++) {
+    const currentDayDate = new Date(year, month, dayNum);
+    currentDayDate.setHours(0, 0, 0, 0);
+    
+    const isoDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    
+    // Disable past dates and Sundays (getDay() === 0)
+    const isPast = currentDayDate < today;
+    const isSunday = currentDayDate.getDay() === 0;
+    const isDisabled = isPast || isSunday;
+    
+    const activeClass = selectedDate === isoDate ? 'active' : '';
+    const todayClass = (today.getDate() === dayNum && today.getMonth() === month && today.getFullYear() === year) ? 'today' : '';
+    const disabledAttr = isDisabled ? 'disabled' : '';
+    let titleAttr = '';
+    if (isSunday) {
+      titleAttr = 'title="Sonntags geschlossen"';
+    } else if (isPast) {
+      titleAttr = 'title="In der Vergangenheit"';
+    }
+    
+    daysHtml += `
+      <button class="dl-calendar-day ${activeClass} ${todayClass}" data-date="${isoDate}" ${disabledAttr} ${titleAttr}>
+        ${dayNum}
+      </button>
+    `;
+  }
+  
+  const isCurrentMonth = (month === today.getMonth() && year === today.getFullYear());
+  const prevDisabled = isCurrentMonth ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : '';
+  
+  return `
+    <div class="dl-calendar">
+      <div class="dl-calendar-header">
+        <button type="button" class="dl-calendar-btn" id="btn-prev-month" ${prevDisabled}>&lt;</button>
+        <span class="dl-calendar-month-year">${monthNames[month]} ${year}</span>
+        <button type="button" class="dl-calendar-btn" id="btn-next-month">&gt;</button>
+      </div>
+      <div class="dl-calendar-weekdays">
+        <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+      </div>
+      <div class="dl-calendar-days">
+        ${daysHtml}
+      </div>
+    </div>
+  `;
 }
 
 export function renderPraxisView() {
@@ -61,34 +142,12 @@ export function renderPraxisView() {
   }
 
   const loggedIn = auth.isLoggedIn();
-  const dates = getAvailableDates();
 
   // If date is not selected yet, auto-select tomorrow's date
-  if (!selectedDate && dates.length > 0) {
-    selectedDate = dates[0].iso;
+  if (!selectedDate) {
+    selectedDate = getNextAvailableDate();
+    currentMonth = new Date(selectedDate);
   }
-
-  // Pre-generate chips for Date Selection
-  const dateChipsHtml = dates.map(d => {
-    const activeClass = selectedDate === d.iso ? 'active' : '';
-    return `
-      <button class="booking-date-chip ${activeClass}" data-date="${d.iso}">
-        ${d.label}
-      </button>
-    `;
-  }).join('');
-
-  // Pre-generate chips for Time Slots
-  const timeChipsHtml = timeslots.map(time => {
-    const blocked = isSlotBlocked(selectedDate, time);
-    const activeClass = selectedTime === time ? 'active' : '';
-    const disabledAttr = blocked ? 'disabled title="Bereits belegt"' : '';
-    return `
-      <button class="booking-time-slot ${activeClass}" data-time="${time}" ${disabledAttr}>
-        ${time}
-      </button>
-    `;
-  }).join('');
 
   return `
     ${renderDlNav()}
@@ -180,17 +239,13 @@ export function renderPraxisView() {
                     <!-- Date Selection -->
                     <div class="booking-section">
                       <label class="booking-section-label">1. Datum wählen</label>
-                      <div class="booking-date-grid">
-                        ${dateChipsHtml}
-                      </div>
+                      <div id="calendar-container"></div>
                     </div>
 
                     <!-- Time Selection -->
                     <div class="booking-section" style="margin-top: var(--space-4);">
                       <label class="booking-section-label">2. Uhrzeit wählen</label>
-                      <div class="booking-time-grid">
-                        ${timeChipsHtml}
-                      </div>
+                      <div class="booking-time-grid" id="time-grid-container"></div>
                     </div>
 
                     <!-- Confirm Button -->
@@ -232,34 +287,96 @@ export function initPraxisView() {
     navigate('auth');
   });
 
-  // Handle Date Chip Click
-  const dateGrid = document.querySelector('.booking-date-grid');
-  dateGrid?.addEventListener('click', (e) => {
-    const chip = e.target.closest('.booking-date-chip');
-    if (!chip) return;
+  const loggedIn = auth.isLoggedIn();
+  if (!loggedIn) return;
 
-    selectedDate = chip.getAttribute('data-date');
-    selectedTime = null; // Reset selected time when date changes
+  function updateCalendar() {
+    const container = document.getElementById('calendar-container');
+    if (!container) return;
+    container.innerHTML = renderCalendarHtml();
+    
+    // Bind navigation buttons
+    document.getElementById('btn-prev-month')?.addEventListener('click', () => {
+      currentMonth.setMonth(currentMonth.getMonth() - 1);
+      updateCalendar();
+    });
+    
+    document.getElementById('btn-next-month')?.addEventListener('click', () => {
+      currentMonth.setMonth(currentMonth.getMonth() + 1);
+      updateCalendar();
+    });
+    
+    // Bind day buttons
+    container.querySelectorAll('.dl-calendar-day:not(:disabled)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedDate = btn.getAttribute('data-date');
+        selectedTime = null; // Reset time when date changes
+        
+        container.querySelectorAll('.dl-calendar-day').forEach(d => d.classList.remove('active'));
+        btn.classList.add('active');
+        
+        updateConfirmButtonState();
+        updateTimeSlots();
+      });
+    });
+  }
 
-    // Re-render only the hash view
-    const app = document.getElementById('app');
-    app.innerHTML = renderPraxisView();
-    initPraxisView();
-  });
+  async function updateTimeSlots() {
+    const container = document.getElementById('time-grid-container');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div style="grid-column: span 3; text-align: center; padding: var(--space-4) 0;">
+        <div class="dl-auth-spinner" style="display: inline-block;"></div>
+      </div>
+    `;
+    
+    await fetchBlockedSlots(praxis.name);
+    
+    const slots = getAvailableTimeslotsForDate(selectedDate);
+    if (slots.length === 0) {
+      container.innerHTML = `
+        <div style="grid-column: span 3; text-align: center; font-size: var(--font-size-xs); color: var(--gray-400); padding: var(--space-4) 0;">
+          Keine Termine verfügbar
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = slots.map(time => {
+      const blocked = blockedSlots.includes(time);
+      const activeClass = selectedTime === time ? 'active' : '';
+      const disabledAttr = blocked ? 'disabled title="Bereits belegt"' : '';
+      return `
+        <button class="booking-time-slot ${activeClass}" data-time="${time}" ${disabledAttr}>
+          ${time}
+        </button>
+      `;
+    }).join('');
+    
+    // Bind time slot buttons
+    container.querySelectorAll('.booking-time-slot:not(:disabled)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedTime = btn.getAttribute('data-time');
+        
+        container.querySelectorAll('.booking-time-slot').forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+        
+        updateConfirmButtonState();
+      });
+    });
+  }
 
-  // Handle Time Slot Click
-  const timeGrid = document.querySelector('.booking-time-grid');
-  timeGrid?.addEventListener('click', (e) => {
-    const slot = e.target.closest('.booking-time-slot');
-    if (!slot || slot.disabled) return;
+  function updateConfirmButtonState() {
+    const btnConfirm = document.getElementById('btn-booking-confirm');
+    if (btnConfirm) {
+      btnConfirm.disabled = (!selectedDate || !selectedTime);
+    }
+  }
 
-    selectedTime = slot.getAttribute('data-time');
-
-    // Re-render
-    const app = document.getElementById('app');
-    app.innerHTML = renderPraxisView();
-    initPraxisView();
-  });
+  // Initial load
+  updateCalendar();
+  updateTimeSlots();
 
   // Handle Confirm Click
   const btnConfirm = document.getElementById('btn-booking-confirm');
@@ -273,17 +390,15 @@ export function initPraxisView() {
     btnConfirm.querySelector('.btn-text').textContent = 'Wird gebucht…';
     btnConfirm.querySelector('.dl-auth-spinner').style.display = 'inline-block';
 
-    const formattedDate = formatDateLabel(selectedDate);
-
     try {
       const res = await fetch('/api/termine/buchen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          doctor: `Dr. med. ${praxis.name.split(' ').slice(1).join(' ')}`, // e.g. Dr. med. am Stadtpark or similar
+          doctor: `Dr. med. ${praxis.name.split(' ').slice(1).join(' ')}`,
           fachrichtung: praxis.fachbereich,
           adresse: praxis.adresse,
-          date: formattedDate,
+          date: selectedDate,
           time: selectedTime,
           art: 'Allgemeine Untersuchung',
           praxis: praxis.name,
@@ -319,12 +434,4 @@ export function initPraxisView() {
       btnConfirm.querySelector('.dl-auth-spinner').style.display = 'none';
     }
   });
-}
-
-// Convert "2026-06-03" -> "Mi, 03. Jun"
-function formatDateLabel(dateIso) {
-  const d = new Date(dateIso);
-  const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-  const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-  return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]}`;
 }

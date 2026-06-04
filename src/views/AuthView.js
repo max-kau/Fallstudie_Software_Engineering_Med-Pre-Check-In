@@ -39,10 +39,6 @@ export function renderAuthView() {
               <span class="dl-auth-submit-text">Anmelden</span>
               <div class="dl-auth-spinner" style="display:none;"></div>
             </button>
-
-            <div class="dl-auth-hint">
-              <span>Demo-Zugangsdaten:</span> max@doctolib.de / passwort123
-            </div>
           </div>
         </form>
 

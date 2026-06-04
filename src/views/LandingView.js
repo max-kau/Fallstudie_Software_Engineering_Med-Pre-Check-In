@@ -28,6 +28,9 @@ function getStepLabel(step) {
  */
 function parseGermanDate(dateStr) {
   if (!dateStr) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr + 'T00:00:00');
+  }
 
   const monthMap = {
     'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3, 'mai': 4, 'jun': 5,
@@ -50,6 +53,17 @@ function parseGermanDate(dateStr) {
   return new Date(year, month, day);
 }
 
+function formatGermanDate(dateStr) {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  return dateStr;
+}
+
 /**
  * Subtract N business days from a date (Mon-Fri only).
  * Returns a new Date that is N business days before the given date.
@@ -68,45 +82,63 @@ function subtractBusinessDays(date, n) {
 }
 
 /**
- * Check if the Pre-Check-In is available for a given appointment date string.
- * Available = today is within 2 business days before the appointment date (inclusive).
+ * Parse a German date and time string into a real Date object.
  */
-function isPrecheckAvailable(dateStr) {
-  const appointmentDate = parseGermanDate(dateStr);
-  if (!appointmentDate) return true; // If we can't parse, default to available
+function parseGermanDateTime(dateStr, timeStr) {
+  const dateObj = parseGermanDate(dateStr);
+  if (!dateObj) return null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  appointmentDate.setHours(0, 0, 0, 0);
-
-  // The precheck opens 2 business days before the appointment
-  const openDate = subtractBusinessDays(appointmentDate, 2);
-  openDate.setHours(0, 0, 0, 0);
-
-  return today >= openDate;
+  if (timeStr) {
+    const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      dateObj.setHours(hours, minutes, 0, 0);
+    } else {
+      dateObj.setHours(0, 0, 0, 0);
+    }
+  } else {
+    dateObj.setHours(0, 0, 0, 0);
+  }
+  return dateObj;
 }
 
 /**
- * Get the date when the Pre-Check-In becomes available (2 business days before appointment).
+ * Check if the Pre-Check-In is available for a given appointment date and time string.
+ * Available = current time is exactly 48 business hours or less before the appointment.
  */
-function getPrecheckOpenDate(dateStr) {
-  const appointmentDate = parseGermanDate(dateStr);
-  if (!appointmentDate) return null;
-  appointmentDate.setHours(0, 0, 0, 0);
-  return subtractBusinessDays(appointmentDate, 2);
+function isPrecheckAvailable(dateStr, timeStr) {
+  const appointmentDateTime = parseGermanDateTime(dateStr, timeStr);
+  if (!appointmentDateTime) return true; // If we can't parse, default to available
+
+  const now = new Date();
+  const openDate = subtractBusinessDays(appointmentDateTime, 2);
+
+  return now >= openDate;
 }
 
 /**
- * Format a Date as a readable German string, e.g. "Mo, 02. Jun"
+ * Get the date when the Pre-Check-In becomes available (2 business days / 48 business hours before appointment).
  */
-function formatGermanDate(date) {
+function getPrecheckOpenDate(dateStr, timeStr) {
+  const appointmentDateTime = parseGermanDateTime(dateStr, timeStr);
+  if (!appointmentDateTime) return null;
+  return subtractBusinessDays(appointmentDateTime, 2);
+}
+
+/**
+ * Format a Date as a readable German string including time, e.g. "Mo, 02. Jun um 14:00 Uhr"
+ */
+function formatGermanDateTime(date) {
   if (!date) return '';
   const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
   const dow = days[date.getDay()];
   const d = String(date.getDate()).padStart(2, '0');
   const m = months[date.getMonth()];
-  return `${dow}, ${d}. ${m}`;
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${dow}, ${d}. ${m} um ${hours}:${minutes} Uhr`;
 }
 
 /**
@@ -197,9 +229,9 @@ export async function initLandingView() {
       const currentStep = appt.precheck_step;
       const hasProgress = currentStep && currentStep !== 'intro';
 
-      // Check availability (2 business days rule)
-      const available = isPrecheckAvailable(appt.date);
-      const openDate = getPrecheckOpenDate(appt.date);
+      // Check availability (2 business days rule with exact 48 business hours match)
+      const available = isPrecheckAvailable(appt.date, appt.time);
+      const openDate = getPrecheckOpenDate(appt.date, appt.time);
       const daysLeft = daysUntil(appt.date);
 
       let precheckBannerHtml = '';
@@ -270,7 +302,7 @@ export async function initLandingView() {
         `;
       } else {
         // ---- NOT YET AVAILABLE – GREYED OUT ----
-        const openDateStr = openDate ? formatGermanDate(openDate) : '–';
+        const openDateStr = openDate ? formatGermanDateTime(openDate) : '–';
         const daysText = daysLeft !== null ? `Noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''} bis zum Termin` : '';
 
         precheckBannerHtml = `
@@ -319,7 +351,7 @@ export async function initLandingView() {
             
             <div style="background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); text-align: right; border: 1px solid var(--gray-200); min-width: 170px;">
               <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Termin</span>
-              <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block;">${appt.date}</strong>
+              <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block;">${formatGermanDate(appt.date)}</strong>
               <span style="font-size: var(--font-size-xs); color: var(--gray-500); display: block; margin-top: 2px;">${appt.time} Uhr · ${appt.art}</span>
             </div>
           </div>
@@ -347,20 +379,31 @@ export async function initLandingView() {
 
     // Attach click events to email notification buttons
     container.querySelectorAll('.btn-notify-email').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const button = e.currentTarget;
+        const code = button.getAttribute('data-code');
         const openDate = button.getAttribute('data-open-date');
 
-        // Show success confirmation
-        button.classList.add('precheck-banner__btn--notified');
-        button.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          E-Mail-Erinnerung aktiviert
-        `;
         button.disabled = true;
 
-        // Show a toast message
-        showNotificationToast(openDate);
+        try {
+          const res = await fetch(`/api/termine/${code}/notify`, { method: 'POST' });
+          if (!res.ok) throw new Error('API Error');
+
+          // Show success confirmation
+          button.classList.add('precheck-banner__btn--notified');
+          button.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            E-Mail-Erinnerung aktiviert
+          `;
+
+          // Show a toast message
+          showNotificationToast(openDate);
+        } catch (err) {
+          console.error('Error enabling notification:', err);
+          button.disabled = false;
+          alert('Die Aktivierung der E-Mail-Benachrichtigung ist fehlgeschlagen. Bitte versuchen Sie es erneut.');
+        }
       });
     });
 
