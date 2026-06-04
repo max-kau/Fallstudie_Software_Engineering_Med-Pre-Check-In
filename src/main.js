@@ -13,6 +13,7 @@ import { renderSummaryView, initSummaryView } from './views/SummaryView.js';
 import { renderPraxisView, initPraxisView } from './views/PraxisView.js';
 import { renderSearchView, initSearchView } from './views/SearchView.js';
 import { renderPraxisDashboardView, initPraxisDashboardView } from './views/PraxisDashboardView.js';
+import { renderZusatzfragenView, initZusatzfragenView } from './views/ZusatzfragenView.js';
 
 // Register all routes
 registerRoute('home', renderHomeView);
@@ -21,6 +22,7 @@ registerRoute('landing', renderLandingView);
 registerRoute('confirm', renderConfirmView);
 registerRoute('intro', renderIntroView);
 registerRoute('beschwerden', renderBeschwerdenView);
+registerRoute('zusatzfragen', renderZusatzfragenView);
 registerRoute('medikamente', renderMedikamenteView);
 registerRoute('allergien', renderAllergienView);
 registerRoute('dokumente', renderDokumenteView);
@@ -37,6 +39,7 @@ const initializers = {
   confirm: initConfirmView,
   intro: initIntroView,
   beschwerden: initBeschwerdenView,
+  zusatzfragen: initZusatzfragenView,
   medikamente: initMedikamenteView,
   allergien: initAllergienView,
   dokumente: initDokumenteView,

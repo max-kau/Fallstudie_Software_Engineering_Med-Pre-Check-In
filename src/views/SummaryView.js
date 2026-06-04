@@ -42,6 +42,23 @@ export function renderSummaryView() {
     <div class="summary-item"><div class="summary-item-label">Stärke</div>${b.staerke} / 10</div>
   `;
 
+  const customQuestions = store.getCustomQuestions();
+  const customAnswers = allData.customAnswers || {};
+  const hasCustomQuestions = customQuestions.length > 0;
+
+  const customContent = hasCustomQuestions
+    ? customQuestions.map(q => {
+        const ans = customAnswers[q.question_text];
+        const displayAns = Array.isArray(ans) ? ans.join(', ') : (ans || 'Keine Antwort');
+        return `
+          <div class="summary-item">
+            <div class="summary-item-label">${q.question_text}</div>
+            ${displayAns}
+          </div>
+        `;
+      }).join('')
+    : '';
+
   const medContent = m.keine
     ? '<div class="summary-item">Keine Medikamente</div>'
     : (m.liste.length ? `<div class="summary-item">${m.liste.join(', ')}</div>` : '<div class="summary-item text-muted">Keine Angabe</div>');
@@ -83,6 +100,16 @@ export function renderSummaryView() {
             </div>
             <div class="summary-content">${beschwerdenContent}</div>
           </div>
+
+          ${hasCustomQuestions ? `
+          <div class="summary-section card fade-in-up">
+            <div class="summary-header">
+              <div class="summary-title">📋 Praxis-Zusatzfragen</div>
+              <button class="summary-edit" data-edit="zusatzfragen">Bearbeiten</button>
+            </div>
+            <div class="summary-content">${customContent}</div>
+          </div>
+          ` : ''}
 
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
@@ -205,84 +232,130 @@ function generatePDF(allData, signatureDataUrl) {
   doc.line(20, 36, 190, 36);
 
   // Section 1: Patient & Appointment Details
+  let y = 45;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(50, 50, 50);
-  doc.text('1. Patient & Termin', 20, 45);
+  doc.text('1. Patient & Termin', 20, y);
 
+  y += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Patient: ${patient.vorname} ${patient.nachname}`, 20, 52);
-  doc.text(`Arzt/Praxis: ${termin.doctor} (${termin.praxis})`, 20, 57);
-  doc.text(`Termin: ${formatGermanDate(termin.date)} um ${termin.time} Uhr`, 20, 62);
-  doc.text(`Konsultationsart: ${termin.art}`, 20, 67);
+  doc.text(`Patient: ${patient.vorname} ${patient.nachname}`, 20, y);
+  y += 5;
+  doc.text(`Arzt/Praxis: ${termin.doctor} (${termin.praxis})`, 20, y);
+  y += 5;
+  doc.text(`Termin: ${formatGermanDate(termin.date)} um ${termin.time} Uhr`, 20, y);
+  y += 5;
+  doc.text(`Konsultationsart: ${termin.art}`, 20, y);
+  y += 10;
 
   // Section 2: Complaints
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('2. Medizinische Beschwerden', 20, 77);
+  doc.text('2. Medizinische Beschwerden', 20, y);
 
+  y += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const symptoms = allData.beschwerden.chips.join(', ') || 'Keine Symptome ausgewählt';
-  doc.text(`Ausgewählte Symptome: ${symptoms}`, 20, 84);
+  doc.text(`Ausgewählte Symptome: ${symptoms}`, 20, y);
+  y += 5;
 
   const splitFreitext = doc.splitTextToSize(`Beschreibung: ${allData.beschwerden.freitext || 'Keine Freitextbeschreibung eingegeben'}`, 170);
-  doc.text(splitFreitext, 20, 89);
+  doc.text(splitFreitext, 20, y);
+  y += splitFreitext.length * 5;
 
   const dauerText = allData.beschwerden.dauer ? (DAUER_MAP[allData.beschwerden.dauer] || allData.beschwerden.dauer) : 'Keine Angabe';
-  doc.text(`Dauer der Beschwerden: ${dauerText}`, 20, 105);
-  doc.text(`Schmerzstärke: ${allData.beschwerden.staerke || 0} / 10`, 20, 110);
+  doc.text(`Dauer der Beschwerden: ${dauerText}`, 20, y);
+  y += 5;
+  doc.text(`Schmerzstärke: ${allData.beschwerden.staerke || 0} / 10`, 20, y);
+  y += 12;
+
+  // Section 2.5: Custom Questions (only if exists)
+  const customQuestions = store.getCustomQuestions();
+  const customAnswers = allData.customAnswers || {};
+  if (customQuestions.length > 0) {
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('3. Zusatzfragen der Praxis', 20, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    for (const q of customQuestions) {
+      const ans = customAnswers[q.question_text];
+      const displayAns = Array.isArray(ans) ? ans.join(', ') : (ans || 'Keine Antwort');
+      const lines = doc.splitTextToSize(`${q.question_text}: ${displayAns}`, 170);
+      doc.text(lines, 20, y);
+      y += lines.length * 5;
+    }
+    y += 7;
+  }
 
   // Section 3: Medications
+  let sectionIdx = customQuestions.length > 0 ? 4 : 3;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('3. Aktuelle Medikation', 20, 122);
+  doc.text(`${sectionIdx}. Aktuelle Medikation`, 20, y);
 
+  y += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const meds = allData.medikamente.keine ? 'Keine Medikamente angegeben' : (allData.medikamente.liste.join(', ') || 'Keine Angabe');
-  doc.text(meds, 20, 129);
+  doc.text(meds, 20, y);
+  y += 10;
 
   // Section 4: Allergies
+  sectionIdx++;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('4. Allergien & Unverträglichkeiten', 20, 139);
+  doc.text(`${sectionIdx}. Allergien & Unverträglichkeiten`, 20, y);
 
+  y += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const allergies = allData.allergien.keine ? 'Keine bekannten Allergien' : (allData.allergien.liste.join(', ') || 'Keine Angabe');
-  doc.text(allergies, 20, 146);
+  doc.text(allergies, 20, y);
+  y += 5;
   if (allData.allergien.anmerkungen) {
-    doc.text(`Anmerkungen: ${allData.allergien.anmerkungen}`, 20, 151);
+    doc.text(`Anmerkungen: ${allData.allergien.anmerkungen}`, 20, y);
+    y += 5;
   }
+  y += 5;
 
   // Section 5: Documents
+  sectionIdx++;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('5. Hochgeladene Dokumente', 20, 161);
+  doc.text(`${sectionIdx}. Hochgeladene Dokumente`, 20, y);
 
+  y += 7;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const docsList = allData.dokumente.liste.map(f => `${f.filename} (${formatBytes(f.fileSize)})`).join(', ') || 'Keine Dokumente hochgeladen';
-  doc.text(docsList, 20, 168);
+  doc.text(docsList, 20, y);
+  y += 10;
 
   // Section 6: Signature
+  sectionIdx++;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('6. Bestätigung & Digitale Unterschrift', 20, 178);
+  doc.text(`${sectionIdx}. Bestätigung & Digitale Unterschrift`, 20, y);
 
+  y += 7;
   doc.setFontSize(9);
   doc.setFont('helvetica', 'italic');
-  doc.text('Hiermit bestätige ich, dass die vorstehenden Angaben nach bestem Wissen korrekt und vollständig gemacht wurden.', 20, 185);
+  doc.text('Hiermit bestätige ich, dass die vorstehenden Angaben nach bestem Wissen korrekt und vollständig gemacht wurden.', 20, y);
+  y += 5;
 
   if (signatureDataUrl) {
-    doc.addImage(signatureDataUrl, 'PNG', 20, 188, 70, 20);
+    doc.addImage(signatureDataUrl, 'PNG', 20, y, 70, 20);
+    y += 22;
   }
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Handzeichen von ${patient.vorname} ${patient.nachname}`, 20, 214);
+  doc.text(`Handzeichen von ${patient.vorname} ${patient.nachname}`, 20, y);
 
   // Footer / Watermark
   doc.setFontSize(8);

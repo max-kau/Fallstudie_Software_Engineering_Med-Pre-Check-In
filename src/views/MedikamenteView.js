@@ -30,7 +30,7 @@ export function renderMedikamenteView() {
             <span class="no-data-text">Ich nehme aktuell keine Medikamente ein</span>
           </label>
 
-          ${renderStepNavigation('beschwerden', 'allergien')}
+          ${renderStepNavigation(store.getCustomQuestions().length > 0 ? 'zusatzfragen' : 'beschwerden', 'allergien')}
         </div>
       </div>
     </div>
