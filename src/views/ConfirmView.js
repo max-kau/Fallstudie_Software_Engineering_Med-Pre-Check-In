@@ -1,6 +1,17 @@
 import { store } from '../utils/store.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 
+function formatGermanDate(dateStr) {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  return dateStr;
+}
+
 export function renderConfirmView() {
   const termin = store.getTerminInfo();
   const patient = store.getPatientInfo();
@@ -42,7 +53,7 @@ export function renderConfirmView() {
                   <circle cx="12" cy="12" r="10"/>
                   <polyline points="12 6 12 12 16 14"/>
                 </svg>
-                ${termin.date} · ${termin.time} Uhr
+                ${formatGermanDate(termin.date)} · ${termin.time} Uhr
               </span>
             </div>
           </div>

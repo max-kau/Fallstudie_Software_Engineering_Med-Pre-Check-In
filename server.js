@@ -401,6 +401,39 @@ app.put('/api/auth/profile', async (req, res) => {
   }
 });
 
+// API: Get blocked slots for a given date and praxis
+app.get('/api/termine/blocked', async (req, res) => {
+  const { date, praxis } = req.query;
+  console.log(`[GET /api/termine/blocked] date=${date}, praxis=${praxis}, session.userId=${req.session?.userId}`);
+  if (!date || !praxis) {
+    return res.status(400).json({ error: 'Datum und Praxis werden benötigt.' });
+  }
+
+  const userId = req.session ? req.session.userId : null;
+
+  if (!isDbConnected || !pool) {
+    // Block if same praxis OR same user
+    const matches = (req.session.mockAppointments || [])
+      .filter(appt => appt.date === date && (appt.praxis === praxis || (userId && appt.user_id === userId)))
+      .map(appt => appt.time);
+    return res.json({ blocked: matches });
+  }
+
+  try {
+    // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user)
+    const result = await pool.query(
+      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3)',
+      [date, praxis, userId || -1]
+    );
+    const blockedSlots = result.rows.map(row => row.time);
+    console.log(`[GET /api/termine/blocked] returning blocked slots:`, blockedSlots);
+    res.json({ blocked: blockedSlots });
+  } catch (err) {
+    console.error('Error fetching blocked slots:', err);
+    res.status(500).json({ error: 'Fehler beim Laden belegter Zeiten.' });
+  }
+});
+
 // API: Book a new appointment
 app.post('/api/termine/buchen', async (req, res) => {
   if (!req.session || !req.session.userId) {
@@ -408,12 +441,29 @@ app.post('/api/termine/buchen', async (req, res) => {
   }
 
   const { doctor, fachrichtung, adresse, date, time, art, praxis, tags } = req.body;
+  console.log(`[POST /api/termine/buchen] date=${date}, time=${time}, praxis=${praxis}, userId=${req.session.userId}`);
 
   if (!doctor || !fachrichtung || !adresse || !date || !time || !art || !praxis) {
     return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
   }
 
   if (!isDbConnected || !pool) {
+    // Check if slot already booked in mockAppointments for this praxis
+    const existing = (req.session.mockAppointments || []).find(
+      appt => appt.date === date && appt.time === time && appt.praxis === praxis
+    );
+    if (existing) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has an appointment at this time
+    const userExisting = (req.session.mockAppointments || []).find(
+      appt => appt.date === date && appt.time === time && appt.user_id === req.session.userId
+    );
+    if (userExisting) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
     const code = 't_MOCK' + Math.random().toString(36).substring(2, 6).toUpperCase();
     const mockAppt = {
       code,
@@ -440,6 +490,24 @@ app.post('/api/termine/buchen', async (req, res) => {
   }
 
   try {
+    // Check if slot already booked in DB for this praxis
+    const blockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3',
+      [date, time, praxis]
+    );
+    if (blockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has an appointment at this time
+    const userBlockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3',
+      [date, time, req.session.userId]
+    );
+    if (userBlockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
     // Get user details for patient name
     const userResult = await pool.query('SELECT vorname, nachname FROM users WHERE id = $1', [req.session.userId]);
     if (userResult.rows.length === 0) {
@@ -871,6 +939,9 @@ app.post('/api/termine/:code/notify', async (req, res) => {
 // --- Date Parsing and Business Days logic for Notification Worker ---
 function parseGermanDate(dateStr) {
   if (!dateStr) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr + 'T00:00:00');
+  }
   const monthMap = {
     'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3, 'mai': 4, 'jun': 5,
     'jul': 6, 'aug': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'dez': 11
@@ -980,6 +1051,9 @@ async function getMailTransporter() {
 }
 
 async function sendNotificationEmail(email, appointment) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const landingLink = `${appUrl}/#landing`;
+
   const subject = `Ihr Pre-Check-In für den Termin bei ${appointment.doctor} ist bereit!`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -995,7 +1069,7 @@ async function sendNotificationEmail(email, appointment) {
         Bitte führen Sie den Pre-Check-In vorab online durch, um Ihre Beschwerden, Medikamente und Allergien einzutragen.
       </p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="http://localhost:3000/#landing" style="background-color: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">Jetzt Pre-Check-In starten</a>
+        <a href="${landingLink}" style="background-color: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">Jetzt Pre-Check-In starten</a>
       </div>
       <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
       <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">

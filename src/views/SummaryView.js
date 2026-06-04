@@ -3,6 +3,17 @@ import { store } from '../utils/store.js';
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 
+function formatGermanDate(dateStr) {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  return dateStr;
+}
+
 const DAUER_MAP = { heute: 'Seit heute', einige_tage: 'Seit einigen Tagen', eine_woche: 'Seit etwa einer Woche', mehrere_wochen: 'Seit mehreren Wochen', monate: 'Seit Monaten', laenger: 'Länger als 6 Monate' };
 
 function formatBytes(bytes, decimals = 1) {
@@ -141,7 +152,7 @@ function renderSuccessScreen() {
               <div class="termin-icon">📅</div>
               <div class="termin-info">
                 <div class="termin-doctor">${termin.doctor}</div>
-                <div class="termin-date">${termin.date}, ${termin.time}</div>
+                <div class="termin-date">${formatGermanDate(termin.date)}, ${termin.time} Uhr</div>
               </div>
             </div>
             ${pdfDownloadButton}
@@ -195,7 +206,7 @@ function generatePDF(allData, signatureDataUrl) {
   doc.setFont('helvetica', 'normal');
   doc.text(`Patient: ${patient.vorname} ${patient.nachname}`, 20, 52);
   doc.text(`Arzt/Praxis: ${termin.doctor} (${termin.praxis})`, 20, 57);
-  doc.text(`Termin: ${termin.date} um ${termin.time} Uhr`, 20, 62);
+  doc.text(`Termin: ${formatGermanDate(termin.date)} um ${termin.time} Uhr`, 20, 62);
   doc.text(`Konsultationsart: ${termin.art}`, 20, 67);
 
   // Section 2: Complaints
