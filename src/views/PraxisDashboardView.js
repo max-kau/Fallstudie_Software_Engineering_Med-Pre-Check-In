@@ -1,6 +1,8 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
+import { renderCalendarView, initCalendarView } from '../components/CalendarView.js';
+import { openPatientDetailModal } from '../components/PatientDetailModal.js';
 
 export function renderPraxisDashboardView() {
   const user = auth.getUser() || {};
@@ -25,18 +27,26 @@ export function renderPraxisDashboardView() {
           <p class="text-muted" style="font-size: var(--font-size-sm);">${user.praxis_fachbereich || ''} ${user.praxis_adresse ? '· ' + user.praxis_adresse : ''}</p>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs (3 tabs: Kalender, Statistik, Gestaltung) -->
         <div style="display: flex; gap: var(--space-4); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px;">
-          <button id="tab-dashboard-termine" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
-            📅 Termine & Statistik
+          <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+            📅 Kalender
+          </button>
+          <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+            📊 Statistik & Termine
           </button>
           <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
             🎨 Pre-Check-In gestalten
           </button>
         </div>
 
+        <!-- Tab Content: Calendar (DEFAULT) -->
+        <div id="tab-content-kalender" class="dashboard-tab-content">
+          ${renderCalendarView()}
+        </div>
+
         <!-- Tab Content: Dashboard & Termine -->
-        <div id="tab-content-termine" class="dashboard-tab-content">
+        <div id="tab-content-termine" class="dashboard-tab-content" style="display: none;">
           <!-- Stats Cards -->
           <div id="praxis-stats-container" style="margin-bottom: var(--space-8);">
             <div style="text-align: center; padding: var(--space-8) 0;">
@@ -155,7 +165,7 @@ function renderTermineTable(termine) {
                   <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${t.art}</td>
                   <td style="padding: var(--space-3) var(--space-4);">${statusHtml}</td>
                   <td style="padding: var(--space-3) var(--space-4); text-align: center;">
-                    ${t.precheck_submitted ? `<button class="btn-view-precheck" data-index="${i}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 12px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s;">Einsehen</button>` : `<span style="color: var(--gray-300);">–</span>`}
+                    <button class="btn-view-details" data-code="${t.code}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 12px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s;">Details</button>
                   </td>
                 </tr>
               `;
@@ -221,120 +231,32 @@ function renderQuestions(questions) {
   }).join('');
 }
 
-function renderPrecheckModal(termin) {
-  const b = termin.beschwerden ? (typeof termin.beschwerden === 'string' ? JSON.parse(termin.beschwerden) : termin.beschwerden) : {};
-  const m = termin.medikamente ? (typeof termin.medikamente === 'string' ? JSON.parse(termin.medikamente) : termin.medikamente) : {};
-  const a = termin.allergien ? (typeof termin.allergien === 'string' ? JSON.parse(termin.allergien) : termin.allergien) : {};
-  const customAnswers = termin.custom_answers ? (typeof termin.custom_answers === 'string' ? JSON.parse(termin.custom_answers) : termin.custom_answers) : {};
-  const hasCustomAnswers = Object.keys(customAnswers).length > 0;
-
-  const patientName = `${termin.patient_vorname || ''} ${termin.patient_nachname || ''}`.trim() || 'Patient';
-  const symptoms = (b.chips || []).join(', ') || 'Keine Angabe';
-  const freitext = b.freitext || 'Keine Beschreibung';
-  const staerke = b.staerke != null ? `${b.staerke} / 10` : 'Keine Angabe';
-  const meds = m.keine ? 'Keine Medikamente' : (m.liste || []).join(', ') || 'Keine Angabe';
-  const allergien = a.keine ? 'Keine Allergien' : (a.liste || []).join(', ') || 'Keine Angabe';
-  const allerAnm = a.anmerkungen || '';
-
-  return `
-    <div class="dl-modal-backdrop" id="precheck-modal">
-      <div class="dl-modal-card fade-in-up" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column;">
-        <div class="dl-modal-header" style="flex-shrink: 0;">
-          <h3 class="dl-modal-title">Pre-Check-In: ${patientName}</h3>
-          <button class="dl-modal-close" id="btn-close-precheck">&times;</button>
-        </div>
-        <div class="dl-modal-body" style="overflow-y: auto; padding: var(--space-6); flex-grow: 1;">
-          <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-5);">
-            Termin: ${termin.date} um ${termin.time} Uhr · ${termin.art}
-          </p>
-
-          <div style="display: flex; flex-direction: column; gap: var(--space-5);">
-            <!-- Beschwerden -->
-            <div>
-              <h4 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 6px;">🩺 Beschwerden</h4>
-              <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); font-size: var(--font-size-sm); color: var(--gray-700); line-height: 1.6;">
-                <div><strong>Symptome:</strong> ${symptoms}</div>
-                <div style="margin-top: var(--space-2);"><strong>Beschreibung:</strong> ${freitext}</div>
-                <div style="margin-top: var(--space-2);"><strong>Schmerzstärke:</strong> ${staerke}</div>
-              </div>
-            </div>
-
-            <!-- Medikamente -->
-            <div>
-              <h4 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 6px;">💊 Medikamente</h4>
-              <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); font-size: var(--font-size-sm); color: var(--gray-700);">
-                ${meds}
-              </div>
-            </div>
-
-            <!-- Allergien -->
-            <div>
-              <h4 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 6px;">⚠️ Allergien</h4>
-              <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); font-size: var(--font-size-sm); color: var(--gray-700);">
-                ${allergien}${allerAnm ? `<div style="margin-top: var(--space-2);"><strong>Anmerkungen:</strong> ${allerAnm}</div>` : ''}
-              </div>
-            </div>
-
-            <!-- Zusatzfragen -->
-            ${hasCustomAnswers ? `
-            <div>
-              <h4 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 6px;">📋 Praxis-Zusatzfragen</h4>
-              <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); font-size: var(--font-size-sm); color: var(--gray-700); display: flex; flex-direction: column; gap: var(--space-3);">
-                ${Object.entries(customAnswers).map(([qText, qAns]) => {
-                  const ansText = Array.isArray(qAns) ? qAns.join(', ') : (qAns || 'Keine Antwort');
-                  return `
-                    <div>
-                      <strong style="display: block; color: var(--gray-600); font-size: 11px; text-transform: uppercase;">${qText}</strong>
-                      <span style="color: var(--gray-800); font-weight: 600;">${ansText}</span>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-            ` : ''}
-
-          </div>
-        </div>
-        <div class="dl-modal-footer" style="flex-shrink: 0;">
-          <button type="button" class="btn btn-primary" id="btn-close-precheck-footer" style="padding: var(--space-2) var(--space-5); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Schließen</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 export async function initPraxisDashboardView() {
   initDlNav();
 
-  const tabTermineBtn = document.getElementById('tab-dashboard-termine');
-  const tabGestaltungBtn = document.getElementById('tab-dashboard-gestaltung');
-  const contentTermine = document.getElementById('tab-content-termine');
-  const contentGestaltung = document.getElementById('tab-content-gestaltung');
+  // Tab switching logic for 3 tabs
+  const tabs = [
+    { btn: 'tab-dashboard-kalender', content: 'tab-content-kalender' },
+    { btn: 'tab-dashboard-termine', content: 'tab-content-termine' },
+    { btn: 'tab-dashboard-gestaltung', content: 'tab-content-gestaltung' }
+  ];
 
-  tabTermineBtn?.addEventListener('click', () => {
-    tabTermineBtn.classList.add('active');
-    tabTermineBtn.style.color = 'var(--primary)';
-    tabTermineBtn.style.borderBottomColor = 'var(--primary)';
-    
-    tabGestaltungBtn.classList.remove('active');
-    tabGestaltungBtn.style.color = 'var(--gray-500)';
-    tabGestaltungBtn.style.borderBottomColor = 'transparent';
-    
-    contentTermine.style.display = 'block';
-    contentGestaltung.style.display = 'none';
-  });
-
-  tabGestaltungBtn?.addEventListener('click', () => {
-    tabGestaltungBtn.classList.add('active');
-    tabGestaltungBtn.style.color = 'var(--primary)';
-    tabGestaltungBtn.style.borderBottomColor = 'var(--primary)';
-    
-    tabTermineBtn.classList.remove('active');
-    tabTermineBtn.style.color = 'var(--gray-500)';
-    tabTermineBtn.style.borderBottomColor = 'transparent';
-    
-    contentTermine.style.display = 'none';
-    contentGestaltung.style.display = 'block';
+  tabs.forEach(tab => {
+    document.getElementById(tab.btn)?.addEventListener('click', () => {
+      tabs.forEach(t => {
+        const b = document.getElementById(t.btn);
+        const c = document.getElementById(t.content);
+        if (t.btn === tab.btn) {
+          b?.classList.add('active');
+          if (b) { b.style.color = 'var(--primary)'; b.style.borderBottomColor = 'var(--primary)'; }
+          if (c) c.style.display = 'block';
+        } else {
+          b?.classList.remove('active');
+          if (b) { b.style.color = 'var(--gray-500)'; b.style.borderBottomColor = 'transparent'; }
+          if (c) c.style.display = 'none';
+        }
+      });
+    });
   });
 
   const statsContainer = document.getElementById('praxis-stats-container');
@@ -359,31 +281,28 @@ export async function initPraxisDashboardView() {
     const data = await termineRes.json();
     if (data.success) {
       termineData = data.termine || [];
+      
+      // Render table in Statistik tab
       termineContainer.innerHTML = renderTermineTable(termineData);
 
-      // Attach click handlers for "Einsehen" buttons
-      termineContainer.querySelectorAll('.btn-view-precheck').forEach(btn => {
+      // Attach click handlers for table "Details" buttons
+      termineContainer.querySelectorAll('.btn-view-details').forEach(btn => {
         btn.addEventListener('click', () => {
-          const idx = parseInt(btn.dataset.index);
-          const termin = termineData[idx];
-          if (!termin) return;
-
-          document.getElementById('precheck-modal')?.remove();
-          document.body.insertAdjacentHTML('beforeend', renderPrecheckModal(termin));
-
-          const modal = document.getElementById('precheck-modal');
-          const closeModal = () => modal?.remove();
-          document.getElementById('btn-close-precheck')?.addEventListener('click', closeModal);
-          document.getElementById('btn-close-precheck-footer')?.addEventListener('click', closeModal);
-          modal?.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+          const code = btn.dataset.code;
+          if (code) openPatientDetailModal(code);
         });
+      });
+
+      // Initialize Calendar with appointment data
+      initCalendarView(termineData, (appt) => {
+        openPatientDetailModal(appt.code);
       });
     }
   } catch (err) {
     termineContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Termine konnten nicht geladen werden.</p>';
   }
 
-  // Questionnaire Builder Logic
+  // Questionnaire Builder Logic (unchanged)
   let questions = [];
   const questionsListContainer = document.getElementById('questions-list-container');
   const statusMessage = document.getElementById('questions-status-message');
@@ -409,7 +328,6 @@ export async function initPraxisDashboardView() {
       select.addEventListener('change', (e) => {
         const idx = parseInt(e.target.dataset.index);
         questions[idx].question_type = e.target.value;
-        // Show/hide options container
         const optionsDiv = e.target.closest('.dl-question-card').querySelector('.options-container');
         if (optionsDiv) {
           optionsDiv.style.display = e.target.value === 'text' ? 'none' : 'block';

@@ -201,7 +201,24 @@ export async function initLandingView() {
 
     if (!res.ok) throw new Error(data.error || 'Fehler beim Laden der Termine');
 
-    const appointments = data.appointments || [];
+    let appointments = data.appointments || [];
+
+    // Load hints for each appointment
+    appointments = await Promise.all(
+      appointments.map(async (appt) => {
+        try {
+          const hintsRes = await fetch(`/api/precheckin/${appt.code}/hints`);
+          const hintsData = await hintsRes.json();
+          return {
+            ...appt,
+            hints: hintsData.success ? hintsData.hints : []
+          };
+        } catch (err) {
+          console.error(`Error loading hints for ${appt.code}:`, err);
+          return { ...appt, hints: [] };
+        }
+      })
+    );
 
     if (appointments.length === 0) {
       container.innerHTML = `
@@ -247,19 +264,37 @@ export async function initLandingView() {
       let precheckBannerHtml = '';
 
       if (isSubmitted) {
+        // Check if there are hints from the doctor
+        const latestHint = appt.hints && appt.hints.length > 0 ? appt.hints[0] : null;
+        let hintSectionHtml = '';
+        if (latestHint) {
+          const hintList = Array.isArray(latestHint.hints) ? latestHint.hints : (typeof latestHint.hints === 'string' ? JSON.parse(latestHint.hints) : []);
+          const listItems = hintList.map(h => `<li style="margin-bottom: 4px;">${h}</li>`).join('');
+          hintSectionHtml = `
+            <div class="patient-hint-banner-alert" style="margin-top: var(--space-4); background: #FFFBEB; border: 1px solid #FEF3C7; border-left: 4px solid #F59E0B; padding: var(--space-4); border-radius: var(--radius-lg); text-align: left; width: 100%;">
+              <h5 style="margin: 0 0 var(--space-2) 0; font-size: var(--font-size-sm); color: #B45309; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                💡 Wichtige Hinweise Ihrer Praxis:
+              </h5>
+              ${hintList.length > 0 ? `<ul style="margin: 0; padding-left: 20px; font-size: var(--font-size-sm); color: #92400E;">${listItems}</ul>` : ''}
+              ${latestHint.custom_text ? `<div style="margin-top: var(--space-2); font-size: var(--font-size-sm); color: #92400E; font-style: italic;">${latestHint.custom_text}</div>` : ''}
+            </div>
+          `;
+        }
+
         // ---- SUBMITTED STATE ----
         precheckBannerHtml = `
           <div class="precheck-banner precheck-banner--submitted">
-            <div class="precheck-banner__content">
-              <div class="precheck-banner__info">
+            <div class="precheck-banner__content" style="flex-wrap: wrap;">
+              <div class="precheck-banner__info" style="flex: 1; min-width: 250px;">
                 <span class="precheck-banner__badge precheck-banner__badge--success">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   PRE-CHECK-IN ABGESCHLOSSEN
                 </span>
                 <h4 class="precheck-banner__title">Ihre Angaben wurden übermittelt</h4>
                 <p class="precheck-banner__desc">Ihr Arzt hat alle wichtigen Informationen vorliegen. Sie können die Zusammenfassung jederzeit einsehen.</p>
+                ${hintSectionHtml}
               </div>
-              <div class="precheck-banner__action">
+              <div class="precheck-banner__action" style="align-self: flex-start;">
                 <button class="precheck-banner__btn precheck-banner__btn--outline-success btn-go-precheck" data-code="${appt.code}" data-target="zusammenfassung">
                   Zusammenfassung ansehen
                 </button>

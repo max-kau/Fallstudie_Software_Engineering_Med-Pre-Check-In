@@ -165,8 +165,7 @@ function resetProgress() {
   const freshData = getDefaultData();
   saveAll(freshData);
 
-  // Trigger an autosave to override/initialize the database record with the clean state
-  triggerAutosave();
+  // Do NOT trigger autosave here, as it would overwrite the completed pre-check-in record in the database.
 }
 
 async function uploadFile(file) {
