@@ -1,4 +1,4 @@
-import { registerRoute, initRouter } from './utils/router.js';
+import { registerRoute, initRouter, navigate } from './utils/router.js';
 import { renderHomeView, initHomeView } from './views/HomeView.js';
 import { renderAuthView, initAuthView } from './views/AuthView.js';
 import { renderLandingView, initLandingView } from './views/LandingView.js';
