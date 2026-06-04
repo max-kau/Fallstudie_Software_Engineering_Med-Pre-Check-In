@@ -162,16 +162,9 @@ async function initDb() {
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS notify_sent BOOLEAN DEFAULT FALSE;
     `);
 
-    // Auto-seed a demo user if none exists
-    const existingUsers = await pool.query('SELECT COUNT(*) FROM users');
-    if (parseInt(existingUsers.rows[0].count) === 0) {
-      const demoHash = await bcrypt.hash('passwort123', 10);
-      await pool.query(
-        'INSERT INTO users (email, password_hash, vorname, nachname) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING',
-        ['max@doctolib.de', demoHash, 'Max', 'Mustermann']
-      );
-      console.log('Demo user seeded: max@doctolib.de / passwort123');
-    }
+    // Remove the demo user if it exists to allow only custom testing
+    await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
+    console.log('Demo user max@doctolib.de verified removed from database.');
 
   } catch (err) {
     console.error('Database initialization failed:', err);
