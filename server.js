@@ -937,6 +937,27 @@ let mailTransporter = null;
 
 async function getMailTransporter() {
   if (mailTransporter) return mailTransporter;
+
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (host && port && user && pass) {
+    try {
+      mailTransporter = nodemailer.createTransport({
+        host,
+        port: parseInt(port, 10),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: { user, pass }
+      });
+      console.log(`📧 Nodemailer initialized using SMTP Server: ${host}:${port}`);
+      return mailTransporter;
+    } catch (err) {
+      console.error(`⚠️ SMTP Transport initialization failed:`, err.message);
+    }
+  }
+
   try {
     const testAccount = await nodemailer.createTestAccount();
     mailTransporter = nodemailer.createTransport({
@@ -948,7 +969,7 @@ async function getMailTransporter() {
         pass: testAccount.pass
       }
     });
-    console.log('📧 Nodemailer initialized using Ethereal Test Account.');
+    console.log('📧 Nodemailer: Using Ethereal sandbox test account.');
     return mailTransporter;
   } catch (err) {
     console.error('⚠️ Nodemailer initialization failed, fallback to console log:', err.message);
@@ -992,14 +1013,19 @@ async function sendNotificationEmail(email, appointment) {
 
   try {
     const transporter = await getMailTransporter();
+    const fromAddr = process.env.SMTP_FROM || '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
     const info = await transporter.sendMail({
-      from: '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>',
+      from: fromAddr,
       to: email,
       subject,
       html
     });
 
     console.log(`📧 Notification email sent to ${email} for appointment ${appointment.code}`);
+    if (info && info.messageId && info.messageId.startsWith('console-mock-')) {
+      return;
+    }
+    // Check if it has an ethereal URL
     if (nodemailer.getTestMessageUrl) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
