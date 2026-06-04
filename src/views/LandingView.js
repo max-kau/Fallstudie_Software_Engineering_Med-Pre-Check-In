@@ -68,45 +68,63 @@ function subtractBusinessDays(date, n) {
 }
 
 /**
- * Check if the Pre-Check-In is available for a given appointment date string.
- * Available = today is within 2 business days before the appointment date (inclusive).
+ * Parse a German date and time string into a real Date object.
  */
-function isPrecheckAvailable(dateStr) {
-  const appointmentDate = parseGermanDate(dateStr);
-  if (!appointmentDate) return true; // If we can't parse, default to available
+function parseGermanDateTime(dateStr, timeStr) {
+  const dateObj = parseGermanDate(dateStr);
+  if (!dateObj) return null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  appointmentDate.setHours(0, 0, 0, 0);
-
-  // The precheck opens 2 business days before the appointment
-  const openDate = subtractBusinessDays(appointmentDate, 2);
-  openDate.setHours(0, 0, 0, 0);
-
-  return today >= openDate;
+  if (timeStr) {
+    const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      dateObj.setHours(hours, minutes, 0, 0);
+    } else {
+      dateObj.setHours(0, 0, 0, 0);
+    }
+  } else {
+    dateObj.setHours(0, 0, 0, 0);
+  }
+  return dateObj;
 }
 
 /**
- * Get the date when the Pre-Check-In becomes available (2 business days before appointment).
+ * Check if the Pre-Check-In is available for a given appointment date and time string.
+ * Available = current time is exactly 48 business hours or less before the appointment.
  */
-function getPrecheckOpenDate(dateStr) {
-  const appointmentDate = parseGermanDate(dateStr);
-  if (!appointmentDate) return null;
-  appointmentDate.setHours(0, 0, 0, 0);
-  return subtractBusinessDays(appointmentDate, 2);
+function isPrecheckAvailable(dateStr, timeStr) {
+  const appointmentDateTime = parseGermanDateTime(dateStr, timeStr);
+  if (!appointmentDateTime) return true; // If we can't parse, default to available
+
+  const now = new Date();
+  const openDate = subtractBusinessDays(appointmentDateTime, 2);
+
+  return now >= openDate;
 }
 
 /**
- * Format a Date as a readable German string, e.g. "Mo, 02. Jun"
+ * Get the date when the Pre-Check-In becomes available (2 business days / 48 business hours before appointment).
  */
-function formatGermanDate(date) {
+function getPrecheckOpenDate(dateStr, timeStr) {
+  const appointmentDateTime = parseGermanDateTime(dateStr, timeStr);
+  if (!appointmentDateTime) return null;
+  return subtractBusinessDays(appointmentDateTime, 2);
+}
+
+/**
+ * Format a Date as a readable German string including time, e.g. "Mo, 02. Jun um 14:00 Uhr"
+ */
+function formatGermanDateTime(date) {
   if (!date) return '';
   const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
   const dow = days[date.getDay()];
   const d = String(date.getDate()).padStart(2, '0');
   const m = months[date.getMonth()];
-  return `${dow}, ${d}. ${m}`;
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${dow}, ${d}. ${m} um ${hours}:${minutes} Uhr`;
 }
 
 /**
@@ -197,9 +215,9 @@ export async function initLandingView() {
       const currentStep = appt.precheck_step;
       const hasProgress = currentStep && currentStep !== 'intro';
 
-      // Check availability (2 business days rule)
-      const available = isPrecheckAvailable(appt.date);
-      const openDate = getPrecheckOpenDate(appt.date);
+      // Check availability (2 business days rule with exact 48 business hours match)
+      const available = isPrecheckAvailable(appt.date, appt.time);
+      const openDate = getPrecheckOpenDate(appt.date, appt.time);
       const daysLeft = daysUntil(appt.date);
 
       let precheckBannerHtml = '';
@@ -270,7 +288,7 @@ export async function initLandingView() {
         `;
       } else {
         // ---- NOT YET AVAILABLE – GREYED OUT ----
-        const openDateStr = openDate ? formatGermanDate(openDate) : '–';
+        const openDateStr = openDate ? formatGermanDateTime(openDate) : '–';
         const daysText = daysLeft !== null ? `Noch ${daysLeft} Tag${daysLeft !== 1 ? 'e' : ''} bis zum Termin` : '';
 
         precheckBannerHtml = `
