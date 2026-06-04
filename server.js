@@ -167,6 +167,25 @@ async function initDb() {
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS notify_sent BOOLEAN DEFAULT FALSE;
     `);
 
+    // Ensure custom_answers exists in precheckins
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS custom_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
+    `);
+
+    // Create praxis_questions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS praxis_questions (
+        id SERIAL PRIMARY KEY,
+        praxis_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        question_text VARCHAR(255) NOT NULL,
+        question_type VARCHAR(50) NOT NULL,
+        options JSONB DEFAULT '[]'::jsonb,
+        required BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "praxis_questions" and column "custom_answers" verified/created.');
+
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
     console.log('Demo user max@doctolib.de verified removed from database.');
@@ -433,7 +452,7 @@ app.get('/api/praxis/termine', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
-              p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data
+              p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.praxis = $1
@@ -530,6 +549,101 @@ app.get('/api/praxen', async (req, res) => {
   } catch (err) {
     console.error('Error fetching registered practices:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Praxen.' });
+  }
+});
+
+// API: Get custom questions for the logged-in practice
+app.get('/api/praxis/questions', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, questions: [] });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT id, question_text, question_type, options, required FROM praxis_questions WHERE praxis_id = $1 ORDER BY id ASC',
+      [req.session.userId]
+    );
+    res.json({ success: true, questions: result.rows });
+  } catch (err) {
+    console.error('Error loading custom questions:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Fragen.' });
+  }
+});
+
+// API: Save custom questions for the logged-in practice
+app.post('/api/praxis/questions', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { questions } = req.body;
+  if (!Array.isArray(questions)) {
+    return res.status(400).json({ error: 'Fragen müssen ein Array sein.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    // Delete existing questions
+    await pool.query('DELETE FROM praxis_questions WHERE praxis_id = $1', [req.session.userId]);
+    
+    // Insert new questions
+    for (const q of questions) {
+      if (!q.question_text || !q.question_type) continue;
+      await pool.query(
+        `INSERT INTO praxis_questions (praxis_id, question_text, question_type, options, required)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          req.session.userId,
+          q.question_text,
+          q.question_type,
+          JSON.stringify(q.options || []),
+          q.required || false
+        ]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving custom questions:', err);
+    res.status(500).json({ error: 'Fehler beim Speichern der Fragen.' });
+  }
+});
+
+// API: Get custom questions for a patient's pre-check-in based on terminCode
+app.get('/api/precheckin/questions', async (req, res) => {
+  const { termin } = req.query;
+  if (!termin) {
+    return res.status(400).json({ error: 'Termin-Code fehlt.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, questions: [] });
+  }
+  try {
+    // 1. Get practice name from the appointment
+    const terminRes = await pool.query('SELECT praxis FROM termine WHERE code = $1', [termin]);
+    if (terminRes.rows.length === 0) {
+      return res.json({ success: true, questions: [] });
+    }
+    const praxisName = terminRes.rows[0].praxis;
+
+    // 2. Find the practice user ID
+    const userRes = await pool.query('SELECT id FROM users WHERE role = \'praxis\' AND praxis_name = $1', [praxisName]);
+    if (userRes.rows.length === 0) {
+      return res.json({ success: true, questions: [] });
+    }
+    const praxisId = userRes.rows[0].id;
+
+    // 3. Load the questions
+    const qRes = await pool.query(
+      'SELECT id, question_text, question_type, options, required FROM praxis_questions WHERE praxis_id = $1 ORDER BY id ASC',
+      [praxisId]
+    );
+
+    res.json({ success: true, questions: qRes.rows });
+  } catch (err) {
+    console.error('Error loading patient precheckin custom questions:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Zusatzfragen.' });
   }
 });
 
@@ -827,7 +941,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted FROM precheckins WHERE termin_code = $1',
+      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers FROM precheckins WHERE termin_code = $1',
       [terminCode]
     );
 
@@ -843,7 +957,8 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
         dokumente: row.dokumente || { liste: [] },
         signatureData: row.signature_data,
         currentStep: row.current_step,
-        submitted: row.submitted
+        submitted: row.submitted,
+        customAnswers: row.custom_answers || {}
       });
     }
 
@@ -856,7 +971,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
 // API: Submit or autosave pre-check-in data
 app.post('/api/precheckin', async (req, res) => {
-  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted } = req.body;
+  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers } = req.body;
 
   if (!sessionId || !terminCode) {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
@@ -870,8 +985,8 @@ app.post('/api/precheckin', async (req, res) => {
   try {
     // Save to database, upsert if the appointment already exists
     await pool.query(
-      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (termin_code)
        DO UPDATE SET
          session_id = EXCLUDED.session_id,
@@ -882,6 +997,7 @@ app.post('/api/precheckin', async (req, res) => {
          signature_data = EXCLUDED.signature_data,
          current_step = EXCLUDED.current_step,
          submitted = EXCLUDED.submitted,
+         custom_answers = EXCLUDED.custom_answers,
          submitted_at = CURRENT_TIMESTAMP`,
       [
         terminCode,
@@ -892,7 +1008,8 @@ app.post('/api/precheckin', async (req, res) => {
         JSON.stringify(dokumente || { liste: [] }),
         signatureData || null,
         currentStep || 'intro',
-        submitted || false
+        submitted || false,
+        JSON.stringify(customAnswers || {})
       ]
     );
 

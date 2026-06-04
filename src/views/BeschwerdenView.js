@@ -97,7 +97,7 @@ export function renderBeschwerdenView() {
             </div>
           </div>
 
-          ${renderStepNavigation('intro', 'medikamente')}
+          ${renderStepNavigation('intro', store.getCustomQuestions().length > 0 ? 'zusatzfragen' : 'medikamente')}
         </div>
       </div>
     </div>

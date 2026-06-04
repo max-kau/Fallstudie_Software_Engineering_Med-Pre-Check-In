@@ -53,7 +53,7 @@ async function handleRoute() {
   }
 
   // If praxis user tries to access patient-only routes, redirect to praxis dashboard
-  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'];
+  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'];
   if (loggedIn && auth.isPraxis() && PATIENT_ONLY_ROUTES.includes(routeKey)) {
     navigate('praxis-dashboard');
     return;
@@ -77,12 +77,12 @@ async function handleRoute() {
     }
 
     // Update current step in store for autosave/resumption (if navigating to a valid step)
-    if (['confirm', 'intro', 'beschwerden', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'].includes(routeKey)) {
+    if (['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'].includes(routeKey)) {
       const data = store.getAll();
       if (data.currentStep !== routeKey) {
         data.currentStep = routeKey;
         store.saveAll(data);
-        if (['beschwerden', 'medikamente', 'allergien', 'dokumente'].includes(routeKey)) {
+        if (['beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente'].includes(routeKey)) {
           store.triggerAutosave();
         }
       }

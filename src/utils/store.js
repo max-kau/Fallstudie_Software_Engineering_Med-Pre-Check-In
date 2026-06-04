@@ -67,6 +67,7 @@ function getDefaultData() {
     },
     signature: null,
     submitted: false,
+    customAnswers: {},
   };
 }
 
@@ -101,7 +102,8 @@ async function saveProgressToServer() {
       dokumente: allData.dokumente,
       signatureData: allData.signature,
       currentStep: allData.currentStep,
-      submitted: allData.submitted
+      submitted: allData.submitted,
+      customAnswers: allData.customAnswers || {}
     })
   });
   if (!res.ok) throw new Error('API save failed');
@@ -298,7 +300,8 @@ async function loadData() {
           allergien: result.allergien,
           dokumente: result.dokumente || { liste: [] },
           signature: result.signatureData || null,
-          submitted: result.submitted || false
+          submitted: result.submitted || false,
+          customAnswers: result.customAnswers || {}
         };
         saveAll(savedState);
       }
@@ -307,7 +310,24 @@ async function loadData() {
     console.warn('Failed to load existing pre-check-in from database:', err);
   }
 
+  // Load custom questions for this practice/appointment
+  try {
+    const qRes = await fetch(`/api/precheckin/questions?termin=${terminCode}`);
+    if (qRes.ok) {
+      const qData = await qRes.json();
+      if (qData.success) {
+        _cachedData.customQuestions = qData.questions || [];
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load custom questions for pre-check-in:', err);
+  }
+
   return _cachedData;
+}
+
+function getCustomQuestions() {
+  return _cachedData && _cachedData.customQuestions ? _cachedData.customQuestions : [];
 }
 
 function getTerminInfo() {
@@ -355,7 +375,8 @@ async function submitPreCheckIn() {
       dokumente: allData.dokumente,
       signatureData: allData.signature,
       currentStep: 'zusammenfassung',
-      submitted: true
+      submitted: true,
+      customAnswers: allData.customAnswers || {}
     })
   });
 
@@ -375,6 +396,7 @@ export const store = {
   getTerminCode,
   getTerminInfo,
   getPatientInfo,
+  getCustomQuestions,
   getDefaultData,
   setDataProvider,
   loadData,
