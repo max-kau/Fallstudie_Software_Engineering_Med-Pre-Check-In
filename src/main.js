@@ -1,4 +1,4 @@
-import { registerRoute, initRouter } from './utils/router.js';
+import { registerRoute, initRouter, navigate } from './utils/router.js';
 import { renderHomeView, initHomeView } from './views/HomeView.js';
 import { renderAuthView, initAuthView } from './views/AuthView.js';
 import { renderLandingView, initLandingView } from './views/LandingView.js';
@@ -47,6 +47,28 @@ window.addEventListener('viewChanged', (e) => {
   const view = e.detail.view;
   const init = initializers[view];
   if (init) init();
+
+  // Attach exit pre-check-in handler if button is present
+  const exitBtn = document.getElementById('btn-exit-precheck');
+  if (exitBtn) {
+    exitBtn.addEventListener('click', async (evt) => {
+      evt.preventDefault();
+      // Show loading/saving state
+      exitBtn.innerHTML = `
+        <div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; margin-right: 4px; display: inline-block;"></div>
+        <span class="btn-exit-text">Wird gespeichert...</span>
+      `;
+      exitBtn.style.pointerEvents = 'none';
+
+      try {
+        await store.saveProgressToServer();
+      } catch (err) {
+        console.warn('Immediate save on exit failed:', err);
+      }
+
+      navigate('landing');
+    });
+  }
 });
 
 // Start the app

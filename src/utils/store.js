@@ -83,32 +83,37 @@ function get(key) {
   return data[key];
 }
 
+async function saveProgressToServer() {
+  const allData = getAll();
+  if (!allData.sessionId || allData.submitted) return;
+
+  const res = await fetch('/api/precheckin', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      sessionId: allData.sessionId,
+      terminCode: allData.terminCode,
+      beschwerden: allData.beschwerden,
+      medikamente: allData.medikamente,
+      allergien: allData.allergien,
+      dokumente: allData.dokumente,
+      signatureData: allData.signature,
+      currentStep: allData.currentStep,
+      submitted: allData.submitted
+    })
+  });
+  if (!res.ok) throw new Error('API save failed');
+  console.log('Pre-check-in saved to database immediately.');
+}
+
 let _autosaveTimeout = null;
 function triggerAutosave() {
   if (_autosaveTimeout) clearTimeout(_autosaveTimeout);
   _autosaveTimeout = setTimeout(async () => {
     try {
-      const allData = getAll();
-      if (!allData.sessionId || allData.submitted) return;
-
-      await fetch('/api/precheckin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sessionId: allData.sessionId,
-          terminCode: allData.terminCode,
-          beschwerden: allData.beschwerden,
-          medikamente: allData.medikamente,
-          allergien: allData.allergien,
-          dokumente: allData.dokumente,
-          signatureData: allData.signature,
-          currentStep: allData.currentStep,
-          submitted: allData.submitted
-        })
-      });
-      console.log('Pre-check-in automatically saved to database.');
+      await saveProgressToServer();
     } catch (e) {
       console.warn('Autosave to database failed:', e);
     }
@@ -377,6 +382,7 @@ export const store = {
   hasSavedProgress,
   resetProgress,
   triggerAutosave,
+  saveProgressToServer,
   uploadFile,
   deleteFile
 };

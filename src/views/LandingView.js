@@ -177,6 +177,13 @@ export function renderLandingView() {
           </div>
         </div>
 
+        <!-- Footnote Disclaimer -->
+        <div style="margin-top: var(--space-16); padding-top: var(--space-6); border-top: 1px solid var(--gray-200); text-align: center;">
+          <p style="font-size: var(--font-size-xs); color: var(--gray-400); line-height: 1.5; max-width: 600px; margin: 0 auto;">
+            * Hinweis zur Demonstration: Dotolib Pre-Check-In ist ein studentisches Projekt zu Fallstudien-Zwecken. Alle angezeigten Praxen, Ärzte und Termine sind fiktiv. Es findet keine echte medizinische Vermittlung oder Behandlung statt.
+          </p>
+        </div>
+
       </div>
     </div>
   `;
@@ -222,8 +229,11 @@ export async function initLandingView() {
 
     appointments.forEach((appt, idx) => {
       const pInfo = getPraxisInfo(appt.praxis);
-      const tagsHtml = (appt.tags || []).map(t => `<span class="dl-tag">${t}</span>`).join('');
-      
+      const tagsHtml = [
+        ...(appt.tags || []).map(t => `<span class="dl-tag">${t}</span>`),
+        `<span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600;">⚠️ Demo-Praxis</span>`
+      ].join('');
+
       // Check precheck status
       const isSubmitted = appt.precheck_submitted;
       const currentStep = appt.precheck_step;
