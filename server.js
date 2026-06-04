@@ -182,7 +182,7 @@ const getMockAppointment = (code) => ({
     date: 'Mo, 25. Mai',
     time: '09:30',
     art: 'Routineuntersuchung',
-    praxis: 'Hausarztpraxis (Demo-Praxis)',
+    praxis: 'Hausarztpraxis',
     tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche']
   },
   patient: {
@@ -564,7 +564,7 @@ app.get('/api/user/termine', async (req, res) => {
           date: 'Mo, 25. Mai',
           time: '09:30',
           art: 'Routineuntersuchung',
-          praxis: 'Hausarztpraxis (Demo-Praxis)',
+          praxis: 'Hausarztpraxis',
           tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche'],
           patient_vorname: req.session.user?.vorname || 'Max',
           patient_nachname: req.session.user?.nachname || 'Mustermann',
@@ -635,7 +635,7 @@ app.get('/api/termin/:code', async (req, res) => {
       date: 'Mo, 25. Mai',
       time: '09:30',
       art: 'Routineuntersuchung',
-      praxis: 'Hausarztpraxis (Demo-Praxis)',
+      praxis: 'Hausarztpraxis',
       tags: ['Kassenpatienten', 'Privatpatienten', 'Hausbesuche'],
       patient_vorname: 'Max',
       patient_nachname: 'Mustermann'

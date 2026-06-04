@@ -68,6 +68,14 @@ export function renderSummaryView() {
           <h2 style="margin-bottom:var(--space-2)">Zusammenfassung</h2>
           <p class="text-muted" style="margin-bottom:var(--space-6)">Bitte überprüfen Sie Ihre Angaben vor dem Absenden.</p>
 
+          <!-- Demonstrationshinweis -->
+          <div style="background: #FFFBEB; border: 1px solid #FEF3C7; color: #B45309; padding: var(--space-4); border-radius: var(--radius-lg); margin-bottom: var(--space-6); font-size: var(--font-size-xs); display: flex; gap: var(--space-3); align-items: flex-start; line-height: 1.5;">
+            <span style="font-size: var(--font-size-lg); line-height: 1;">⚠️</span>
+            <div>
+              <strong>Demonstrationshinweis:</strong> Dies ist eine Übungssimulation. Die von Ihnen eingetragenen Daten sind rein fiktiv und werden ausschließlich zu Testzwecken verarbeitet.
+            </div>
+          </div>
+
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
               <div class="summary-title">🩺 Beschwerden</div>
@@ -275,6 +283,12 @@ function generatePDF(allData, signatureDataUrl) {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text(`Handzeichen von ${patient.vorname} ${patient.nachname}`, 20, 214);
+
+  // Footer / Watermark
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setTextColor(180, 180, 180);
+  doc.text('* DEMO-DOKUMENT - NUR FÜR SIMULATIONSZWECKE *', 105, 285, { align: 'center' });
 
   return doc;
 }

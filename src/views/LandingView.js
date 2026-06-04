@@ -177,6 +177,13 @@ export function renderLandingView() {
           </div>
         </div>
 
+        <!-- Footnote Disclaimer -->
+        <div style="margin-top: var(--space-16); padding-top: var(--space-6); border-top: 1px solid var(--gray-200); text-align: center;">
+          <p style="font-size: var(--font-size-xs); color: var(--gray-400); line-height: 1.5; max-width: 600px; margin: 0 auto;">
+            * Hinweis zur Demonstration: Dotolib Pre-Check-In ist ein studentisches Projekt zu Fallstudien-Zwecken. Alle angezeigten Praxen, Ärzte und Termine sind fiktiv. Es findet keine echte medizinische Vermittlung oder Behandlung statt.
+          </p>
+        </div>
+
       </div>
     </div>
   `;
@@ -222,12 +229,10 @@ export async function initLandingView() {
 
     appointments.forEach((appt, idx) => {
       const pInfo = getPraxisInfo(appt.praxis);
-      const tagsHtml = (appt.tags || []).map(t => `<span class="dl-tag">${t}</span>`).join('');
-      
-      let displayPraxis = appt.praxis || '';
-      if (displayPraxis && !displayPraxis.includes('(Demo-Praxis)')) {
-        displayPraxis += ' (Demo-Praxis)';
-      }
+      const tagsHtml = [
+        ...(appt.tags || []).map(t => `<span class="dl-tag">${t}</span>`),
+        `<span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600;">⚠️ Demo-Praxis</span>`
+      ].join('');
 
       // Check precheck status
       const isSubmitted = appt.precheck_submitted;
@@ -345,7 +350,7 @@ export async function initLandingView() {
                 ${pInfo.logo.includes('.') ? `<img src="${pInfo.logo}" style="width: 100%; height: 100%; object-fit: contain;" />` : pInfo.logo}
               </div>
               <div>
-                <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em;">${displayPraxis.toUpperCase()}</span>
+                <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em;">${appt.praxis.toUpperCase()}</span>
                 <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 2px 0 6px 0;">${appt.doctor}</h3>
                 <p class="text-muted" style="font-size: var(--font-size-sm); line-height: 1.4;">${appt.fachrichtung} · ${appt.adresse}</p>
                 <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">

@@ -170,9 +170,14 @@ export function renderPraxisView() {
             <!-- Left Column: Details -->
             <div class="praxis-main-card fade-in-up">
               <div class="praxis-header">
-                <span class="dl-tag" style="background: rgba(0, 99, 190, 0.1); color: var(--primary); font-weight: 600; margin-bottom: var(--space-2); display: inline-block;">
-                  ${praxis.fachbereich}
-                </span>
+                <div style="display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); flex-wrap: wrap;">
+                  <span class="dl-tag" style="background: rgba(0, 99, 190, 0.1); color: var(--primary); font-weight: 600; display: inline-block; margin: 0;">
+                    ${praxis.fachbereich}
+                  </span>
+                  <span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600; display: inline-block; margin: 0;">
+                    ⚠️ Demo-Praxis
+                  </span>
+                </div>
                 <h1 class="praxis-title">${praxis.name}</h1>
               </div>
 

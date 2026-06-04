@@ -41,7 +41,10 @@ export function renderSearchView() {
                 </div>
               </div>
               <div class="practice-card-body">
-                <span class="practice-card-specialty">${praxis.fachbereich}</span>
+                <div style="display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); flex-wrap: wrap;">
+                  <span class="practice-card-specialty" style="margin-bottom: 0;">${praxis.fachbereich}</span>
+                  <span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600; font-size: 10px; padding: 2px 6px; border-radius: 4px; display: inline-block;">⚠️ Demo-Praxis</span>
+                </div>
                 <h3 class="practice-card-name">${praxis.name}</h3>
                 
                 <p class="practice-card-desc">${praxis.beschreibung}</p>

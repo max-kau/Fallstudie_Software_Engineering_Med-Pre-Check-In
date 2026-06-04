@@ -9,7 +9,7 @@ export function renderHeader() {
           <div class="header-logo">D</div>
           <div>
             <div class="header-title">${termin.doctor}</div>
-            <div class="header-subtitle">Pre-Check-In</div>
+            <div class="header-subtitle">Pre-Check-In (Demo-Simulation)</div>
           </div>
         </div>
         <div class="header-right" style="display: flex; align-items: center; gap: var(--space-3);">
