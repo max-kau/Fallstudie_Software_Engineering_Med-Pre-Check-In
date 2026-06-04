@@ -285,32 +285,14 @@ export function initSummaryView() {
     btn.addEventListener('click', () => { window.location.hash = btn.dataset.edit; });
   });
 
-  const allData = store.getAll();
   const checkbox = document.getElementById('confirm-checkbox');
   const submitBtn = document.getElementById('btn-submit');
-  const pdfTrigger = document.getElementById('pdf-preview-trigger');
-  const pdfModal = document.getElementById('pdf-modal');
-  const pdfCloseBtns = [
-    document.getElementById('pdf-modal-close'),
-    document.getElementById('pdf-modal-btn-close')
-  ];
-  const pdfSignBtn = document.getElementById('pdf-modal-btn-sign');
-  
-  const sigModal = document.getElementById('sig-modal');
-  const sigCloseBtns = [
-    document.getElementById('sig-modal-close'),
-    document.getElementById('sig-modal-btn-cancel')
-  ];
-  const sigClearBtn = document.getElementById('sig-modal-btn-clear');
-  const sigSaveBtn = document.getElementById('sig-modal-btn-save');
-  
-  const canvas = document.getElementById('modal-signature-canvas');
-  const iframe = document.getElementById('pdf-viewer-iframe');
-  
-  let hasSigned = !!allData.signature;
-  let currentPdfUrl = null;
-  let canvasCtx = null;
+  const canvas = document.getElementById('signature-canvas');
+  const clearBtn = document.getElementById('btn-clear-signature');
+
+  let hasSigned = !!store.get('signature');
   let drawing = false;
+  let ctx = null;
 
   function updateSubmitState() {
     if (checkbox && submitBtn) {
@@ -318,148 +300,66 @@ export function initSummaryView() {
     }
   }
 
-  // Generate initial PDF document and calculate size/set badges
-  function updatePDFState() {
-    const freshData = store.getAll();
-    hasSigned = !!freshData.signature;
-    
-    // Generate PDF using jsPDF
-    const doc = generatePDF(freshData, freshData.signature);
-    const pdfBlob = doc.output('blob');
-    
-    // Revoke old URL if exists to avoid memory leaks
-    if (currentPdfUrl) {
-      URL.revokeObjectURL(currentPdfUrl);
-    }
-    
-    currentPdfUrl = URL.createObjectURL(pdfBlob);
-    
-    // Update PDF details in UI
-    const sizeInKB = Math.round(pdfBlob.size / 1024);
-    const statusText = document.getElementById('pdf-preview-status');
-    if (statusText) {
-      statusText.textContent = hasSigned 
-        ? `Größe: ${sizeInKB} KB · Dokument signiert und bereit`
-        : `Größe: ${sizeInKB} KB · Entwurf bereit zur Unterschrift`;
-    }
-
-    const badgeContainer = document.getElementById('pdf-status-badge');
-    if (badgeContainer) {
-      badgeContainer.innerHTML = hasSigned
-        ? `<span class="status-badge status-badge--signed">✓ Digital signiert</span>`
-        : `<span class="status-badge status-badge--pending">⚠️ Unterschrift ausstehend</span>`;
-    }
-
-    updateSubmitState();
-  }
-
-  // Initial call on page load
-  updatePDFState();
-
-  // Open PDF Modal
-  if (pdfTrigger) {
-    pdfTrigger.addEventListener('click', () => {
-      if (pdfModal && iframe) {
-        // Set the iframe src only when opening to trigger the PDF viewer reliably
-        iframe.src = currentPdfUrl;
-        pdfModal.style.display = 'flex';
-      }
-    });
-  }
-
-  // Close PDF Modal
-  pdfCloseBtns.forEach(btn => {
-    if (btn) {
-      btn.addEventListener('click', () => {
-        if (pdfModal) pdfModal.style.display = 'none';
-      });
-    }
-  });
-
-  // Open Signature Modal
-  if (pdfSignBtn) {
-    pdfSignBtn.addEventListener('click', () => {
-      if (sigModal) {
-        sigModal.style.display = 'flex';
-        
-        // Setup canvas sizing and coordinates dynamically since it's now visible
-        if (canvas) {
-          const rect = canvas.getBoundingClientRect();
-          // We set actual coordinate space
-          canvas.width = canvas.parentElement.clientWidth || 450;
-          canvas.height = 200;
-
-          canvasCtx = canvas.getContext('2d');
-          canvasCtx.strokeStyle = '#107ACA'; // Doctolib Blue
-          canvasCtx.lineWidth = 3;
-          canvasCtx.lineCap = 'round';
-          canvasCtx.lineJoin = 'round';
-
-          // Reset drawing state
-          drawing = false;
-
-          // If a signature already exists, render it
-          const savedSig = store.get('signature');
-          if (savedSig) {
-            const img = new Image();
-            img.src = savedSig;
-            img.onload = () => {
-              canvasCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              if (sigSaveBtn) sigSaveBtn.disabled = false;
-            };
-          } else {
-            if (sigSaveBtn) sigSaveBtn.disabled = true;
-          }
-        }
-      }
-    });
-  }
-
-  // Close Signature Modal
-  sigCloseBtns.forEach(btn => {
-    if (btn) {
-      btn.addEventListener('click', () => {
-        if (sigModal) sigModal.style.display = 'none';
-      });
-    }
-  });
-
-  // Canvas drawing listeners
   if (canvas) {
+    ctx = canvas.getContext('2d');
+    
+    // Support high DPI screens / correct coordinates
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width || canvas.clientWidth || 450;
+    canvas.height = rect.height || canvas.clientHeight || 150;
+
+    ctx.strokeStyle = '#107ACA'; // Doctolib Blue
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Load existing signature if exists
+    const savedSignature = store.get('signature');
+    if (savedSignature) {
+      const img = new Image();
+      img.src = savedSignature;
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        hasSigned = true;
+        updateSubmitState();
+      };
+    }
+
     const getPos = (e) => {
       const r = canvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       return {
-        x: clientX - r.left,
-        y: clientY - r.top
+        x: (clientX - r.left) * (canvas.width / r.width),
+        y: (clientY - r.top) * (canvas.height / r.height)
       };
     };
 
     const startDrawing = (e) => {
       drawing = true;
       const pos = getPos(e);
-      if (canvasCtx) {
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(pos.x, pos.y);
-      }
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
       e.preventDefault();
     };
 
     const draw = (e) => {
-      if (!drawing || !canvasCtx) return;
+      if (!drawing) return;
       const pos = getPos(e);
-      canvasCtx.lineTo(pos.x, pos.y);
-      canvasCtx.stroke();
-      
-      if (sigSaveBtn && sigSaveBtn.disabled) {
-        sigSaveBtn.disabled = false;
-      }
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      hasSigned = true;
+      updateSubmitState();
       e.preventDefault();
     };
 
     const stopDrawing = () => {
-      drawing = false;
+      if (drawing) {
+        drawing = false;
+        // Save the signature as a base64 DataURL
+        const dataUrl = canvas.toDataURL('image/png');
+        store.set('signature', dataUrl);
+      }
     };
 
     // Mouse events
@@ -475,33 +375,14 @@ export function initSummaryView() {
   }
 
   // Clear signature canvas
-  if (sigClearBtn) {
-    sigClearBtn.addEventListener('click', () => {
-      if (canvas && canvasCtx) {
-        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
-      if (sigSaveBtn) sigSaveBtn.disabled = true;
-    });
-  }
-
-  // Save Signature inside the modal
-  if (sigSaveBtn) {
-    sigSaveBtn.addEventListener('click', () => {
-      if (canvas) {
-        const dataUrl = canvas.toDataURL('image/png');
-        store.set('signature', dataUrl);
-        
-        // Regenerate PDF and refresh badge / size details
-        updatePDFState();
-
-        // Refresh the PDF view inside the parent modal immediately
-        if (iframe) {
-          iframe.src = currentPdfUrl;
-        }
-
-        // Close the signature modal, returning to the PDF preview modal
-        if (sigModal) sigModal.style.display = 'none';
-      }
+      hasSigned = false;
+      store.set('signature', null);
+      updateSubmitState();
     });
   }
 
