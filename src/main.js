@@ -11,6 +11,7 @@ import { renderDokumenteView, initDokumenteView } from './views/DokumenteView.js
 import { renderSummaryView, initSummaryView } from './views/SummaryView.js';
 import { renderPraxisView, initPraxisView } from './views/PraxisView.js';
 import { renderSearchView, initSearchView } from './views/SearchView.js';
+import { renderPraxisDashboardView, initPraxisDashboardView } from './views/PraxisDashboardView.js';
 
 // Register all routes
 registerRoute('home', renderHomeView);
@@ -25,6 +26,7 @@ registerRoute('dokumente', renderDokumenteView);
 registerRoute('zusammenfassung', renderSummaryView);
 registerRoute('praxis', renderPraxisView);
 registerRoute('suche', renderSearchView);
+registerRoute('praxis-dashboard', renderPraxisDashboardView);
 
 // View initializers map
 const initializers = {
@@ -40,6 +42,7 @@ const initializers = {
   zusammenfassung: initSummaryView,
   praxis: initPraxisView,
   suche: initSearchView,
+  'praxis-dashboard': initPraxisDashboardView,
 };
 
 // Listen for view changes and run initializers

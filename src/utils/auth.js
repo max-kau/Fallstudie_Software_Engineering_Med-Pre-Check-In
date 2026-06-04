@@ -35,11 +35,11 @@ async function login(email, password) {
   return _currentUser;
 }
 
-async function register(vorname, nachname, email, password) {
+async function register(vorname, nachname, email, password, role, praxisFields) {
   const res = await fetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, vorname, nachname })
+    body: JSON.stringify({ email, password, vorname, nachname, role, ...praxisFields })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Registrierung fehlgeschlagen');
@@ -68,11 +68,16 @@ function isLoggedIn() {
   return !!_currentUser;
 }
 
+function isPraxis() {
+  return _currentUser && _currentUser.role === 'praxis';
+}
+
 export const auth = {
   checkSession,
   login,
   register,
   logout,
   getUser,
-  isLoggedIn
+  isLoggedIn,
+  isPraxis
 };

@@ -152,8 +152,13 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS plz_ort VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS krankenversicherung VARCHAR(50);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS krankenkasse VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'patient';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_name VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_fachbereich VARCHAR(100);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_adresse VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_telefon VARCHAR(50);
     `);
-    console.log('Table "users" verified/created with profile columns.');
+    console.log('Table "users" verified/created with profile and role columns.');
 
     // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
@@ -225,7 +230,7 @@ app.get('/api/health', async (req, res) => {
 
 // API: Register a new user
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, vorname, nachname } = req.body;
+  const { email, password, vorname, nachname, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
 
   if (!email || !password || !vorname || !nachname) {
     return res.status(400).json({ error: 'Alle Felder sind erforderlich.' });
@@ -248,11 +253,12 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Hash password and insert user
     const passwordHash = await bcrypt.hash(password, 10);
+    const userRole = role === 'praxis' ? 'praxis' : 'patient';
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, vorname, nachname) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse`,
-      [email.toLowerCase(), passwordHash, vorname, nachname]
+      `INSERT INTO users (email, password_hash, vorname, nachname, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
+      [email.toLowerCase(), passwordHash, vorname, nachname, userRole, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null]
     );
 
     const user = result.rows[0];
@@ -269,7 +275,12 @@ app.post('/api/auth/register', async (req, res) => {
       strasse_hnr: user.strasse_hnr,
       plz_ort: user.plz_ort,
       krankenversicherung: user.krankenversicherung,
-      krankenkasse: user.krankenkasse
+      krankenkasse: user.krankenkasse,
+      role: user.role,
+      praxis_name: user.praxis_name,
+      praxis_fachbereich: user.praxis_fachbereich,
+      praxis_adresse: user.praxis_adresse,
+      praxis_telefon: user.praxis_telefon
     };
 
     console.log(`New user registered: ${user.email}`);
@@ -294,7 +305,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse 
+      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon 
        FROM users 
        WHERE email = $1`,
       [email.toLowerCase()]
@@ -323,7 +334,12 @@ app.post('/api/auth/login', async (req, res) => {
       strasse_hnr: user.strasse_hnr,
       plz_ort: user.plz_ort,
       krankenversicherung: user.krankenversicherung,
-      krankenkasse: user.krankenkasse
+      krankenkasse: user.krankenkasse,
+      role: user.role,
+      praxis_name: user.praxis_name,
+      praxis_fachbereich: user.praxis_fachbereich,
+      praxis_adresse: user.praxis_adresse,
+      praxis_telefon: user.praxis_telefon
     };
 
     console.log(`User logged in: ${user.email}`);
@@ -351,7 +367,7 @@ app.get('/api/auth/me', async (req, res) => {
   if (req.session && req.session.userId) {
     try {
       const result = await pool.query(
-        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse FROM users WHERE id = $1',
+        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon FROM users WHERE id = $1',
         [req.session.userId]
       );
       if (result.rows.length > 0) {
@@ -372,7 +388,7 @@ app.put('/api/auth/profile', async (req, res) => {
     return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
 
-  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse } = req.body;
+  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
 
   if (!vorname || !nachname) {
     return res.status(400).json({ error: 'Vorname und Nachname sind erforderlich.' });
@@ -385,10 +401,10 @@ app.put('/api/auth/profile', async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE users 
-       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8 
-       WHERE id = $9 
-       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse`,
-      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, req.session.userId]
+       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12 
+       WHERE id = $13 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
+      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, req.session.userId]
     );
 
     const user = result.rows[0];
@@ -398,6 +414,71 @@ app.put('/api/auth/profile', async (req, res) => {
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ error: 'Aktualisierung des Profils fehlgeschlagen.' });
+  }
+});
+
+// ============================================
+// PRAXIS DASHBOARD API ENDPOINTS
+// ============================================
+
+// API: Get all appointments for the logged-in praxis
+app.get('/api/praxis/termine', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const praxisName = req.session.user.praxis_name;
+  if (!praxisName || !isDbConnected || !pool) {
+    return res.json({ success: true, termine: [] });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
+              p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data
+       FROM termine t
+       LEFT JOIN precheckins p ON t.code = p.termin_code
+       WHERE t.praxis = $1
+       ORDER BY t.date DESC, t.time DESC`,
+      [praxisName]
+    );
+    res.json({ success: true, termine: result.rows });
+  } catch (err) {
+    console.error('Error fetching praxis appointments:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Termine.' });
+  }
+});
+
+// API: Get stats for the logged-in praxis
+app.get('/api/praxis/stats', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const praxisName = req.session.user.praxis_name;
+  if (!praxisName || !isDbConnected || !pool) {
+    return res.json({ success: true, stats: { totalTermine: 0, prechecksCompleted: 0, prechecksOpen: 0, uniquePatients: 0 } });
+  }
+  try {
+    const totalResult = await pool.query('SELECT COUNT(*) as count FROM termine WHERE praxis = $1', [praxisName]);
+    const completedResult = await pool.query(
+      `SELECT COUNT(*) as count FROM termine t JOIN precheckins p ON t.code = p.termin_code WHERE t.praxis = $1 AND p.submitted = true`, [praxisName]
+    );
+    const openResult = await pool.query(
+      `SELECT COUNT(*) as count FROM termine t LEFT JOIN precheckins p ON t.code = p.termin_code WHERE t.praxis = $1 AND (p.submitted = false OR p.termin_code IS NULL)`, [praxisName]
+    );
+    const patientsResult = await pool.query(
+      `SELECT COUNT(DISTINCT user_id) as count FROM termine WHERE praxis = $1 AND user_id IS NOT NULL`, [praxisName]
+    );
+    res.json({
+      success: true,
+      stats: {
+        totalTermine: parseInt(totalResult.rows[0].count),
+        prechecksCompleted: parseInt(completedResult.rows[0].count),
+        prechecksOpen: parseInt(openResult.rows[0].count),
+        uniquePatients: parseInt(patientsResult.rows[0].count)
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching praxis stats:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Statistiken.' });
   }
 });
 

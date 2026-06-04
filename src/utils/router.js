@@ -38,14 +38,27 @@ async function handleRoute() {
     return;
   }
 
-  // If logged in and trying to access auth, redirect to landing
+  // If logged in and trying to access auth, redirect based on role
   if (loggedIn && routeKey === 'auth') {
+    navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
+    return;
+  }
+
+  // If praxis user tries to access patient-only routes, redirect to praxis dashboard
+  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'];
+  if (loggedIn && auth.isPraxis() && PATIENT_ONLY_ROUTES.includes(routeKey)) {
+    navigate('praxis-dashboard');
+    return;
+  }
+
+  // If patient user tries to access praxis dashboard, redirect to landing
+  if (loggedIn && !auth.isPraxis() && routeKey === 'praxis-dashboard') {
     navigate('landing');
     return;
   }
 
-  // For protected routes, ensure data is loaded
-  if (!PUBLIC_ROUTES.includes(routeKey)) {
+  // For protected patient routes, ensure data is loaded
+  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard') {
     await store.loadData();
 
     // Guard: If the pre-check-in is already submitted, redirect to summary/success view
