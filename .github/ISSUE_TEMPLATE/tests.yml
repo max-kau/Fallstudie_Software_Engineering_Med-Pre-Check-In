@@ -47,18 +47,6 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: performance_criteria
-    attributes:
-      label: Performance-Kriterien
-      description: Nur ausfüllen, wenn Performance relevant ist.
-      value: |
-        - Maximale Ladezeit:
-        - Anzahl Testdatensätze:
-        - Messmethode:
-        - Erwartetes Verhalten:
-    validations:
-      required: false
 
 
   - type: dropdown
