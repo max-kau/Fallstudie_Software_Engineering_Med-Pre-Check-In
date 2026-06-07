@@ -1,0 +1,122 @@
+name: Test
+description: Test zur Überprüfung einer User Story
+title: "Test: "
+labels: ["test", "mvp"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dieser Test sollte einer User Story als Sub-Issue untergeordnet werden.
+        Ziel ist es, die Akzeptanzkriterien, Funktionalität und ggf. Performance der User Story zu prüfen.
+
+  - type: textarea
+    id: test_goal
+    attributes:
+      label: Testziel
+      description: Was soll mit diesem Test überprüft werden?
+      placeholder: "z. B. Prüfen, ob der Patient das Pre-Check-Formular erfolgreich öffnen kann."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Zu prüfende Akzeptanzkriterien
+      description: Welche Akzeptanzkriterien der User Story werden mit diesem Test geprüft?
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+
+  - type: dropdown
+    id: test_type
+    attributes:
+      label: Testart
+      description: Welche Art von Test ist das?
+      options:
+        - Functional Test
+        - Acceptance Test
+        - UI Test
+        - Performance Test
+        - Integration Test
+        - Regression Test
+        - Usability Test
+    validations:
+      required: true
+
+  - type: textarea
+    id: preconditions
+    attributes:
+      label: Voraussetzungen
+      description: Was muss vor dem Test gegeben sein?
+      placeholder: "z. B. Anwendung ist gestartet, Testdaten sind vorhanden, Patient befindet sich auf der Startseite."
+    validations:
+      required: false
+
+  - type: textarea
+    id: test_steps
+    attributes:
+      label: Testschritte
+      description: Welche Schritte müssen durchgeführt werden?
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_result
+    attributes:
+      label: Erwartetes Ergebnis
+      description: Was soll nach Durchführung des Tests passieren?
+      placeholder: "z. B. Das Pre-Check-Formular öffnet sich ohne Fehlermeldung."
+    validations:
+      required: true
+
+  - type: textarea
+    id: performance_criteria
+    attributes:
+      label: Performance-Kriterien
+      description: Nur ausfüllen, wenn Performance relevant ist.
+      value: |
+        - Maximale Ladezeit:
+        - Anzahl Testdatensätze:
+        - Messmethode:
+        - Erwartetes Verhalten:
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual_result
+    attributes:
+      label: Tatsächliches Ergebnis
+      description: Was ist beim Test tatsächlich passiert?
+      placeholder: "Wird nach Durchführung des Tests ergänzt."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: test_result
+    attributes:
+      label: Testergebnis
+      options:
+        - Not executed
+        - Passed
+        - Failed
+        - Partially passed
+        - Blocked
+    validations:
+      required: true
+
+  - type: textarea
+    id: findings
+    attributes:
+      label: Auffälligkeiten / Fehler
+      description: Gab es Probleme, Bugs oder Verbesserungspunkte?
+      placeholder: "z. B. Formular öffnet sich, aber Ladezeit ist zu lang."
+    validations:
+      required: false
