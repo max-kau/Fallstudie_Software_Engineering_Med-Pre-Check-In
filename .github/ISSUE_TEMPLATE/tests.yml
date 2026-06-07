@@ -1,7 +1,7 @@
 name: Test
 description: Test zur Überprüfung einer User Story
 title: "Test: "
-labels: ["test", "mvp"]
+labels: ["test"]
 
 body:
   - type: markdown
@@ -48,36 +48,6 @@ body:
       required: true
 
   - type: textarea
-    id: preconditions
-    attributes:
-      label: Voraussetzungen
-      description: Was muss vor dem Test gegeben sein?
-      placeholder: "z. B. Anwendung ist gestartet, Testdaten sind vorhanden, Patient befindet sich auf der Startseite."
-    validations:
-      required: false
-
-  - type: textarea
-    id: test_steps
-    attributes:
-      label: Testschritte
-      description: Welche Schritte müssen durchgeführt werden?
-      value: |
-        1. 
-        2. 
-        3. 
-    validations:
-      required: true
-
-  - type: textarea
-    id: expected_result
-    attributes:
-      label: Erwartetes Ergebnis
-      description: Was soll nach Durchführung des Tests passieren?
-      placeholder: "z. B. Das Pre-Check-Formular öffnet sich ohne Fehlermeldung."
-    validations:
-      required: true
-
-  - type: textarea
     id: performance_criteria
     attributes:
       label: Performance-Kriterien
@@ -90,14 +60,6 @@ body:
     validations:
       required: false
 
-  - type: textarea
-    id: actual_result
-    attributes:
-      label: Tatsächliches Ergebnis
-      description: Was ist beim Test tatsächlich passiert?
-      placeholder: "Wird nach Durchführung des Tests ergänzt."
-    validations:
-      required: false
 
   - type: dropdown
     id: test_result
