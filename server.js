@@ -688,8 +688,8 @@ app.get('/api/precheckin/questions', async (req, res) => {
 
 // API: Get blocked slots for a given date and praxis
 app.get('/api/termine/blocked', async (req, res) => {
-  const { date, praxis } = req.query;
-  console.log(`[GET /api/termine/blocked] date=${date}, praxis=${praxis}, session.userId=${req.session?.userId}`);
+  const { date, praxis, excludeCode } = req.query;
+  console.log(`[GET /api/termine/blocked] date=${date}, praxis=${praxis}, excludeCode=${excludeCode}, session.userId=${req.session?.userId}`);
   if (!date || !praxis) {
     return res.status(400).json({ error: 'Datum und Praxis werden benötigt.' });
   }
@@ -697,18 +697,18 @@ app.get('/api/termine/blocked', async (req, res) => {
   const userId = req.session ? req.session.userId : null;
 
   if (!isDbConnected || !pool) {
-    // Block if same praxis OR same user
+    // Block if same praxis OR same user (excluding excludeCode)
     const matches = (req.session.mockAppointments || [])
-      .filter(appt => appt.date === date && (appt.praxis === praxis || (userId && appt.user_id === userId)))
+      .filter(appt => appt.date === date && appt.code !== excludeCode && (appt.praxis === praxis || (userId && appt.user_id === userId)))
       .map(appt => appt.time);
     return res.json({ blocked: matches });
   }
 
   try {
-    // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user)
+    // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user), excluding current appointment
     const result = await pool.query(
-      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3)',
-      [date, praxis, userId || -1]
+      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3) AND code != $4',
+      [date, praxis, userId || -1, excludeCode || '']
     );
     const blockedSlots = result.rows.map(row => row.time);
     console.log(`[GET /api/termine/blocked] returning blocked slots:`, blockedSlots);
@@ -875,6 +875,115 @@ app.get('/api/user/termine', async (req, res) => {
   } catch (err) {
     console.error('Error fetching user appointments:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Termine.' });
+  }
+});
+
+// API: Reschedule an existing appointment
+app.post('/api/termine/:code/reschedule', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { code } = req.params;
+  const { date, time } = req.body;
+
+  if (!date || !time) {
+    return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    if (!req.session.mockAppointments) req.session.mockAppointments = [];
+    const appt = req.session.mockAppointments.find(a => a.code === code && a.user_id === req.session.userId);
+    if (!appt) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    // Check if slot already booked by another appointment in mockAppointments for this praxis
+    const existing = req.session.mockAppointments.find(
+      a => a.date === date && a.time === time && a.praxis === appt.praxis && a.code !== code
+    );
+    if (existing) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has another appointment at this time
+    const userExisting = req.session.mockAppointments.find(
+      a => a.date === date && a.time === time && a.user_id === req.session.userId && a.code !== code
+    );
+    if (userExisting) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
+    appt.date = date;
+    appt.time = time;
+    return res.json({ success: true, appointment: appt });
+  }
+
+  try {
+    // Get current appointment to get its praxis name
+    const apptCheck = await pool.query('SELECT praxis FROM termine WHERE code = $1 AND user_id = $2', [code, req.session.userId]);
+    if (apptCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const praxisName = apptCheck.rows[0].praxis;
+
+    // Check if slot already booked in DB for this praxis by another appointment
+    const blockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3 AND code != $4',
+      [date, time, praxisName, code]
+    );
+    if (blockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has another appointment at this time
+    const userBlockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3 AND code != $4',
+      [date, time, req.session.userId, code]
+    );
+    if (userBlockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
+    const result = await pool.query(
+      'UPDATE termine SET date = $1, time = $2 WHERE code = $3 AND user_id = $4 RETURNING *',
+      [date, time, code, req.session.userId]
+    );
+    res.json({ success: true, appointment: result.rows[0] });
+  } catch (err) {
+    console.error('Error rescheduling appointment:', err);
+    res.status(500).json({ error: 'Terminverschiebung fehlgeschlagen.' });
+  }
+});
+
+// API: Cancel (delete) an existing appointment
+app.delete('/api/termine/:code', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { code } = req.params;
+
+  if (!isDbConnected || !pool) {
+    if (!req.session.mockAppointments) req.session.mockAppointments = [];
+    const idx = req.session.mockAppointments.findIndex(a => a.code === code && a.user_id === req.session.userId);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    req.session.mockAppointments.splice(idx, 1);
+    return res.json({ success: true });
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM termine WHERE code = $1 AND user_id = $2',
+      [code, req.session.userId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden oder nicht berechtigt.' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error canceling appointment:', err);
+    res.status(500).json({ error: 'Stornierung fehlgeschlagen.' });
   }
 });
 

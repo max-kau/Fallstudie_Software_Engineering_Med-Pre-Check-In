@@ -2,6 +2,7 @@ import { navigate } from '../utils/router.js';
 import { auth } from '../utils/auth.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { praxen } from '../data/praxen.js';
+import { openRescheduleModal } from '../components/RescheduleModal.js';
 
 function getPraxisInfo(praxisName) {
   const nameToMatch = praxisName || '';
@@ -404,6 +405,16 @@ export async function initLandingView() {
           <!-- Precheckin Banner Section inside Card -->
           ${precheckBannerHtml}
 
+          <!-- Card Action Footer -->
+          <div class="dl-card-action-footer" style="display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-top: 1px solid var(--gray-100); flex-wrap: wrap;">
+            <button class="btn btn-outline btn-reschedule" data-code="${appt.code}" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
+              📅 Termin verschieben
+            </button>
+            <button class="btn btn-outline-danger btn-cancel-appt" data-code="${appt.code}" data-date="${formatGermanDate(appt.date)}" data-time="${appt.time}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
+              ❌ Termin absagen
+            </button>
+          </div>
+
         </div>
       `;
     });
@@ -419,6 +430,44 @@ export async function initLandingView() {
         
         // Force complete client refresh to update store parameters cleanly
         window.location.href = `?termin=${code}#${target}`;
+      });
+    });
+
+    // Attach click events for rescheduling
+    container.querySelectorAll('.btn-reschedule').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const code = e.currentTarget.getAttribute('data-code');
+        const praxis = e.currentTarget.getAttribute('data-praxis');
+        openRescheduleModal(code, praxis, (newDate, newTime) => {
+          showRescheduleSuccessToast(newDate, newTime);
+          initLandingView();
+        });
+      });
+    });
+
+    // Attach click events for cancelling
+    container.querySelectorAll('.btn-cancel-appt').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const button = e.currentTarget;
+        const code = button.getAttribute('data-code');
+        const dateStr = button.getAttribute('data-date');
+        const timeStr = button.getAttribute('data-time');
+        
+        if (confirm(`Möchten Sie Ihren Termin am ${dateStr} um ${timeStr} Uhr wirklich absagen?`)) {
+          button.disabled = true;
+          try {
+            const res = await fetch(`/api/termine/${code}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Fehler beim Absagen des Termins');
+            
+            showCancelSuccessToast(dateStr, timeStr);
+            initLandingView();
+          } catch (err) {
+            console.error(err);
+            alert(err.message || 'Verbindung fehlgeschlagen.');
+            button.disabled = false;
+          }
+        }
       });
     });
 
@@ -489,6 +538,50 @@ function showNotificationToast(openDate) {
   });
 
   // Auto-remove after 5 seconds
+  setTimeout(() => {
+    toast.classList.remove('notify-toast--visible');
+    setTimeout(() => toast.remove(), 400);
+  }, 5000);
+}
+
+function showRescheduleSuccessToast(newDate, newTime) {
+  document.querySelector('.notify-toast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'notify-toast';
+  toast.innerHTML = `
+    <div class="notify-toast__icon" style="color: #10B981;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="notify-toast__text">
+      <strong>Termin verschoben</strong>
+      <span>Ihr Termin wurde erfolgreich auf den ${formatGermanDate(newDate)} um ${newTime} Uhr verschoben.</span>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('notify-toast--visible'));
+  setTimeout(() => {
+    toast.classList.remove('notify-toast--visible');
+    setTimeout(() => toast.remove(), 400);
+  }, 5000);
+}
+
+function showCancelSuccessToast(dateStr, timeStr) {
+  document.querySelector('.notify-toast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'notify-toast';
+  toast.innerHTML = `
+    <div class="notify-toast__icon" style="color: #EF4444;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </div>
+    <div class="notify-toast__text">
+      <strong>Termin abgesagt</strong>
+      <span>Ihr Termin am ${dateStr} um ${timeStr} Uhr wurde erfolgreich storniert.</span>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('notify-toast--visible'));
   setTimeout(() => {
     toast.classList.remove('notify-toast--visible');
     setTimeout(() => toast.remove(), 400);
