@@ -60,27 +60,41 @@ export function renderAuthView() {
           <div class="dl-auth-form-inner">
             <div class="dl-auth-name-row">
               <div class="form-group">
-                <label class="form-label" for="register-vorname">Vorname</label>
+                <label class="form-label" for="register-vorname">Vorname *</label>
                 <input type="text" id="register-vorname" class="form-input" placeholder="Max" autocomplete="given-name" required />
               </div>
               <div class="form-group">
-                <label class="form-label" for="register-nachname">Nachname</label>
+                <label class="form-label" for="register-nachname">Nachname *</label>
                 <input type="text" id="register-nachname" class="form-input" placeholder="Mustermann" autocomplete="family-name" required />
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="register-email">E-Mail-Adresse</label>
+              <label class="form-label" for="register-geburtsdatum">Geburtsdatum *</label>
+              <input type="date" id="register-geburtsdatum" class="form-input" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-versicherung">Krankenversicherung *</label>
+              <select id="register-versicherung" class="form-input" required style="height: 42px;">
+                <option value="">Bitte wählen...</option>
+                <option value="gesetzlich">Gesetzlich versichert</option>
+                <option value="privat">Privat versichert</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-email">E-Mail-Adresse *</label>
               <input type="email" id="register-email" class="form-input" placeholder="ihre@email.de" autocomplete="email" required />
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="register-password">Passwort</label>
+              <label class="form-label" for="register-password">Passwort *</label>
               <input type="password" id="register-password" class="form-input" placeholder="Mind. 6 Zeichen" autocomplete="new-password" required />
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="register-password2">Passwort wiederholen</label>
+              <label class="form-label" for="register-password2">Passwort wiederholen *</label>
               <input type="password" id="register-password2" class="form-input" placeholder="Passwort bestätigen" autocomplete="new-password" required />
             </div>
 
@@ -267,6 +281,8 @@ export function initAuthView() {
     e.preventDefault();
     const vorname = document.getElementById('register-vorname').value.trim();
     const nachname = document.getElementById('register-nachname').value.trim();
+    const geburtsdatum = document.getElementById('register-geburtsdatum').value;
+    const krankenversicherung = document.getElementById('register-versicherung').value;
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value;
     const password2 = document.getElementById('register-password2').value;
@@ -275,6 +291,11 @@ export function initAuthView() {
 
     errorEl.style.display = 'none';
 
+    if (!geburtsdatum || !krankenversicherung) {
+      errorEl.textContent = 'Bitte füllen Sie alle Pflichtfelder aus.';
+      errorEl.style.display = '';
+      return;
+    }
     if (password !== password2) {
       errorEl.textContent = 'Die Passwörter stimmen nicht überein.';
       errorEl.style.display = '';
@@ -291,7 +312,7 @@ export function initAuthView() {
     btn.disabled = true;
 
     try {
-      const user = await auth.register(vorname, nachname, email, password, 'patient', {});
+      const user = await auth.register(vorname, nachname, email, password, 'patient', { geburtsdatum, krankenversicherung });
       redirectAfterAuth(user);
     } catch (err) {
       errorEl.textContent = err.message;

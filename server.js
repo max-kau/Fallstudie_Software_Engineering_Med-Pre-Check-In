@@ -286,10 +286,18 @@ app.get('/api/health', async (req, res) => {
 
 // API: Register a new user
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, vorname, nachname, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
+  const { email, password, vorname, nachname, role, geburtsdatum, krankenversicherung, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
 
-  if (!email || !password || !vorname || !nachname) {
-    return res.status(400).json({ error: 'Alle Felder sind erforderlich.' });
+  const userRole = role === 'praxis' ? 'praxis' : 'patient';
+
+  if (userRole === 'patient') {
+    if (!email || !password || !vorname || !nachname || !geburtsdatum || !krankenversicherung) {
+      return res.status(400).json({ error: 'Alle Pflichtfelder (Name, E-Mail, Passwort, Geburtsdatum, Krankenversicherung) müssen ausgefüllt werden.' });
+    }
+  } else {
+    if (!email || !password || !vorname || !nachname) {
+      return res.status(400).json({ error: 'Alle Pflichtfelder (Name, E-Mail, Passwort) müssen ausgefüllt werden.' });
+    }
   }
 
   if (password.length < 6) {
@@ -309,12 +317,23 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Hash password and insert user
     const passwordHash = await bcrypt.hash(password, 10);
-    const userRole = role === 'praxis' ? 'praxis' : 'patient';
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, vorname, nachname, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+      `INSERT INTO users (email, password_hash, vorname, nachname, role, geburtsdatum, krankenversicherung, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
        RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
-      [email.toLowerCase(), passwordHash, vorname, nachname, userRole, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null]
+      [
+        email.toLowerCase(),
+        passwordHash,
+        vorname,
+        nachname,
+        userRole,
+        geburtsdatum || null,
+        krankenversicherung || null,
+        praxis_name || null,
+        praxis_fachbereich || null,
+        praxis_adresse || null,
+        praxis_telefon || null
+      ]
     );
 
     const user = result.rows[0];
@@ -688,8 +707,8 @@ app.get('/api/precheckin/questions', async (req, res) => {
 
 // API: Get blocked slots for a given date and praxis
 app.get('/api/termine/blocked', async (req, res) => {
-  const { date, praxis } = req.query;
-  console.log(`[GET /api/termine/blocked] date=${date}, praxis=${praxis}, session.userId=${req.session?.userId}`);
+  const { date, praxis, excludeCode } = req.query;
+  console.log(`[GET /api/termine/blocked] date=${date}, praxis=${praxis}, excludeCode=${excludeCode}, session.userId=${req.session?.userId}`);
   if (!date || !praxis) {
     return res.status(400).json({ error: 'Datum und Praxis werden benötigt.' });
   }
@@ -697,18 +716,18 @@ app.get('/api/termine/blocked', async (req, res) => {
   const userId = req.session ? req.session.userId : null;
 
   if (!isDbConnected || !pool) {
-    // Block if same praxis OR same user
+    // Block if same praxis OR same user (excluding excludeCode)
     const matches = (req.session.mockAppointments || [])
-      .filter(appt => appt.date === date && (appt.praxis === praxis || (userId && appt.user_id === userId)))
+      .filter(appt => appt.date === date && appt.code !== excludeCode && (appt.praxis === praxis || (userId && appt.user_id === userId)))
       .map(appt => appt.time);
     return res.json({ blocked: matches });
   }
 
   try {
-    // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user)
+    // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user), excluding current appointment
     const result = await pool.query(
-      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3)',
-      [date, praxis, userId || -1]
+      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3) AND code != $4',
+      [date, praxis, userId || -1, excludeCode || '']
     );
     const blockedSlots = result.rows.map(row => row.time);
     console.log(`[GET /api/termine/blocked] returning blocked slots:`, blockedSlots);
@@ -875,6 +894,115 @@ app.get('/api/user/termine', async (req, res) => {
   } catch (err) {
     console.error('Error fetching user appointments:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Termine.' });
+  }
+});
+
+// API: Reschedule an existing appointment
+app.post('/api/termine/:code/reschedule', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { code } = req.params;
+  const { date, time } = req.body;
+
+  if (!date || !time) {
+    return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    if (!req.session.mockAppointments) req.session.mockAppointments = [];
+    const appt = req.session.mockAppointments.find(a => a.code === code && a.user_id === req.session.userId);
+    if (!appt) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    // Check if slot already booked by another appointment in mockAppointments for this praxis
+    const existing = req.session.mockAppointments.find(
+      a => a.date === date && a.time === time && a.praxis === appt.praxis && a.code !== code
+    );
+    if (existing) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has another appointment at this time
+    const userExisting = req.session.mockAppointments.find(
+      a => a.date === date && a.time === time && a.user_id === req.session.userId && a.code !== code
+    );
+    if (userExisting) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
+    appt.date = date;
+    appt.time = time;
+    return res.json({ success: true, appointment: appt });
+  }
+
+  try {
+    // Get current appointment to get its praxis name
+    const apptCheck = await pool.query('SELECT praxis FROM termine WHERE code = $1 AND user_id = $2', [code, req.session.userId]);
+    if (apptCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const praxisName = apptCheck.rows[0].praxis;
+
+    // Check if slot already booked in DB for this praxis by another appointment
+    const blockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3 AND code != $4',
+      [date, time, praxisName, code]
+    );
+    if (blockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
+    }
+
+    // Check if user already has another appointment at this time
+    const userBlockCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3 AND code != $4',
+      [date, time, req.session.userId, code]
+    );
+    if (userBlockCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
+    const result = await pool.query(
+      'UPDATE termine SET date = $1, time = $2 WHERE code = $3 AND user_id = $4 RETURNING *',
+      [date, time, code, req.session.userId]
+    );
+    res.json({ success: true, appointment: result.rows[0] });
+  } catch (err) {
+    console.error('Error rescheduling appointment:', err);
+    res.status(500).json({ error: 'Terminverschiebung fehlgeschlagen.' });
+  }
+});
+
+// API: Cancel (delete) an existing appointment
+app.delete('/api/termine/:code', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { code } = req.params;
+
+  if (!isDbConnected || !pool) {
+    if (!req.session.mockAppointments) req.session.mockAppointments = [];
+    const idx = req.session.mockAppointments.findIndex(a => a.code === code && a.user_id === req.session.userId);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    req.session.mockAppointments.splice(idx, 1);
+    return res.json({ success: true });
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM termine WHERE code = $1 AND user_id = $2',
+      [code, req.session.userId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden oder nicht berechtigt.' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error canceling appointment:', err);
+    res.status(500).json({ error: 'Stornierung fehlgeschlagen.' });
   }
 });
 
@@ -1342,26 +1470,49 @@ async function sendNotificationEmail(email, appointment) {
   const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
   const landingLink = `${appUrl}/#landing`;
 
+  const greetingName = (appointment.vorname && appointment.nachname) 
+    ? `${appointment.vorname} ${appointment.nachname}` 
+    : '';
+  const greeting = greetingName ? `Hallo ${greetingName},` : 'Hallo,';
+
   const subject = `Ihr Pre-Check-In für den Termin bei ${appointment.doctor} ist bereit!`;
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-      <h2 style="color: #0063BE; margin-bottom: 20px;">Hallo,</h2>
-      <p style="font-size: 16px; line-height: 1.5; color: #334155;">
-        Ihr Pre-Check-In für Ihren anstehenden Termin bei <strong>${appointment.doctor}</strong> (${appointment.fachrichtung}) ist ab sofort verfügbar.
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <h2 style="color: #0063BE; margin-bottom: 20px; font-weight: 700; font-size: 22px;">${greeting}</h2>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Ihr anstehender Termin bei <strong>${appointment.doctor}</strong> (${appointment.fachrichtung}) steht vor der Tür.
       </p>
-      <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
-        <p style="margin: 0; font-size: 14px; color: #475569;"><strong>Termin:</strong> ${appointment.date} um ${appointment.time} Uhr</p>
-        <p style="margin: 5px 0 0 0; font-size: 14px; color: #475569;"><strong>Praxis:</strong> ${appointment.praxis} - ${appointment.adresse}</p>
+      
+      <div style="background-color: #f8fafc; padding: 18px; border-radius: 8px; margin: 24px 0; border: 1px solid #f1f5f9;">
+        <p style="margin: 0; font-size: 14px; color: #475569;">
+          📅 <strong>Termin:</strong> ${appointment.date} um ${appointment.time} Uhr
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          🏢 <strong>Praxis:</strong> ${appointment.praxis} — ${appointment.adresse}
+        </p>
       </div>
-      <p style="font-size: 16px; line-height: 1.5; color: #334155;">
-        Bitte führen Sie den Pre-Check-In vorab online durch, um Ihre Beschwerden, Medikamente und Allergien einzutragen.
+
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Um Ihren Besuch so angenehm und reibungslos wie möglich zu gestalten, haben Sie ab sofort die <strong>Möglichkeit</strong>, Ihren Pre-Check-In vorab online durchzuführen.
       </p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${landingLink}" style="background-color: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">Jetzt Pre-Check-In starten</a>
+      
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 24px;">
+        <strong>Ihr Vorteil:</strong> Durch das Vorab-Ausfüllen von Beschwerden, Medikamenten und Allergien sparen Sie am Empfang wertvolle Zeit. Das Team vor Ort ist optimal vorbereitet und es bleibt mehr Zeit für Ihr persönliches Arztgespräch.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${landingLink}" style="background-color: #0063BE; color: white; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+          Pre-Check-In ausfüllen & Zeit sparen
+        </a>
       </div>
+      
+      <p style="font-size: 13px; line-height: 1.5; color: #64748b; font-style: italic; text-align: center; margin-bottom: 30px;">
+        Hinweis: Das Ausfüllen ist freiwillig. Ihre Daten werden absolut vertraulich behandelt.
+      </p>
+
       <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
-      <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
-        Dies ist eine automatische Benachrichtigung von Doctolib Pre-Check-In.
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Benachrichtigung Ihres Doctolib Pre-Check-In Services.
       </p>
     </div>
   `;
@@ -1396,7 +1547,7 @@ async function checkAndSendNotifications() {
   if (!isDbConnected || !pool) return;
   try {
     const result = await pool.query(
-      `SELECT t.*, u.email as user_email
+      `SELECT t.*, u.email as user_email, u.vorname, u.nachname
        FROM termine t
        JOIN users u ON t.user_id = u.id
        WHERE t.notify_email IS NOT NULL AND t.notify_sent = FALSE`

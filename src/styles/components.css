@@ -931,7 +931,7 @@
   color: var(--gray-500);
 }
 
-/* --- Pre-Check Banner --- */
+/* --- Pre-Check-In Banner --- */
 .dl-precheck-banner {
   background: var(--doctolib-blue-bg);
   border-radius: var(--radius-2xl);
@@ -2488,6 +2488,19 @@
 
 .btn-outline:hover {
   background: var(--primary-lightest);
+  transform: translateY(-1px);
+}
+
+.btn-outline-danger {
+  background: var(--white);
+  color: var(--danger);
+  border: 2px solid var(--danger);
+  font-weight: 600;
+  transition: all var(--transition-base);
+}
+
+.btn-outline-danger:hover {
+  background: #FEF2F2;
   transform: translateY(-1px);
 }
 

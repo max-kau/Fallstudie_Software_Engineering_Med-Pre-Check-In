@@ -142,8 +142,8 @@ function renderDetailContent(termin, patient, note, hints, terminCode) {
       </div>
       <div style="margin-left: auto;">
         ${termin.precheck_submitted
-          ? '<span style="background: #ECFDF5; color: #059669; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ Pre-Check erledigt</span>'
-          : '<span style="background: #FEF2F2; color: #DC2626; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏳ Pre-Check ausstehend</span>'
+          ? '<span style="background: #ECFDF5; color: #059669; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ Pre-Check-In erledigt</span>'
+          : '<span style="background: #FEF2F2; color: #DC2626; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏳ Pre-Check-In ausstehend</span>'
         }
       </div>
     </div>

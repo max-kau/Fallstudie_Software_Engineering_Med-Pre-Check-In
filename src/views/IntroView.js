@@ -9,7 +9,7 @@ export function renderIntroView() {
         <div class="view-content">
           <div style="text-align: center; margin-bottom: var(--space-6);">
             <span style="font-size: 2.5rem; display: block; margin-bottom: var(--space-3);">👋</span>
-            <h2>So funktioniert der Pre-Check</h2>
+            <h2>So funktioniert der Pre-Check-In</h2>
             <p class="text-muted" style="margin-top: var(--space-2);">
               In nur wenigen Minuten können Sie Ihre medizinischen Angaben vorab digital erfassen.
             </p>
