@@ -310,14 +310,14 @@ export async function initLandingView() {
               <div class="precheck-banner__info">
                 <span class="precheck-banner__badge precheck-banner__badge--progress">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  LAUFENDER PRE-CHECK
+                  LAUFENDER PRE-CHECK-IN
                 </span>
                 <h4 class="precheck-banner__title">Setzen Sie Ihre Vorbereitung fort</h4>
                 <p class="precheck-banner__desc">Fortfahren bei: ${getStepLabel(currentStep)}. Bereiten Sie Ihren Termin weiter digital vor.</p>
               </div>
               <div class="precheck-banner__action">
                 <button class="precheck-banner__btn precheck-banner__btn--outline-progress btn-go-precheck" data-code="${appt.code}" data-target="${currentStep}">
-                  Pre-Check fortsetzen
+                  Pre-Check-In fortsetzen
                 </button>
               </div>
             </div>
@@ -331,14 +331,14 @@ export async function initLandingView() {
               <div class="precheck-banner__info">
                 <span class="precheck-banner__badge precheck-banner__badge--available">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  PRE-CHECK VERFÜGBAR
+                  PRE-CHECK-IN VERFÜGBAR
                 </span>
                 <h4 class="precheck-banner__title">Bereiten Sie Ihren Termin online vor</h4>
                 <p class="precheck-banner__desc">Erfassen Sie vorab Ihre Beschwerden, Medikamente und Allergien online. So bleibt mehr Behandlungszeit.</p>
               </div>
               <div class="precheck-banner__action">
                 <button class="precheck-banner__btn precheck-banner__btn--start btn-go-precheck" data-code="${appt.code}" data-target="confirm">
-                  Pre-Check starten
+                  Pre-Check-In starten
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
               </div>

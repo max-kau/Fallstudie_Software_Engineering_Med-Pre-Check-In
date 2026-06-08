@@ -134,8 +134,8 @@ export function renderCalendarView() {
 
       <!-- Legend -->
       <div class="cal-legend">
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>Pre-Check erledigt</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>Pre-Check offen</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>Pre-Check-In erledigt</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>Pre-Check-In offen</span>
         <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94A3B8;"></span>Nicht freigeschaltet</span>
       </div>
 

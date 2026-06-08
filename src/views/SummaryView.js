@@ -153,7 +153,7 @@ export function renderSummaryView() {
           </label>
 
           <button class="btn btn-primary btn-lg btn-block" id="btn-submit" disabled>
-            ✓ Pre-Check absenden
+            ✓ Pre-Check-In absenden
           </button>
         </div>
       </div>
@@ -529,7 +529,7 @@ export function initSummaryView() {
         console.error('Submission failed:', err);
         alert('Fehler beim Absenden. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '✓ Pre-Check absenden';
+        submitBtn.innerHTML = '✓ Pre-Check-In absenden';
       }
     });
   }
