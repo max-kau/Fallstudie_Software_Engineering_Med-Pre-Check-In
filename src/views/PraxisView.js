@@ -411,7 +411,13 @@ export function initPraxisView() {
         })
       });
 
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        throw new Error('Der Server hat keine gültige Antwort gesendet.');
+      }
+      
       if (!res.ok) throw new Error(data.error || 'Termin konnte nicht gebucht werden');
 
       bookingSuccess = true;

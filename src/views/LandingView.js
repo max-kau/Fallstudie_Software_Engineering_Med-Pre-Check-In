@@ -257,6 +257,10 @@ export async function initLandingView() {
       const currentStep = appt.precheck_step;
       const hasProgress = currentStep && currentStep !== 'intro';
 
+      // Check if appointment is in the past
+      const appointmentDateTime = parseGermanDateTime(appt.date, appt.time);
+      const isPast = appointmentDateTime && appointmentDateTime < new Date();
+
       // Check availability (2 business days rule with exact 48 business hours match)
       const available = isPrecheckAvailable(appt.date, appt.time);
       const openDate = getPrecheckOpenDate(appt.date, appt.time);
@@ -301,6 +305,23 @@ export async function initLandingView() {
                 </button>
               </div>
             </div>
+          </div>
+        `;
+      } else if (isPast) {
+        // ---- PAST APPOINTMENT STATE (NOT SUBMITTED) ----
+        precheckBannerHtml = `
+          <div class="precheck-banner precheck-banner--locked" style="background: #F3F4F6; border-left: 4px solid #9CA3AF; position: relative;">
+            <div class="precheck-banner__content">
+              <div class="precheck-banner__info">
+                <span class="precheck-banner__badge" style="background: #E5E7EB; color: #4B5563; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  ABGELAUFEN
+                </span>
+                <h4 class="precheck-banner__title" style="color: #374151; font-weight: 700; font-size: var(--font-size-md); margin-bottom: 2px;">Pre-Check-In abgelaufen</h4>
+                <p class="precheck-banner__desc" style="color: #6B7280; font-size: var(--font-size-sm); line-height: 1.4;">Dieser Termin liegt in der Vergangenheit. Ein Pre-Check-In kann nachträglich nicht mehr ausgefüllt oder fortgesetzt werden.</p>
+              </div>
+            </div>
+            <div class="precheck-banner__locked-overlay" style="background: rgba(243, 244, 246, 0.05); pointer-events: none;"></div>
           </div>
         `;
       } else if (hasProgress && available) {
@@ -406,6 +427,7 @@ export async function initLandingView() {
           ${precheckBannerHtml}
 
           <!-- Card Action Footer -->
+          ${!isPast ? `
           <div class="dl-card-action-footer" style="display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-top: 1px solid var(--gray-100); flex-wrap: wrap;">
             <button class="btn btn-outline btn-reschedule" data-code="${appt.code}" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
               📅 Termin verschieben
@@ -414,6 +436,7 @@ export async function initLandingView() {
               ❌ Termin absagen
             </button>
           </div>
+          ` : ''}
 
         </div>
       `;
@@ -445,19 +468,24 @@ export async function initLandingView() {
       });
     });
 
-    // Attach click events for cancelling
     container.querySelectorAll('.btn-cancel-appt').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         const button = e.currentTarget;
         const code = button.getAttribute('data-code');
         const dateStr = button.getAttribute('data-date');
         const timeStr = button.getAttribute('data-time');
         
-        if (confirm(`Möchten Sie Ihren Termin am ${dateStr} um ${timeStr} Uhr wirklich absagen?`)) {
+        openCancelConfirmModal(code, dateStr, timeStr, async () => {
           button.disabled = true;
           try {
             const res = await fetch(`/api/termine/${code}`, { method: 'DELETE' });
-            const data = await res.json();
+            let data = {};
+            try {
+              data = await res.json();
+            } catch (jsonErr) {
+              throw new Error('Der Server hat keine gültige Antwort gesendet.');
+            }
+            
             if (!res.ok) throw new Error(data.error || 'Fehler beim Absagen des Termins');
             
             showCancelSuccessToast(dateStr, timeStr);
@@ -467,7 +495,7 @@ export async function initLandingView() {
             alert(err.message || 'Verbindung fehlgeschlagen.');
             button.disabled = false;
           }
-        }
+        });
       });
     });
 
@@ -587,3 +615,37 @@ function showCancelSuccessToast(dateStr, timeStr) {
     setTimeout(() => toast.remove(), 400);
   }, 5000);
 }
+
+function openCancelConfirmModal(code, dateStr, timeStr, onConfirmed) {
+  document.getElementById('cancel-confirm-modal')?.remove();
+
+  const html = `
+    <div class="dl-modal-backdrop" id="cancel-confirm-modal" style="z-index: 9200;">
+      <div class="dl-modal-card fade-in-up" style="max-width: 400px; padding: var(--space-6); text-align: center; border-radius: var(--radius-xl); background: white;">
+        <div style="font-size: 48px; margin-bottom: var(--space-4);">⚠️</div>
+        <h3 style="font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2); font-size: var(--font-size-lg);">Termin absagen?</h3>
+        <p style="font-size: var(--font-size-sm); color: var(--gray-600); line-height: 1.5; margin-bottom: var(--space-6);">
+          Möchten Sie Ihren Termin am <strong>${dateStr}</strong> um <strong>${timeStr} Uhr</strong> wirklich absagen? Diese Aktion kann nicht rückgängig gemacht werden.
+        </p>
+        <div style="display: flex; gap: var(--space-3); justify-content: center;">
+          <button class="btn btn-outline" id="btn-cancel-abort" style="flex: 1; padding: var(--space-2) 0; font-weight: 600;">Abbrechen</button>
+          <button class="btn btn-outline-danger" id="btn-cancel-confirm" style="flex: 1; padding: var(--space-2) 0; font-weight: 600;">Ja, absagen</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const modal = document.getElementById('cancel-confirm-modal');
+  const close = () => modal?.remove();
+
+  document.getElementById('btn-cancel-abort')?.addEventListener('click', close);
+  modal?.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+  document.getElementById('btn-cancel-confirm')?.addEventListener('click', () => {
+    close();
+    onConfirmed();
+  });
+}
+

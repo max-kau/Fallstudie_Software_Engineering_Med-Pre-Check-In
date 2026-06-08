@@ -69,8 +69,56 @@ async function handleRoute() {
   if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard') {
     await store.loadData();
 
-    // Guard: If the pre-check-in is already submitted, redirect to summary/success view
     const isSubmitted = store.get('submitted');
+
+    // Guard: If the appointment date has passed and it's not submitted, redirect to landing
+    const termin = store.getTerminInfo();
+    if (termin && termin.date) {
+      const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          return new Date(dateStr + 'T00:00:00');
+        }
+        const monthMap = {
+          'jan': 0, 'feb': 1, 'mär': 2, 'mar': 2, 'apr': 3, 'mai': 4, 'jun': 5,
+          'jul': 6, 'aug': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'dez': 11
+        };
+        const match = dateStr.match(/(\d{1,2})\.\s*(\w{3})/);
+        if (!match) return null;
+        const day = parseInt(match[1], 10);
+        const monthAbbr = match[2].toLowerCase();
+        const month = monthMap[monthAbbr];
+        if (month === undefined || isNaN(day)) return null;
+        const now = new Date();
+        const year = now.getFullYear();
+        return new Date(year, month, day);
+      };
+      
+      const parseDateTime = (dateStr, timeStr) => {
+        const dateObj = parseDate(dateStr);
+        if (!dateObj) return null;
+        if (timeStr) {
+          const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+          if (timeMatch) {
+            const hours = parseInt(timeMatch[1], 10);
+            const minutes = parseInt(timeMatch[2], 10);
+            dateObj.setHours(hours, minutes, 0, 0);
+          }
+        }
+        return dateObj;
+      };
+
+      const apptDateTime = parseDateTime(termin.date, termin.time);
+      const isPast = apptDateTime && apptDateTime < new Date();
+      
+      const PRECHECK_STEPS = ['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente'];
+      if (isPast && !isSubmitted && PRECHECK_STEPS.includes(routeKey)) {
+        navigate('landing');
+        return;
+      }
+    }
+
+    // Guard: If the pre-check-in is already submitted, redirect to summary/success view
     if (isSubmitted && routeKey !== 'zusammenfassung') {
       navigate('zusammenfassung');
       return;

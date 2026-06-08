@@ -271,7 +271,12 @@ export function openRescheduleModal(terminCode, praxisName, callback) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, time: selectedTime })
       });
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        throw new Error('Der Server hat keine gültige Antwort gesendet.');
+      }
 
       if (!res.ok) throw new Error(data.error || 'Fehler beim Verschieben des Termins');
 
