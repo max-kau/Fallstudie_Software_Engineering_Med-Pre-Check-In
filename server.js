@@ -1533,9 +1533,12 @@ async function sendEmail({ to, subject, html }) {
   if (apiKey) {
     try {
       const resend = new Resend(apiKey);
-      // Default from address. Note: Resend requires a verified domain to send to anyone,
-      // or you can send to your own registered email address using the default sandbox from address.
-      const fromAddr = process.env.SMTP_FROM || 'Doctolib Pre-Check-In <onboarding@resend.dev>';
+      let fromAddr = 'Doctolib Pre-Check-In <onboarding@resend.dev>';
+      const envFrom = process.env.SMTP_FROM || '';
+      const isPublicDomain = envFrom.includes('@gmail.com') || envFrom.includes('@gmx.') || envFrom.includes('@web.de') || envFrom.includes('@outlook.');
+      if (envFrom && !isPublicDomain) {
+        fromAddr = envFrom;
+      }
       const response = await resend.emails.send({
         from: fromAddr,
         to,
