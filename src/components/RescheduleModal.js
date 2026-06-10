@@ -128,7 +128,7 @@ function renderTimeslotsHtml() {
     const disabledAttr = isBlocked ? 'disabled title="Bereits belegt"' : '';
     
     html += `
-      <button class="dl-time-slot ${btnClass}" data-time="${slot}" ${disabledAttr} style="padding: var(--space-2) 0; font-size: var(--font-size-sm); font-weight: 600;">
+      <button class="booking-time-slot ${btnClass}" data-time="${slot}" ${disabledAttr} style="padding: var(--space-2) 0; font-size: var(--font-size-sm); font-weight: 600;">
         ${slot}
       </button>
     `;
@@ -194,11 +194,11 @@ function initCalendarEvents() {
   });
 
   // Timeslot selection
-  modal.querySelectorAll('.dl-time-slot:not([disabled])').forEach(btn => {
+  modal.querySelectorAll('.booking-time-slot:not([disabled])').forEach(btn => {
     btn.addEventListener('click', (e) => {
       selectedTime = e.currentTarget.getAttribute('data-time');
       // Highlight selected timeslot
-      modal.querySelectorAll('.dl-time-slot').forEach(b => b.classList.remove('active'));
+      modal.querySelectorAll('.booking-time-slot').forEach(b => b.classList.remove('active'));
       e.currentTarget.classList.add('active');
       
       const saveBtn = document.getElementById('btn-save-reschedule');
