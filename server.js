@@ -1461,6 +1461,9 @@ async function getMailTransporter() {
         port: parseInt(port, 10),
         secure: secureConnection,
         auth: { user, pass },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
         tls: {
           // Maximizes compatibility on hosting platforms with self-signed/proxy certificates
           rejectUnauthorized: false
