@@ -280,6 +280,36 @@ app.get('/api/health', async (req, res) => {
   res.json(health);
 });
 
+app.get('/api/health/smtp', async (req, res) => {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  const config = {
+    hasHost: !!host,
+    host: host || null,
+    hasPort: !!port,
+    port: port || null,
+    hasUser: !!user,
+    user: user || null,
+    hasPass: !!pass,
+    secure: process.env.SMTP_SECURE || null,
+    from: process.env.SMTP_FROM || null
+  };
+
+  try {
+    const transporter = await getMailTransporter();
+    if (transporter && typeof transporter.verify === 'function') {
+      await transporter.verify();
+      return res.json({ success: true, status: 'SMTP server is ready to take messages', config });
+    }
+    return res.json({ success: true, status: 'SMTP initialized (mock/console)', config });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message, stack: err.stack, config });
+  }
+});
+
 // ============================================
 // AUTH API ENDPOINTS
 // ============================================
