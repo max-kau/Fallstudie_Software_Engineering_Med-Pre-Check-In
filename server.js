@@ -1425,13 +1425,18 @@ async function getMailTransporter() {
 
   if (host && port && user && pass) {
     try {
+      const secureConnection = process.env.SMTP_SECURE === 'true' || port === '465';
       mailTransporter = nodemailer.createTransport({
         host,
         port: parseInt(port, 10),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user, pass }
+        secure: secureConnection,
+        auth: { user, pass },
+        tls: {
+          // Maximizes compatibility on hosting platforms with self-signed/proxy certificates
+          rejectUnauthorized: false
+        }
       });
-      console.log(`📧 Nodemailer initialized using SMTP Server: ${host}:${port}`);
+      console.log(`📧 Nodemailer initialized using SMTP Server: ${host}:${port} (secure: ${secureConnection})`);
       return mailTransporter;
     } catch (err) {
       console.error(`⚠️ SMTP Transport initialization failed:`, err.message);
@@ -1464,6 +1469,16 @@ async function getMailTransporter() {
       }
     };
   }
+}
+
+function getSMTPFrom() {
+  if (process.env.SMTP_FROM) {
+    return process.env.SMTP_FROM;
+  }
+  if (process.env.SMTP_USER) {
+    return `"Doctolib Pre-Check-In" <${process.env.SMTP_USER}>`;
+  }
+  return '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
 }
 
 async function sendNotificationEmail(email, appointment) {
@@ -1519,7 +1534,7 @@ async function sendNotificationEmail(email, appointment) {
 
   try {
     const transporter = await getMailTransporter();
-    const fromAddr = process.env.SMTP_FROM || '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
+    const fromAddr = getSMTPFrom();
     const info = await transporter.sendMail({
       from: fromAddr,
       to: email,
@@ -1933,7 +1948,7 @@ async function sendHintEmail(email, appointment, hints, customText, praxisName) 
   `;
 
   const transporter = await getMailTransporter();
-  const fromAddr = process.env.SMTP_FROM || '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
+  const fromAddr = getSMTPFrom();
   const info = await transporter.sendMail({ from: fromAddr, to: email, subject, html });
   console.log(`📧 Hint email sent to ${email} for appointment ${appointment.code}`);
   if (nodemailer.getTestMessageUrl) {
@@ -1960,7 +1975,7 @@ async function sendDelayEmail(email, appointment, delayMinutes, praxisName) {
   `;
 
   const transporter = await getMailTransporter();
-  const fromAddr = process.env.SMTP_FROM || '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
+  const fromAddr = getSMTPFrom();
   const info = await transporter.sendMail({ from: fromAddr, to: email, subject, html });
   console.log(`📧 Delay email sent to ${email} for appointment ${appointment.code}`);
   if (nodemailer.getTestMessageUrl) {

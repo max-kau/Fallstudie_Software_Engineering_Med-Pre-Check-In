@@ -23,6 +23,15 @@ export function renderIntroView() {
                 <div class="intro-step-desc">Beschreiben Sie Ihre aktuellen Symptome und wie stark diese sind.</div>
               </div>
             </div>
+            ${store.getCustomQuestions().length > 0 ? `
+            <div class="intro-step fade-in-up">
+              <div class="intro-step-icon" style="background-color: rgba(245, 158, 11, 0.1); color: rgb(245, 158, 11); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-lg); font-weight: 700; width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; margin-right: var(--space-4);">❓</div>
+              <div>
+                <div class="intro-step-title">Zusatzfragen der Praxis</div>
+                <div class="intro-step-desc">Beantworten Sie individuelle, von dieser Praxis konfigurierte Zusatzfragen.</div>
+              </div>
+            </div>
+            ` : ''}
             <div class="intro-step fade-in-up">
               <div class="intro-step-icon step-2">💊</div>
               <div>
@@ -37,6 +46,10 @@ export function renderIntroView() {
                 <div class="intro-step-desc">Teilen Sie uns bekannte Allergien und Unverträglichkeiten mit.</div>
               </div>
             </div>
+          </div>
+
+          <div style="font-size: var(--font-size-xs); color: var(--gray-500); margin-top: var(--space-4); margin-bottom: var(--space-6); text-align: center; line-height: 1.4;">
+            💡 <em>Hinweis: Je nach Praxis können während des Pre-Check-Ins zusätzliche individuelle Fragen zur optimalen Vorbereitung Ihres Termins erscheinen.</em>
           </div>
 
           <div class="privacy-banner fade-in-up">
