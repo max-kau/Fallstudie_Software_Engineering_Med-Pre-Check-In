@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import session from 'express-session';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 dotenv.config();
 
@@ -285,8 +286,11 @@ app.get('/api/health/smtp', async (req, res) => {
   const port = process.env.SMTP_PORT;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
+  const resendApiKey = process.env.RESEND_API_KEY;
 
   const config = {
+    useResend: !!resendApiKey,
+    hasResendApiKey: !!resendApiKey,
     hasHost: !!host,
     host: host || null,
     hasPort: !!port,
@@ -297,6 +301,16 @@ app.get('/api/health/smtp', async (req, res) => {
     secure: process.env.SMTP_SECURE || null,
     from: process.env.SMTP_FROM || null
   };
+
+  if (resendApiKey) {
+    try {
+      const resend = new Resend(resendApiKey);
+      const domains = await resend.domains.list();
+      return res.json({ success: true, status: 'Resend API is ready and authenticated', domains: domains.data || [], config });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: 'Resend verification failed: ' + err.message, config });
+    }
+  }
 
   try {
     const transporter = await getMailTransporter();
@@ -1514,6 +1528,48 @@ function getSMTPFrom() {
   return '"Doctolib Pre-Check-In" <no-reply@doctolib-precheck.de>';
 }
 
+async function sendEmail({ to, subject, html }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) {
+    try {
+      const resend = new Resend(apiKey);
+      // Default from address. Note: Resend requires a verified domain to send to anyone,
+      // or you can send to your own registered email address using the default sandbox from address.
+      const fromAddr = process.env.SMTP_FROM || 'Doctolib Pre-Check-In <onboarding@resend.dev>';
+      const response = await resend.emails.send({
+        from: fromAddr,
+        to,
+        subject,
+        html
+      });
+      if (response.error) {
+        throw new Error(response.error.message || JSON.stringify(response.error));
+      }
+      console.log(`📧 Email sent via Resend API to ${to}. ID: ${response.data?.id || 'unknown'}`);
+      return { messageId: response.data?.id || 'resend-' + Date.now() };
+    } catch (err) {
+      console.error(`⚠️ Failed to send email via Resend API to ${to}:`, err.message);
+      throw err;
+    }
+  }
+
+  // Fallback to Nodemailer SMTP / mock
+  const transporter = await getMailTransporter();
+  const fromAddr = getSMTPFrom();
+  const info = await transporter.sendMail({
+    from: fromAddr,
+    to,
+    subject,
+    html
+  });
+  console.log(`📧 Email sent via Nodemailer to ${to}. Message ID: ${info.messageId}`);
+  if (nodemailer.getTestMessageUrl) {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log(`🔗 Ethereal Preview: ${previewUrl}`);
+  }
+  return info;
+}
+
 async function sendNotificationEmail(email, appointment) {
   const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
   const landingLink = `${appUrl}/#landing`;
@@ -1566,26 +1622,7 @@ async function sendNotificationEmail(email, appointment) {
   `;
 
   try {
-    const transporter = await getMailTransporter();
-    const fromAddr = getSMTPFrom();
-    const info = await transporter.sendMail({
-      from: fromAddr,
-      to: email,
-      subject,
-      html
-    });
-
-    console.log(`📧 Notification email sent to ${email} for appointment ${appointment.code}`);
-    if (info && info.messageId && info.messageId.startsWith('console-mock-')) {
-      return;
-    }
-    // Check if it has an ethereal URL
-    if (nodemailer.getTestMessageUrl) {
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        console.log(`🔗 Ethereal Email Preview Link: ${previewUrl}`);
-      }
-    }
+    await sendEmail({ to: email, subject, html });
   } catch (err) {
     console.error('Failed to send notification email:', err);
   }
@@ -1980,14 +2017,7 @@ async function sendHintEmail(email, appointment, hints, customText, praxisName) 
     </div>
   `;
 
-  const transporter = await getMailTransporter();
-  const fromAddr = getSMTPFrom();
-  const info = await transporter.sendMail({ from: fromAddr, to: email, subject, html });
-  console.log(`📧 Hint email sent to ${email} for appointment ${appointment.code}`);
-  if (nodemailer.getTestMessageUrl) {
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) console.log(`🔗 Ethereal Preview: ${previewUrl}`);
-  }
+  await sendEmail({ to: email, subject, html });
 }
 
 // Email template for delay notifications
@@ -2007,14 +2037,7 @@ async function sendDelayEmail(email, appointment, delayMinutes, praxisName) {
     </div>
   `;
 
-  const transporter = await getMailTransporter();
-  const fromAddr = getSMTPFrom();
-  const info = await transporter.sendMail({ from: fromAddr, to: email, subject, html });
-  console.log(`📧 Delay email sent to ${email} for appointment ${appointment.code}`);
-  if (nodemailer.getTestMessageUrl) {
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) console.log(`🔗 Ethereal Preview: ${previewUrl}`);
-  }
+  await sendEmail({ to: email, subject, html });
 }
 
 // Serve frontend build static files in production
