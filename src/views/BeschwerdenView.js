@@ -4,16 +4,86 @@ import { renderStepNavigation, initStepNavigation, updateNextButtonState } from 
 import { renderTagInput, initTagInput } from '../components/TagInput.js';
 import { store } from '../utils/store.js';
 
-const COMMON_SYMPTOMS = [
-  'Kopfschmerzen', 'Rückenschmerzen', 'Husten', 'Fieber',
-  'Müdigkeit', 'Übelkeit', 'Halsschmerzen', 'Schwindel',
-  'Bauchschmerzen', 'Gelenkschmerzen', 'Atemnot', 'Schlafstörungen',
-];
+function getSymptomsByFachrichtung(termin) {
+  if (!termin) {
+    return [
+      'Kopfschmerzen', 'Rückenschmerzen', 'Husten', 'Fieber',
+      'Müdigkeit', 'Übelkeit', 'Halsschmerzen', 'Schwindel',
+      'Bauchschmerzen', 'Gelenkschmerzen', 'Atemnot', 'Schlafstörungen'
+    ];
+  }
+  
+  const text = ((termin.fachrichtung || '') + ' ' + (termin.praxis || '')).toLowerCase();
+  
+  if (text.includes('zahn')) {
+    return [
+      'Zahnschmerzen', 'Zahnfleischbluten', 'Karies', 'Zahnstein', 
+      'Aufbissbeschwerden', 'Schmerzempfindlichkeit', 'Kieferknacken', 'Weisheitszahn'
+    ];
+  }
+  if (text.includes('psycho') || text.includes('psychiat') || text.includes('psycholog')) {
+    return [
+      'Schlafstörungen', 'Innere Unruhe', 'Ängste', 'Stimmungsschwankungen', 
+      'Antriebslosigkeit', 'Stress/Burnout', 'Konzentrationsprobleme', 'Traurigkeit'
+    ];
+  }
+  if (text.includes('derm') || text.includes('haut')) {
+    return [
+      'Hautausschlag', 'Juckreiz', 'Muttermal-Kontrolle', 'Rötung', 
+      'Trockene Haut', 'Akne', 'Haarausfall', 'Allergische Hautreaktion'
+    ];
+  }
+  if (text.includes('ortho') || text.includes('gelenk') || text.includes('knochen')) {
+    return [
+      'Rückenschmerzen', 'Gelenkschmerzen', 'Knieschmerzen', 'Nackenschmerzen', 
+      'Bewegungseinschränkung', 'Muskelverspannung', 'Sportverletzung', 'Taubheitsgefühl'
+    ];
+  }
+  if (text.includes('kinder') || text.includes('jugend') || text.includes('päd')) {
+    return [
+      'Fieber', 'Husten', 'Bauchschmerzen', 'Hautausschlag', 
+      'Entwicklungsfrage', 'Appetitlosigkeit', 'Ohrenschmerzen', 'Vorsorgeuntersuchung'
+    ];
+  }
+  if (text.includes('gyn') || text.includes('frau') || text.includes('schwanger')) {
+    return [
+      'Unterleibsschmerzen', 'Regelbeschwerden', 'Schwangerschaftsvorsorge', 'Brustschmerzen', 
+      'Hormonschwankungen', 'Vorsorgeuntersuchung', 'Wechseljahresbeschwerden'
+    ];
+  }
+  if (text.includes('hno') || text.includes('hals') || text.includes('nase') || text.includes('ohr')) {
+    return [
+      'Halsschmerzen', 'Ohrenschmerzen', 'Schnupfen', 'Hörbeschwerden', 
+      'Heiserkeit', 'Nasenbluten', 'Tinnitus', 'Schluckbeschwerden'
+    ];
+  }
+  if (text.includes('kardio') || text.includes('herz')) {
+    return [
+      'Herzrasen', 'Brustenge/Druckgefühl', 'Atemnot', 'Herzstolpern', 
+      'Schwindel', 'Bluthochdruck', 'Müdigkeit', 'Leistungsminderung'
+    ];
+  }
+  if (text.includes('auge') || text.includes('ophth')) {
+    return [
+      'Sehverschlechterung', 'Trockene Augen', 'Augenrötung', 'Juckreiz/Brennen', 
+      'Fremdkörpergefühl', 'Lichtempfindlichkeit', 'Doppelbilder'
+    ];
+  }
+
+  // Default / Allgemeinmedizin
+  return [
+    'Kopfschmerzen', 'Rückenschmerzen', 'Husten', 'Fieber',
+    'Müdigkeit', 'Übelkeit', 'Halsschmerzen', 'Schwindel',
+    'Bauchschmerzen', 'Gelenkschmerzen', 'Atemnot', 'Schlafstörungen'
+  ];
+}
 
 export function renderBeschwerdenView() {
   const data = store.get('beschwerden');
+  const termin = store.getTerminInfo();
+  const symptoms = getSymptomsByFachrichtung(termin);
 
-  const chipsHtml = COMMON_SYMPTOMS.map(s => `
+  const chipsHtml = symptoms.map(s => `
     <button class="chip ${data.chips.includes(s) ? 'selected' : ''}" data-symptom="${s}" type="button">${s}</button>
   `).join('');
 
