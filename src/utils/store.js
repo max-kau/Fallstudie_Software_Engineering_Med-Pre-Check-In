@@ -68,6 +68,7 @@ function getDefaultData() {
     signature: null,
     submitted: false,
     customAnswers: {},
+    documentConfirmations: {},
   };
 }
 
@@ -103,7 +104,8 @@ async function saveProgressToServer() {
       signatureData: allData.signature,
       currentStep: allData.currentStep,
       submitted: allData.submitted,
-      customAnswers: allData.customAnswers || {}
+      customAnswers: allData.customAnswers || {},
+      documentConfirmations: allData.documentConfirmations || {}
     })
   });
   if (!res.ok) throw new Error('API save failed');
@@ -300,7 +302,8 @@ async function loadData() {
           dokumente: result.dokumente || { liste: [] },
           signature: result.signatureData || null,
           submitted: result.submitted || false,
-          customAnswers: result.customAnswers || {}
+          customAnswers: result.customAnswers || {},
+          documentConfirmations: result.documentConfirmations || {}
         };
         saveAll(savedState);
       }
@@ -327,6 +330,32 @@ async function loadData() {
 
 function getCustomQuestions() {
   return _cachedData && _cachedData.customQuestions ? _cachedData.customQuestions : [];
+}
+
+let _praxisDocuments = null;
+
+async function loadPraxisDocuments() {
+  const terminCode = getTerminCode();
+  console.log("DEBUG: loadPraxisDocuments called. terminCode =", terminCode);
+  try {
+    console.log("DEBUG: Fetching documents from /api/precheckin/documents for", terminCode);
+    const res = await fetch(`/api/precheckin/documents?termin=${terminCode}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        _praxisDocuments = data.documents || [];
+        return _praxisDocuments;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load praxis documents:', err);
+  }
+  _praxisDocuments = [];
+  return _praxisDocuments;
+}
+
+function getPraxisDocuments() {
+  return _praxisDocuments || [];
 }
 
 function getTerminInfo() {
@@ -375,7 +404,8 @@ async function submitPreCheckIn() {
       signatureData: allData.signature,
       currentStep: 'zusammenfassung',
       submitted: true,
-      customAnswers: allData.customAnswers || {}
+      customAnswers: allData.customAnswers || {},
+      documentConfirmations: allData.documentConfirmations || {}
     })
   });
 
@@ -396,6 +426,8 @@ export const store = {
   getTerminInfo,
   getPatientInfo,
   getCustomQuestions,
+  getPraxisDocuments,
+  loadPraxisDocuments,
   getDefaultData,
   setDataProvider,
   loadData,

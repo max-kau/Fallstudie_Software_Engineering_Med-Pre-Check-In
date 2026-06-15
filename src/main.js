@@ -52,8 +52,14 @@ const initializers = {
 // Listen for view changes and run initializers
 window.addEventListener('viewChanged', (e) => {
   const view = e.detail.view;
+  console.log("DEBUG: viewChanged event received for view =", view);
   const init = initializers[view];
-  if (init) init();
+  if (init) {
+    console.log("DEBUG: Running initializer for view =", view);
+    init();
+  } else {
+    console.warn("DEBUG: No initializer found for view =", view);
+  }
 
   // Attach exit pre-check-in handler if button is present
   const exitBtn = document.getElementById('btn-exit-precheck');

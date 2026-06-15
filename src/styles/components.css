@@ -676,6 +676,160 @@
   margin-bottom: 2px;
 }
 
+/* --- Document Confirmation Items --- */
+.doc-confirm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  transition: all 0.15s ease;
+}
+
+.doc-confirm-item:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.doc-confirm-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-confirm-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.doc-confirm-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-confirm-type {
+  font-size: var(--font-size-xs);
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+/* --- Document Status Badges --- */
+.doc-status-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.doc-status-pending {
+  background: var(--gray-200);
+  border: 2px solid var(--gray-300);
+  color: var(--gray-400);
+}
+
+.doc-status-accepted {
+  background: #ECFDF5;
+  border: 2px solid #10B981;
+  color: #059669;
+}
+
+.doc-status-rejected {
+  background: #FEF2F2;
+  border: 2px solid #EF4444;
+  color: #DC2626;
+}
+
+/* --- Praxis Document Upload Card (Dashboard) --- */
+.praxis-doc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-gray);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+  transition: all 0.15s ease;
+}
+
+.praxis-doc-card:hover {
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.praxis-doc-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.praxis-doc-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+}
+
+.praxis-doc-icon.confirm {
+  background: #DBEAFE;
+  color: #2563EB;
+}
+
+.praxis-doc-icon.accept-reject {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+.praxis-doc-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.praxis-doc-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.praxis-doc-meta {
+  font-size: var(--font-size-xs);
+  color: var(--gray-400);
+}
+
+.praxis-doc-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+
 /* --- Success Screen --- */
 .success-screen {
   text-align: center;

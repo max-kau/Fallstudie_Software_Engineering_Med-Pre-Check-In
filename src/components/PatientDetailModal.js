@@ -80,6 +80,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode) {
 
   const d = termin.dokumente ? (typeof termin.dokumente === 'string' ? JSON.parse(termin.dokumente) : termin.dokumente) : { liste: [] };
   const docList = d.liste || [];
+  const docConfirmations = termin.document_confirmations ? (typeof termin.document_confirmations === 'string' ? JSON.parse(termin.document_confirmations) : termin.document_confirmations) : {};
 
   const formatBytes = (bytes) => {
     if (!bytes) return '0 Bytes';
@@ -217,6 +218,25 @@ function renderDetailContent(termin, patient, note, hints, terminCode) {
             ${docsHtml}
           </div>
         </div>
+        ${Object.keys(docConfirmations).length > 0 ? `
+        <div>
+          <div class="pdm-subsection-title">Dokumentenbestätigungen</div>
+          <div class="pdm-data-block" style="padding: var(--space-3);">
+            ${Object.entries(docConfirmations).map(([docId, conf]) => {
+              const statusColor = conf.status === 'rejected' ? '#DC2626' : '#059669';
+              const statusBg = conf.status === 'rejected' ? '#FEF2F2' : '#ECFDF5';
+              const statusLabel = conf.status === 'confirmed' ? '✓ Bestätigt' : conf.status === 'accepted' ? '✓ Akzeptiert' : conf.status === 'rejected' ? '✗ Abgelehnt' : '– Ausstehend';
+              return `
+                <div style="display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: ${statusBg}; border-radius: var(--radius-md); margin-bottom: var(--space-2); border: 1px solid ${conf.status === 'rejected' ? '#FCA5A5' : '#A7F3D0'};">
+                  <span style="font-size: var(--font-size-sm); font-weight: 700; color: ${statusColor}; white-space: nowrap;">${statusLabel}</span>
+                  <span style="font-size: var(--font-size-sm); color: var(--gray-600);">Dokument #${docId}</span>
+                  ${conf.status === 'rejected' && conf.reason ? `<span style="font-size: var(--font-size-xs); color: var(--gray-500); font-style: italic; margin-left: auto;">"${conf.reason}"</span>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        ` : ''}
         ${termin.signature_data ? `
         <div>
           <div class="pdm-subsection-title">Digitale Unterschrift</div>
