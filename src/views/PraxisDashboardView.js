@@ -87,6 +87,51 @@ export function renderPraxisDashboardView() {
             </div>
             <div id="questions-status-message" style="margin-top: var(--space-4); font-size: var(--font-size-sm); font-weight: 600; display: none;"></div>
           </div>
+
+          <!-- Praxis Documents Section -->
+          <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
+            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">📎 Dokumente für Patienten</h2>
+            <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-2); line-height: 1.5;">
+              Laden Sie Dokumente hoch, die Patienten vor dem Absenden ihres Pre-Check-Ins bestätigen oder akzeptieren müssen (z.B. Datenschutzerklärung, Einwilligungen).
+            </p>
+            <div style="background: #FFFBEB; border: 1px solid #FEF3C7; color: #B45309; padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); margin-bottom: var(--space-5); font-size: var(--font-size-xs); display: flex; gap: var(--space-2); align-items: flex-start; line-height: 1.5;">
+              <span style="font-size: var(--font-size-md); line-height: 1;">⚠️</span>
+              <div>
+                <strong>Hinweis:</strong> Neue Dokumente gelten erst für ab dem Zeitpunkt des Hochladens neu erstellte Pre-Check-Ins. Bereits laufende Pre-Check-Ins sind nicht betroffen. Beim Löschen gilt dasselbe umgekehrt.
+              </div>
+            </div>
+
+            <!-- Existing Documents List -->
+            <div id="praxis-docs-list-container" style="margin-bottom: var(--space-4);">
+              <div style="text-align: center; padding: var(--space-4); color: var(--gray-400); font-size: var(--font-size-sm);">Wird geladen...</div>
+            </div>
+
+            <!-- Upload New Document Form -->
+            <div style="background: var(--bg-gray); border-radius: var(--radius-xl); padding: var(--space-5); border: 1px dashed var(--gray-300);">
+              <h4 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-700); margin-bottom: var(--space-4);">Neues Dokument hochladen</h4>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
+                <div>
+                  <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Titel des Dokuments *</label>
+                  <input type="text" id="praxis-doc-title" placeholder="z.B. Datenschutzerklärung" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
+                </div>
+                <div>
+                  <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Bestätigungstyp</label>
+                  <select id="praxis-doc-type" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; cursor: pointer;">
+                    <option value="confirm">Nur Bestätigung (Häkchen)</option>
+                    <option value="accept_reject">Akzeptieren / Ablehnen</option>
+                  </select>
+                </div>
+              </div>
+              <div style="margin-bottom: var(--space-4);">
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Datei auswählen (PDF, PNG, JPEG, max. 5 MB) *</label>
+                <input type="file" id="praxis-doc-file" accept=".pdf,.png,.jpg,.jpeg" style="font-size: var(--font-size-sm);">
+              </div>
+              <button id="btn-upload-praxis-doc" type="button" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                📤 Dokument hochladen
+              </button>
+              <div id="praxis-doc-upload-status" style="margin-top: var(--space-3); font-size: var(--font-size-sm); font-weight: 600; display: none;"></div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -436,4 +481,172 @@ export async function initPraxisDashboardView() {
       statusMessage.textContent = '❌ Fehler beim Speichern: ' + err.message;
     }
   });
+
+  // ============================================
+  // PRAXIS DOCUMENTS MANAGEMENT
+  // ============================================
+
+  const docsListContainer = document.getElementById('praxis-docs-list-container');
+  const docUploadStatus = document.getElementById('praxis-doc-upload-status');
+  let praxisDocs = [];
+
+  function formatBytes(bytes) {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function renderPraxisDocsList() {
+    if (!docsListContainer) return;
+
+    if (praxisDocs.length === 0) {
+      docsListContainer.innerHTML = `
+        <div style="text-align: center; padding: var(--space-6); border: 1px dashed var(--gray-300); border-radius: var(--radius-xl); background: var(--bg-gray);">
+          <div style="font-size: var(--font-size-3xl); margin-bottom: var(--space-2);">📄</div>
+          <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0;">Noch keine Dokumente hochgeladen.</p>
+        </div>
+      `;
+      return;
+    }
+
+    docsListContainer.innerHTML = praxisDocs.map(doc => {
+      const typeLabel = doc.doc_type === 'accept_reject' ? 'Akzeptieren / Ablehnen' : 'Nur Bestätigung';
+      const typeClass = doc.doc_type === 'accept_reject' ? 'accept-reject' : 'confirm';
+      const typeIcon = doc.doc_type === 'accept_reject' ? '⚖️' : '✓';
+      const createdAt = doc.created_at ? new Date(doc.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+      return `
+        <div class="praxis-doc-card">
+          <div class="praxis-doc-info">
+            <div class="praxis-doc-icon ${typeClass}">${typeIcon}</div>
+            <div class="praxis-doc-details">
+              <span class="praxis-doc-title">${doc.title}</span>
+              <span class="praxis-doc-meta">${typeLabel} · ${doc.filename || 'Datei'} ${doc.file_size ? '(' + formatBytes(doc.file_size) + ')' : ''} · ${createdAt}</span>
+            </div>
+          </div>
+          <div class="praxis-doc-actions">
+            ${doc.file_id ? `<a href="/api/file/${doc.file_id}" target="_blank" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: none;">Ansehen</a>` : ''}
+            <button class="btn-delete-praxis-doc" data-doc-id="${doc.id}" style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #DC2626; padding: 4px 10px; border-radius: var(--radius-md); font-size: 11px; font-weight: 700; cursor: pointer;">🗑️ Löschen</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Attach delete handlers
+    docsListContainer.querySelectorAll('.btn-delete-praxis-doc').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const docId = parseInt(btn.dataset.docId);
+        if (!confirm('Dokument wirklich löschen? Bereits laufende Pre-Check-Ins behalten das Dokument.')) return;
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          const res = await fetch(`/api/praxis/documents/${docId}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (data.success) {
+            praxisDocs = praxisDocs.filter(d => d.id !== docId);
+            renderPraxisDocsList();
+          }
+        } catch (err) {
+          console.error('Error deleting praxis document:', err);
+          btn.disabled = false;
+          btn.textContent = '🗑️ Löschen';
+        }
+      });
+    });
+  }
+
+  // Load existing praxis documents
+  (async () => {
+    try {
+      const res = await fetch('/api/praxis/documents');
+      const data = await res.json();
+      if (data.success) {
+        praxisDocs = data.documents || [];
+        renderPraxisDocsList();
+      }
+    } catch (err) {
+      if (docsListContainer) docsListContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Dokumente konnten nicht geladen werden.</p>';
+    }
+  })();
+
+  // Upload new praxis document
+  document.getElementById('btn-upload-praxis-doc')?.addEventListener('click', async () => {
+    const titleInput = document.getElementById('praxis-doc-title');
+    const typeSelect = document.getElementById('praxis-doc-type');
+    const fileInput = document.getElementById('praxis-doc-file');
+
+    const title = titleInput?.value?.trim();
+    const docType = typeSelect?.value || 'confirm';
+    const file = fileInput?.files?.[0];
+
+    if (!title) {
+      showDocStatus('Bitte geben Sie einen Titel ein.', '#DC2626');
+      return;
+    }
+    if (!file) {
+      showDocStatus('Bitte wählen Sie eine Datei aus.', '#DC2626');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showDocStatus('Datei ist zu groß (max. 5 MB).', '#DC2626');
+      return;
+    }
+
+    const btn = document.getElementById('btn-upload-praxis-doc');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> Wird hochgeladen...';
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Data = reader.result.split(',')[1];
+        const res = await fetch('/api/praxis/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            docType,
+            filename: file.name,
+            mimeType: file.type,
+            fileData: base64Data
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          praxisDocs.unshift(data.document);
+          renderPraxisDocsList();
+          // Clear form
+          titleInput.value = '';
+          fileInput.value = '';
+          showDocStatus('✓ Dokument erfolgreich hochgeladen!', '#059669');
+        } else {
+          showDocStatus('❌ ' + (data.error || 'Fehler beim Hochladen.'), '#DC2626');
+        }
+        btn.disabled = false;
+        btn.innerHTML = '📤 Dokument hochladen';
+      };
+      reader.onerror = () => {
+        showDocStatus('❌ Fehler beim Lesen der Datei.', '#DC2626');
+        btn.disabled = false;
+        btn.innerHTML = '📤 Dokument hochladen';
+      };
+    } catch (err) {
+      showDocStatus('❌ Fehler: ' + err.message, '#DC2626');
+      btn.disabled = false;
+      btn.innerHTML = '📤 Dokument hochladen';
+    }
+  });
+
+  function showDocStatus(msg, color) {
+    if (docUploadStatus) {
+      docUploadStatus.style.display = 'block';
+      docUploadStatus.style.color = color;
+      docUploadStatus.textContent = msg;
+      if (color === '#059669') {
+        setTimeout(() => { docUploadStatus.style.display = 'none'; }, 4000);
+      }
+    }
+  }
 }

@@ -224,6 +224,26 @@ async function initDb() {
     `);
     console.log('Table "patient_hints" verified/created.');
 
+    // Create praxis_documents table for documents that patients must confirm
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS praxis_documents (
+        id SERIAL PRIMARY KEY,
+        praxis_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        doc_type VARCHAR(20) NOT NULL DEFAULT 'confirm',
+        file_id INTEGER REFERENCES uploaded_files(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "praxis_documents" verified/created.');
+
+    // Add document_confirmations and started_at columns to precheckins
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS document_confirmations JSONB NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+    console.log('Columns "document_confirmations" and "started_at" on precheckins verified.');
+
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
     console.log('Demo user max@doctolib.de verified removed from database.');
@@ -553,6 +573,7 @@ app.get('/api/praxis/termine', async (req, res) => {
     const result = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
               p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers,
+              p.document_confirmations,
               u.geburtsdatum as patient_geburtsdatum, u.krankenversicherung as patient_versicherung, u.krankenkasse as patient_krankenkasse
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
@@ -1152,7 +1173,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers FROM precheckins WHERE termin_code = $1',
+      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at FROM precheckins WHERE termin_code = $1',
       [terminCode]
     );
 
@@ -1169,7 +1190,9 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
         signatureData: row.signature_data,
         currentStep: row.current_step,
         submitted: row.submitted,
-        customAnswers: row.custom_answers || {}
+        customAnswers: row.custom_answers || {},
+        documentConfirmations: row.document_confirmations || {},
+        startedAt: row.started_at
       });
     }
 
@@ -1182,7 +1205,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
 // API: Submit or autosave pre-check-in data
 app.post('/api/precheckin', async (req, res) => {
-  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers } = req.body;
+  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers, documentConfirmations } = req.body;
 
   if (!sessionId || !terminCode) {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
@@ -1195,9 +1218,10 @@ app.post('/api/precheckin', async (req, res) => {
 
   try {
     // Save to database, upsert if the appointment already exists
+    // started_at is only set on INSERT (not updated on conflict)
     await pool.query(
-      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
        ON CONFLICT (termin_code)
        DO UPDATE SET
          session_id = EXCLUDED.session_id,
@@ -1209,6 +1233,7 @@ app.post('/api/precheckin', async (req, res) => {
          current_step = EXCLUDED.current_step,
          submitted = EXCLUDED.submitted,
          custom_answers = EXCLUDED.custom_answers,
+         document_confirmations = EXCLUDED.document_confirmations,
          submitted_at = CURRENT_TIMESTAMP`,
       [
         terminCode,
@@ -1220,7 +1245,8 @@ app.post('/api/precheckin', async (req, res) => {
         signatureData || null,
         currentStep || 'intro',
         submitted || false,
-        JSON.stringify(customAnswers || {})
+        JSON.stringify(customAnswers || {}),
+        JSON.stringify(documentConfirmations || {})
       ]
     );
 
@@ -1347,6 +1373,160 @@ app.delete('/api/file/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting file:', err);
     res.status(500).json({ error: 'Database delete error' });
+  }
+});
+
+// ============================================
+// PRAXIS DOCUMENTS API ENDPOINTS
+// ============================================
+
+// API: Get all documents for the logged-in practice
+app.get('/api/praxis/documents', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, documents: [] });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT pd.id, pd.title, pd.doc_type, pd.file_id, pd.created_at,
+              uf.filename, uf.mime_type, uf.file_size
+       FROM praxis_documents pd
+       LEFT JOIN uploaded_files uf ON pd.file_id = uf.id
+       WHERE pd.praxis_id = $1
+       ORDER BY pd.created_at DESC`,
+      [req.session.userId]
+    );
+    res.json({ success: true, documents: result.rows });
+  } catch (err) {
+    console.error('Error loading praxis documents:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Dokumente.' });
+  }
+});
+
+// API: Upload a new praxis document
+app.post('/api/praxis/documents', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { title, docType, filename, mimeType, fileData } = req.body;
+  if (!title || !filename || !mimeType || !fileData) {
+    return res.status(400).json({ error: 'Titel, Datei und Typ sind erforderlich.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, document: { id: Math.floor(Math.random() * 100000), title, doc_type: docType || 'confirm' } });
+  }
+  try {
+    const buffer = Buffer.from(fileData, 'base64');
+    const fileSize = buffer.length;
+    // 1. Save the file in uploaded_files (use a special termin_code prefix for praxis docs)
+    const fileResult = await pool.query(
+      `INSERT INTO uploaded_files (termin_code, filename, mime_type, file_size, file_data)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, filename, mime_type, file_size`,
+      [null, filename, mimeType, fileSize, buffer]
+    );
+    const fileRow = fileResult.rows[0];
+    // 2. Create the praxis_documents entry
+    const docResult = await pool.query(
+      `INSERT INTO praxis_documents (praxis_id, title, doc_type, file_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, title, doc_type, file_id, created_at`,
+      [req.session.userId, title, docType || 'confirm', fileRow.id]
+    );
+    const doc = docResult.rows[0];
+    doc.filename = fileRow.filename;
+    doc.mime_type = fileRow.mime_type;
+    doc.file_size = fileRow.file_size;
+    console.log(`Praxis document uploaded: "${title}" (type: ${docType}) for praxis ${req.session.userId}`);
+    res.json({ success: true, document: doc });
+  } catch (err) {
+    console.error('Error uploading praxis document:', err);
+    res.status(500).json({ error: 'Fehler beim Hochladen des Dokuments.' });
+  }
+});
+
+// API: Delete a praxis document
+app.delete('/api/praxis/documents/:id', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const docId = parseInt(req.params.id, 10);
+  if (isNaN(docId)) {
+    return res.status(400).json({ error: 'Ungültige Dokument-ID.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    // Get file_id before deleting
+    const docRes = await pool.query('SELECT file_id FROM praxis_documents WHERE id = $1 AND praxis_id = $2', [docId, req.session.userId]);
+    if (docRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Dokument nicht gefunden.' });
+    }
+    const fileId = docRes.rows[0].file_id;
+    // Delete the praxis_documents entry (CASCADE will not delete uploaded_files, so delete manually)
+    await pool.query('DELETE FROM praxis_documents WHERE id = $1 AND praxis_id = $2', [docId, req.session.userId]);
+    if (fileId) {
+      await pool.query('DELETE FROM uploaded_files WHERE id = $1', [fileId]);
+    }
+    console.log(`Praxis document ${docId} deleted for praxis ${req.session.userId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting praxis document:', err);
+    res.status(500).json({ error: 'Fehler beim Löschen des Dokuments.' });
+  }
+});
+
+// API: Get praxis documents for a patient's pre-check-in (filtered by started_at timestamp)
+app.get('/api/precheckin/documents', async (req, res) => {
+  const { termin } = req.query;
+  if (!termin) {
+    return res.status(400).json({ error: 'Termin-Code fehlt.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, documents: [] });
+  }
+  try {
+    // 1. Get practice name from the appointment
+    const terminRes = await pool.query('SELECT praxis FROM termine WHERE code = $1', [termin]);
+    if (terminRes.rows.length === 0) {
+      return res.json({ success: true, documents: [] });
+    }
+    const praxisName = terminRes.rows[0].praxis;
+
+    // 2. Find the practice user ID (case-insensitive)
+    const userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' AND LOWER(praxis_name) = LOWER($1)", [praxisName]);
+    if (userRes.rows.length === 0) {
+      return res.json({ success: true, documents: [] });
+    }
+    const praxisId = userRes.rows[0].id;
+
+    // 3. Load documents that existed when the PreCheckIn was started (directly comparing timestamps in SQL)
+    // If the precheckin is not yet submitted, always show all currently available documents.
+    const docsRes = await pool.query(
+      `SELECT pd.id, pd.title, pd.doc_type, pd.file_id, pd.created_at,
+              uf.filename, uf.mime_type, uf.file_size
+       FROM praxis_documents pd
+       LEFT JOIN uploaded_files uf ON pd.file_id = uf.id
+       WHERE pd.praxis_id = $1 
+         AND (
+           COALESCE((SELECT submitted FROM precheckins WHERE termin_code = $2), FALSE) = FALSE
+           OR
+           pd.created_at <= COALESCE(
+             (SELECT started_at FROM precheckins WHERE termin_code = $2),
+             CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+           )
+         )
+       ORDER BY pd.created_at ASC`,
+      [praxisId, termin]
+    );
+
+    res.json({ success: true, documents: docsRes.rows });
+  } catch (err) {
+    console.error('Error loading patient precheckin documents:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Praxis-Dokumente.' });
   }
 });
 
@@ -1672,7 +1852,8 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
     // Get appointment + precheck data
     const terminRes = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
-              p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers
+              p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers,
+              p.document_confirmations
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,

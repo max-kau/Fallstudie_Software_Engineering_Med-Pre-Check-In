@@ -2,6 +2,7 @@ import { renderHeader } from '../components/Header.js';
 import { store } from '../utils/store.js';
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
+import { openDocumentViewerModal } from '../components/DocumentViewerModal.js';
 
 function formatGermanDate(dateStr) {
   if (!dateStr) return '';
@@ -136,6 +137,17 @@ export function renderSummaryView() {
           </div>
 
           <!-- Digital Signature Canvas Card -->
+          <!-- Praxis Documents Confirmation Section -->
+          <div id="praxis-docs-section" class="summary-section card fade-in-up" style="display: none;">
+            <div class="summary-header">
+              <div class="summary-title">📋 Bereitgestellte Dokumente</div>
+            </div>
+            <div class="summary-content">
+              <p class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-3); line-height: 1.5;">Bitte öffnen und bestätigen Sie alle bereitgestellten Dokumente bevor Sie den Pre-Check-In absenden.</p>
+              <div id="praxis-docs-list"></div>
+            </div>
+          </div>
+
           <div class="summary-section card fade-in-up" style="margin-top: var(--space-6);">
             <div class="summary-header">
               <div class="summary-title">✍️ Digitale Unterschrift</div>
@@ -336,7 +348,28 @@ function generatePDF(allData, signatureDataUrl) {
   doc.text(docsList, 20, y);
   y += 10;
 
-  // Section 6: Signature
+  // Section: Praxis Document Confirmations
+  const docConfs = allData.documentConfirmations || {};
+  const praxisDocs = store.getPraxisDocuments();
+  if (praxisDocs.length > 0) {
+    sectionIdx++;
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${sectionIdx}. Bereitgestellte Dokumente (Bestätigungen)`, 20, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    for (const pd of praxisDocs) {
+      const conf = docConfs[pd.id];
+      const statusText = conf ? (conf.status === 'confirmed' ? 'Bestätigt' : conf.status === 'accepted' ? 'Akzeptiert' : conf.status === 'rejected' ? 'Abgelehnt' : 'Ausstehend') : 'Ausstehend';
+      const lines = doc.splitTextToSize(`${pd.title}: ${statusText}${conf && conf.status === 'rejected' && conf.reason ? ' – ' + conf.reason : ''}`, 170);
+      doc.text(lines, 20, y);
+      y += lines.length * 5;
+    }
+    y += 5;
+  }
+
+  // Section: Signature
   sectionIdx++;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
@@ -367,6 +400,7 @@ function generatePDF(allData, signatureDataUrl) {
 }
 
 export function initSummaryView() {
+  console.log("DEBUG: initSummaryView called");
   // Edit buttons
   document.querySelectorAll('[data-edit]').forEach(btn => {
     btn.addEventListener('click', () => { window.location.hash = btn.dataset.edit; });
@@ -380,12 +414,92 @@ export function initSummaryView() {
   let hasSigned = !!store.get('signature');
   let drawing = false;
   let ctx = null;
+  let praxisDocs = [];
+
+  function allDocsConfirmed() {
+    if (praxisDocs.length === 0) return true;
+    const confs = store.get('documentConfirmations') || {};
+    return praxisDocs.every(doc => {
+      const c = confs[doc.id];
+      if (!c || !c.status) return false;
+      if (c.status === 'rejected' && (!c.reason || c.reason.trim().length === 0)) return false;
+      return true;
+    });
+  }
 
   function updateSubmitState() {
     if (checkbox && submitBtn) {
-      submitBtn.disabled = !(checkbox.checked && hasSigned);
+      submitBtn.disabled = !(checkbox.checked && hasSigned && allDocsConfirmed());
     }
   }
+
+  function renderDocStatusBadge(doc) {
+    const confs = store.get('documentConfirmations') || {};
+    const c = confs[doc.id];
+    if (!c || !c.status) {
+      return `<div class="doc-status-badge doc-status-pending" title="Noch nicht bearbeitet"></div>`;
+    }
+    if (c.status === 'rejected') {
+      return `<div class="doc-status-badge doc-status-rejected" title="Abgelehnt">✗</div>`;
+    }
+    return `<div class="doc-status-badge doc-status-accepted" title="${c.status === 'confirmed' ? 'Bestätigt' : 'Akzeptiert'}">✓</div>`;
+  }
+
+  function renderPraxisDocsList() {
+    console.log("DEBUG: renderPraxisDocsList called. praxisDocs =", praxisDocs);
+    const listEl = document.getElementById('praxis-docs-list');
+    const sectionEl = document.getElementById('praxis-docs-section');
+    if (!listEl || !sectionEl) {
+      console.warn("DEBUG: listEl or sectionEl is missing from the DOM");
+      return;
+    }
+
+    if (praxisDocs.length === 0) {
+      sectionEl.style.display = 'none';
+      return;
+    }
+
+    sectionEl.style.display = 'block';
+    listEl.innerHTML = praxisDocs.map(doc => `
+      <div class="doc-confirm-item" data-doc-id="${doc.id}">
+        <div class="doc-confirm-info">
+          ${renderDocStatusBadge(doc)}
+          <div class="doc-confirm-details">
+            <span class="doc-confirm-title">${doc.title}</span>
+            <span class="doc-confirm-type">${doc.doc_type === 'confirm' ? 'Bestätigung erforderlich' : 'Akzeptieren / Ablehnen'}</span>
+          </div>
+        </div>
+        <button class="btn-doc-open" data-doc-id="${doc.id}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 14px; border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;">
+          Öffnen
+        </button>
+      </div>
+    `).join('');
+
+    // Attach click handlers
+    listEl.querySelectorAll('.btn-doc-open').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const docId = parseInt(btn.dataset.docId);
+        const doc = praxisDocs.find(d => d.id === docId);
+        if (doc) {
+          openDocumentViewerModal(doc, () => {
+            renderPraxisDocsList();
+            updateSubmitState();
+          });
+        }
+      });
+    });
+  }
+
+  // Load praxis documents
+  (async () => {
+    try {
+      praxisDocs = await store.loadPraxisDocuments();
+      renderPraxisDocsList();
+      updateSubmitState();
+    } catch (err) {
+      console.warn('Failed to load praxis documents:', err);
+    }
+  })();
 
   if (canvas) {
     ctx = canvas.getContext('2d');
