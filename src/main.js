@@ -14,6 +14,8 @@ import { renderPraxisView, initPraxisView } from './views/PraxisView.js';
 import { renderSearchView, initSearchView } from './views/SearchView.js';
 import { renderPraxisDashboardView, initPraxisDashboardView } from './views/PraxisDashboardView.js';
 import { renderZusatzfragenView, initZusatzfragenView } from './views/ZusatzfragenView.js';
+import { renderPraxisDokumenteView, initPraxisDokumenteView } from './views/PraxisDokumenteView.js';
+import { renderFeedbackView, initFeedbackView } from './views/FeedbackView.js';
 
 // Register all routes
 registerRoute('home', renderHomeView);
@@ -26,10 +28,12 @@ registerRoute('zusatzfragen', renderZusatzfragenView);
 registerRoute('medikamente', renderMedikamenteView);
 registerRoute('allergien', renderAllergienView);
 registerRoute('dokumente', renderDokumenteView);
+registerRoute('praxis-dokumente', renderPraxisDokumenteView);
 registerRoute('zusammenfassung', renderSummaryView);
 registerRoute('praxis', renderPraxisView);
 registerRoute('suche', renderSearchView);
 registerRoute('praxis-dashboard', renderPraxisDashboardView);
+registerRoute('feedback', renderFeedbackView);
 
 // View initializers map
 const initializers = {
@@ -43,10 +47,12 @@ const initializers = {
   medikamente: initMedikamenteView,
   allergien: initAllergienView,
   dokumente: initDokumenteView,
+  'praxis-dokumente': initPraxisDokumenteView,
   zusammenfassung: initSummaryView,
   praxis: initPraxisView,
   suche: initSearchView,
   'praxis-dashboard': initPraxisDashboardView,
+  feedback: initFeedbackView,
 };
 
 // Listen for view changes and run initializers

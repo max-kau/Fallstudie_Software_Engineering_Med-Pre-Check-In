@@ -1,4 +1,7 @@
-export function renderProgressBar(currentStep, totalSteps = 4) {
+import { store } from '../utils/store.js';
+
+export function renderProgressBar(currentStep) {
+  const hasPraxisDocs = store.getPraxisDocuments().length > 0;
   const steps = [
     { num: 1, label: 'Beschwerden' },
     { num: 2, label: 'Medikamente' },
@@ -6,6 +9,11 @@ export function renderProgressBar(currentStep, totalSteps = 4) {
     { num: 4, label: 'Dokumente' },
   ];
 
+  if (hasPraxisDocs) {
+    steps.push({ num: 5, label: 'Einwilligungen' });
+  }
+
+  const totalSteps = steps.length;
   const fillPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;
 
   const stepsHtml = steps.map(step => {

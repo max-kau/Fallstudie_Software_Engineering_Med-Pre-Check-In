@@ -23,7 +23,28 @@ function getSessionId() {
 
 function getTerminCode() {
   const params = new URLSearchParams(window.location.search);
-  return params.get('termin') || 'demo_12345';
+  let code = params.get('termin');
+
+  // Try parsing from hash query if not in search (e.g., #intro?termin=...)
+  if (!code && window.location.hash) {
+    const hashParts = window.location.hash.split('?');
+    if (hashParts.length > 1) {
+      const hashParams = new URLSearchParams(hashParts[1]);
+      code = hashParams.get('termin');
+    }
+  }
+
+  // Fallback to sessionStorage
+  if (!code) {
+    code = sessionStorage.getItem('_last_termin_code');
+  }
+
+  // Save if found, so we can preserve it
+  if (code && code !== 'demo_12345') {
+    sessionStorage.setItem('_last_termin_code', code);
+  }
+
+  return code || 'demo_12345';
 }
 
 function getStoreKey() {
@@ -160,6 +181,8 @@ function hasSavedProgress() {
 
 function resetProgress() {
   clear();
+  _cachedData = null;
+  _praxisDocuments = null;
   // Generate a brand new session ID so we start completely clean
   _sessionId = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   sessionStorage.setItem('_doctolib_session_id', _sessionId);
@@ -251,7 +274,7 @@ const EXAMPLE_DATA = {
 };
 
 let _dataProvider = async (terminCode) => {
-  const res = await fetch(`/api/termin/${terminCode}`);
+  const res = await fetch(`/api/termin/${terminCode}?_t=${Date.now()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP error ${res.status}`);
   return await res.json();
 };
@@ -263,66 +286,77 @@ function setDataProvider(providerFn) {
 let _cachedData = null;
 
 async function loadData() {
-  if (_cachedData) return _cachedData;
-
   const terminCode = getTerminCode();
+  if (_cachedData && _cachedData.termin && _cachedData.termin.code !== terminCode) {
+    _cachedData = null;
+    _praxisDocuments = null;
+  }
 
-  // Load appointment and patient info first
-  if (_dataProvider) {
-    try {
-      _cachedData = await _dataProvider(terminCode);
-    } catch (err) {
-      console.warn('Data provider failed, falling back to example data:', err);
+  if (!_cachedData) {
+    // Load appointment and patient info first
+    if (_dataProvider) {
+      try {
+        _cachedData = await _dataProvider(terminCode);
+      } catch (err) {
+        console.warn('Data provider failed, falling back to example data:', err);
+        _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
+      }
+    } else {
       _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
     }
-  } else {
-    _cachedData = { ...EXAMPLE_DATA, termin: { ...EXAMPLE_DATA.termin, code: terminCode } };
+
+    // Load existing saved pre-check-in from the database for this appointment (resumption)
+    try {
+      const res = await fetch(`/api/precheckin/${terminCode}?_t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.exists) {
+          console.log('Restoring existing database pre-check-in record:', result.sessionId);
+
+          // Keep the saved sessionId active in the client session
+          _sessionId = result.sessionId;
+          sessionStorage.setItem('_doctolib_session_id', _sessionId);
+
+          // Restore entire state
+          const savedState = {
+            terminCode: result.terminCode,
+            sessionId: result.sessionId,
+            currentStep: result.currentStep || 'intro',
+            beschwerden: result.beschwerden,
+            medikamente: result.medikamente,
+            allergien: result.allergien,
+            dokumente: result.dokumente || { liste: [] },
+            signature: result.signatureData || null,
+            submitted: result.submitted || false,
+            customAnswers: result.customAnswers || {},
+            documentConfirmations: result.documentConfirmations || {}
+          };
+          saveAll(savedState);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load existing pre-check-in from database:', err);
+    }
+
+    // Load custom questions for this practice/appointment
+    try {
+      const qRes = await fetch(`/api/precheckin/questions?termin=${terminCode}&_t=${Date.now()}`, { cache: 'no-store' });
+      if (qRes.ok) {
+        const qData = await qRes.json();
+        if (qData.success) {
+          _cachedData.customQuestions = qData.questions || [];
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load custom questions for pre-check-in:', err);
+    }
   }
 
-  // Load existing saved pre-check-in from the database for this appointment (resumption)
+  // Load praxis documents for this practice/appointment (always refresh)
   try {
-    const res = await fetch(`/api/precheckin/${terminCode}`);
-    if (res.ok) {
-      const result = await res.json();
-      if (result.exists) {
-        console.log('Restoring existing database pre-check-in record:', result.sessionId);
-
-        // Keep the saved sessionId active in the client session
-        _sessionId = result.sessionId;
-        sessionStorage.setItem('_doctolib_session_id', _sessionId);
-
-        // Restore entire state
-        const savedState = {
-          terminCode: result.terminCode,
-          sessionId: result.sessionId,
-          currentStep: result.currentStep || 'intro',
-          beschwerden: result.beschwerden,
-          medikamente: result.medikamente,
-          allergien: result.allergien,
-          dokumente: result.dokumente || { liste: [] },
-          signature: result.signatureData || null,
-          submitted: result.submitted || false,
-          customAnswers: result.customAnswers || {},
-          documentConfirmations: result.documentConfirmations || {}
-        };
-        saveAll(savedState);
-      }
-    }
+    await loadPraxisDocuments();
   } catch (err) {
-    console.warn('Failed to load existing pre-check-in from database:', err);
-  }
-
-  // Load custom questions for this practice/appointment
-  try {
-    const qRes = await fetch(`/api/precheckin/questions?termin=${terminCode}`);
-    if (qRes.ok) {
-      const qData = await qRes.json();
-      if (qData.success) {
-        _cachedData.customQuestions = qData.questions || [];
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to load custom questions for pre-check-in:', err);
+    console.warn('Failed to load praxis documents for pre-check-in:', err);
   }
 
   return _cachedData;
@@ -339,7 +373,7 @@ async function loadPraxisDocuments() {
   console.log("DEBUG: loadPraxisDocuments called. terminCode =", terminCode);
   try {
     console.log("DEBUG: Fetching documents from /api/precheckin/documents for", terminCode);
-    const res = await fetch(`/api/precheckin/documents?termin=${terminCode}`);
+    const res = await fetch(`/api/precheckin/documents?termin=${terminCode}&_t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data.success) {

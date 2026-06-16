@@ -141,6 +141,7 @@ export function renderSummaryView() {
           <div id="praxis-docs-section" class="summary-section card fade-in-up" style="display: none;">
             <div class="summary-header">
               <div class="summary-title">📋 Bereitgestellte Dokumente</div>
+              <button class="summary-edit" data-edit="praxis-dokumente">Bearbeiten</button>
             </div>
             <div class="summary-content">
               <p class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-3); line-height: 1.5;">Bitte öffnen und bestätigen Sie alle bereitgestellten Dokumente bevor Sie den Pre-Check-In absenden.</p>

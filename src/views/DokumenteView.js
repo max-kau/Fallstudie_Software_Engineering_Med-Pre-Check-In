@@ -42,6 +42,10 @@ export function renderDokumenteView() {
     `;
   }).join('');
 
+  const hasPraxisDocs = store.getPraxisDocuments().length > 0;
+  const nextStep = hasPraxisDocs ? 'praxis-dokumente' : 'zusammenfassung';
+  const nextLabel = hasPraxisDocs ? 'Weiter' : 'Zur Zusammenfassung';
+
   return `
     ${renderHeader()}
     <div class="view">
@@ -71,7 +75,7 @@ export function renderDokumenteView() {
             </div>
           </div>
 
-          ${renderStepNavigation('allergien', 'zusammenfassung', 'Zur Zusammenfassung')}
+          ${renderStepNavigation('allergien', nextStep, nextLabel)}
         </div>
       </div>
     </div>
