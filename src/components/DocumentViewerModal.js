@@ -19,7 +19,7 @@ export function openDocumentViewerModal(doc, onStatusChange) {
   const isImage = doc.mime_type && doc.mime_type.startsWith('image/');
 
   const viewerContent = isPdf
-    ? `<iframe src="${fileUrl}" style="width: 100%; height: 100%; border: none; border-radius: var(--radius-md);"></iframe>`
+    ? `<iframe src="${fileUrl}#toolbar=0&navpanes=0&scrollbar=1" style="width: 100%; height: 100%; border: none; border-radius: var(--radius-md);"></iframe>`
     : isImage
       ? `<div style="display: flex; justify-content: center; align-items: center; height: 100%; overflow: auto; background: var(--gray-50); border-radius: var(--radius-md);"><img src="${fileUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${doc.title}" /></div>`
       : `<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: var(--gray-500); font-size: var(--font-size-sm);">
@@ -41,7 +41,7 @@ export function openDocumentViewerModal(doc, onStatusChange) {
 
   const html = `
     <div class="dl-modal-backdrop" id="doc-viewer-modal" style="z-index: 9000;">
-      <div class="dl-modal-card fade-in-up" style="max-width: 800px; max-height: 92vh; display: flex; flex-direction: column; width: 95vw;">
+      <div class="dl-modal-card fade-in-up" style="max-width: 800px; height: 80vh; max-height: 92vh; display: flex; flex-direction: column; width: 95vw;">
         <div class="dl-modal-header" style="flex-shrink: 0;">
           <h3 class="dl-modal-title" style="display: flex; align-items: center; gap: 8px;">
             📄 ${doc.title}

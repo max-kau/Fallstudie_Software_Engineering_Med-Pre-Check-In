@@ -3,6 +3,7 @@ import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { renderCalendarView, initCalendarView } from '../components/CalendarView.js';
 import { openPatientDetailModal } from '../components/PatientDetailModal.js';
+import { openCreateAppointmentModal } from '../components/CreateAppointmentModal.js';
 
 export function renderPraxisDashboardView() {
   const user = auth.getUser() || {};
@@ -14,17 +15,22 @@ export function renderPraxisDashboardView() {
       <div class="dl-page-inner" style="padding-bottom: var(--space-12);">
         
         <!-- Praxis Header -->
-        <div class="landing-header fade-in-up" style="margin-bottom: var(--space-6);">
-          <div style="display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-3);">
-            <div style="width: 52px; height: 52px; border-radius: var(--radius-xl); background: linear-gradient(135deg, var(--primary), #004f98); display: flex; align-items: center; justify-content: center; color: white; font-size: var(--font-size-xl); font-weight: 700; flex-shrink: 0;">
-              ${(user.praxis_name || 'P')[0]}
+        <div class="landing-header fade-in-up" style="margin-bottom: var(--space-6); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+          <div>
+            <div style="display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-3);">
+              <div style="width: 52px; height: 52px; border-radius: var(--radius-xl); background: linear-gradient(135deg, var(--primary), #004f98); display: flex; align-items: center; justify-content: center; color: white; font-size: var(--font-size-xl); font-weight: 700; flex-shrink: 0;">
+                ${(user.praxis_name || 'P')[0]}
+              </div>
+              <div>
+                <span style="font-weight: 700; font-size: var(--font-size-xs); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Praxis-Dashboard</span>
+                <h1 style="font-size: var(--font-size-2xl); font-weight: 800; color: var(--gray-800); letter-spacing: -0.02em; margin: 0;">${user.praxis_name || 'Meine Praxis'}</h1>
+              </div>
             </div>
-            <div>
-              <span style="font-weight: 700; font-size: var(--font-size-xs); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Praxis-Dashboard</span>
-              <h1 style="font-size: var(--font-size-2xl); font-weight: 800; color: var(--gray-800); letter-spacing: -0.02em; margin: 0;">${user.praxis_name || 'Meine Praxis'}</h1>
-            </div>
+            <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0;">${user.praxis_fachbereich || ''} ${user.praxis_adresse ? '· ' + user.praxis_adresse : ''}</p>
           </div>
-          <p class="text-muted" style="font-size: var(--font-size-sm);">${user.praxis_fachbereich || ''} ${user.praxis_adresse ? '· ' + user.praxis_adresse : ''}</p>
+          <button id="btn-create-appointment" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+            ➕ Telefonischen Termin eintragen
+          </button>
         </div>
 
         <!-- Navigation Tabs (3 tabs: Kalender, Statistik, Gestaltung) -->
@@ -278,6 +284,14 @@ function renderQuestions(questions) {
 
 export async function initPraxisDashboardView() {
   initDlNav();
+
+  // Handle manual appointment creation
+  document.getElementById('btn-create-appointment')?.addEventListener('click', () => {
+    openCreateAppointmentModal(() => {
+      // Refresh the view data
+      initPraxisDashboardView();
+    });
+  });
 
   // Tab switching logic for 3 tabs
   const tabs = [

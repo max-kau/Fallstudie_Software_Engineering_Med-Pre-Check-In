@@ -166,11 +166,20 @@ async function initDb() {
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS notify_email VARCHAR(255);
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS notify_sent BOOLEAN DEFAULT FALSE;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS rating INTEGER;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS feedback_text TEXT;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS post_visit_notified BOOLEAN DEFAULT FALSE;
     `);
 
     // Ensure custom_answers exists in precheckins
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS custom_answers JSONB NOT NULL DEFAULT '{}'::jsonb;
+    `);
+
+    // Ensure columns for doctor-shared files exist in uploaded_files
+    await pool.query(`
+      ALTER TABLE uploaded_files ADD COLUMN IF NOT EXISTS uploaded_by VARCHAR(50) DEFAULT 'patient';
+      ALTER TABLE uploaded_files ADD COLUMN IF NOT EXISTS doc_category VARCHAR(100) DEFAULT 'Sonstiges';
     `);
 
     // Create praxis_questions table
@@ -236,6 +245,18 @@ async function initDb() {
       );
     `);
     console.log('Table "praxis_documents" verified/created.');
+
+    // Create aftercare_instructions table for post-visit patient care instructions
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS aftercare_instructions (
+        id SERIAL PRIMARY KEY,
+        termin_code VARCHAR(50) REFERENCES termine(code) ON DELETE CASCADE,
+        instructions TEXT NOT NULL,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        email_sent BOOLEAN DEFAULT FALSE
+      );
+    `);
+    console.log('Table "aftercare_instructions" verified/created.');
 
     // Add document_confirmations and started_at columns to precheckins
     await pool.query(`
@@ -423,6 +444,17 @@ app.post('/api/auth/register', async (req, res) => {
     };
 
     console.log(`New user registered: ${user.email}`);
+
+    // Auto-link manually created appointments
+    try {
+      await pool.query(
+        'UPDATE termine SET user_id = $1 WHERE notify_email = $2 AND user_id IS NULL',
+        [user.id, user.email.toLowerCase()]
+      );
+    } catch (linkErr) {
+      console.error('Failed to link appointments on registration:', linkErr);
+    }
+
     res.json({ success: true, user: req.session.user });
   } catch (err) {
     console.error('Registration error:', err);
@@ -482,6 +514,17 @@ app.post('/api/auth/login', async (req, res) => {
     };
 
     console.log(`User logged in: ${user.email}`);
+
+    // Auto-link manually created appointments
+    try {
+      await pool.query(
+        'UPDATE termine SET user_id = $1 WHERE notify_email = $2 AND user_id IS NULL',
+        [user.id, user.email.toLowerCase()]
+      );
+    } catch (linkErr) {
+      console.error('Failed to link appointments on login:', linkErr);
+    }
+
     res.json({ success: true, user: req.session.user });
   } catch (err) {
     console.error('Login error:', err);
@@ -586,6 +629,119 @@ app.get('/api/praxis/termine', async (req, res) => {
   } catch (err) {
     console.error('Error fetching praxis appointments:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Termine.' });
+  }
+});
+
+// API: Manually book/create an appointment for a patient (by praxis staff)
+app.post('/api/praxis/termine/buchen', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const { patientEmail, patientVorname, patientNachname, doctor, date, time, art } = req.body;
+
+  if (!patientEmail || !patientVorname || !patientNachname || !doctor || !date || !time || !art) {
+    return res.status(400).json({ error: 'Alle Felder müssen ausgefüllt werden.' });
+  }
+
+  const praxisName = req.session.user.praxis_name || 'Meine Praxis';
+  const fachrichtung = req.session.user.praxis_fachbereich || 'Allgemeinmedizin';
+  const adresse = req.session.user.praxis_adresse || 'Musterstraße 1, 12345 Musterstadt';
+
+  if (!isDbConnected || !pool) {
+    // Offline mode: mock booking
+    const code = 't_MOCK' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const mockAppt = {
+      code,
+      doctor,
+      fachrichtung,
+      adresse,
+      date,
+      time,
+      art,
+      praxis: praxisName,
+      tags: [],
+      patient_vorname: patientVorname,
+      patient_nachname: patientNachname,
+      user_id: null,
+      notify_email: patientEmail,
+      notify_sent: true
+    };
+    if (!req.session.mockAppointments) {
+      req.session.mockAppointments = [];
+    }
+    req.session.mockAppointments.push(mockAppt);
+    console.log('[Offline Mode] Mocked manual appointment created:', mockAppt);
+    return res.json({ success: true, appointment: mockAppt });
+  }
+
+  try {
+    // 1. Look up existing patient user
+    const userCheck = await pool.query(
+      'SELECT id FROM users WHERE email = $1 AND role = $2',
+      [patientEmail.toLowerCase(), 'patient']
+    );
+    const userId = userCheck.rows.length > 0 ? userCheck.rows[0].id : null;
+
+    // 2. Check if slot already booked for this praxis
+    const slotCheck = await pool.query(
+      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3',
+      [date, time, praxisName]
+    );
+    if (slotCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist in Ihrer Praxis bereits vergeben.' });
+    }
+
+    // 3. Insert new appointment
+    const code = 't_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const query = `
+      INSERT INTO termine (code, doctor, fachrichtung, adresse, date, time, art, praxis, tags, patient_vorname, patient_nachname, user_id, notify_email, notify_sent)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *
+    `;
+    const values = [
+      code,
+      doctor,
+      fachrichtung,
+      adresse,
+      date,
+      time,
+      art,
+      praxisName,
+      [],
+      patientVorname,
+      patientNachname,
+      userId,
+      patientEmail.toLowerCase(),
+      true // Sent immediately
+    ];
+
+    const result = await pool.query(query, values);
+    const appointment = result.rows[0];
+
+    // 4. Send Email Notification
+    let displayDate = date;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) {
+      const parts = displayDate.split('-');
+      displayDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+
+    const emailAppointment = {
+      ...appointment,
+      date: displayDate,
+      vorname: patientVorname,
+      nachname: patientNachname
+    };
+
+    // Trigger sending the email in background (or await it)
+    sendNotificationEmail(patientEmail.toLowerCase(), emailAppointment).catch(err => {
+      console.error('Failed to send immediate notification email:', err);
+    });
+
+    res.json({ success: true, appointment });
+  } catch (err) {
+    console.error('Error creating manual appointment:', err);
+    res.status(500).json({ error: 'Fehler beim Erstellen des Termins.' });
   }
 });
 
@@ -947,6 +1103,13 @@ app.get('/api/user/termine', async (req, res) => {
   }
 
   try {
+    if (req.session.user && req.session.user.email) {
+      await pool.query(
+        'UPDATE termine SET user_id = $1 WHERE notify_email = $2 AND user_id IS NULL',
+        [req.session.userId, req.session.user.email.toLowerCase()]
+      );
+    }
+
     const result = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step
        FROM termine t
@@ -955,7 +1118,29 @@ app.get('/api/user/termine', async (req, res) => {
        ORDER BY t.date DESC, t.time DESC`,
       [req.session.userId]
     );
-    res.json({ success: true, appointments: result.rows });
+
+    const appts = result.rows;
+    for (const appt of appts) {
+      const filesRes = await pool.query(
+        `SELECT id, filename, mime_type, file_size, uploaded_at, doc_category 
+         FROM uploaded_files 
+         WHERE termin_code = $1 AND uploaded_by = 'praxis' 
+         ORDER BY uploaded_at DESC`,
+        [appt.code]
+      );
+      appt.shared_documents = filesRes.rows;
+
+      const aftercareRes = await pool.query(
+        `SELECT id, instructions, sent_at 
+         FROM aftercare_instructions 
+         WHERE termin_code = $1 
+         ORDER BY sent_at DESC`,
+        [appt.code]
+      );
+      appt.aftercare_instructions = aftercareRes.rows;
+    }
+
+    res.json({ success: true, appointments: appts });
   } catch (err) {
     console.error('Error fetching user appointments:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Termine.' });
@@ -1071,6 +1256,46 @@ app.delete('/api/termine/:code', async (req, res) => {
   }
 });
 
+// API: Submit feedback for a completed appointment
+app.post('/api/termine/:code/feedback', async (req, res) => {
+  const { code } = req.params;
+  const { rating, feedbackText } = req.body;
+
+  const ratingVal = parseInt(rating, 10);
+  if (isNaN(ratingVal) || ratingVal < 1 || ratingVal > 5) {
+    return res.status(400).json({ error: 'Bitte geben Sie eine Bewertung zwischen 1 und 5 Sternen ab.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    // Offline mode: mock save
+    if (req.session.mockAppointments) {
+      const appt = req.session.mockAppointments.find(a => a.code === code);
+      if (appt) {
+        appt.rating = ratingVal;
+        appt.feedback_text = feedbackText || '';
+      }
+    }
+    return res.json({ success: true });
+  }
+
+  try {
+    const checkAppt = await pool.query('SELECT code FROM termine WHERE code = $1', [code]);
+    if (checkAppt.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    await pool.query(
+      'UPDATE termine SET rating = $1, feedback_text = $2 WHERE code = $3',
+      [ratingVal, feedbackText || null, code]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error submitting feedback:', err);
+    res.status(500).json({ error: 'Fehler beim Übermitteln des Feedbacks.' });
+  }
+});
+
 // API: Get appointment info (or auto-seed if it doesn't exist)
 app.get('/api/termin/:code', async (req, res) => {
   const { code } = req.params;
@@ -1163,6 +1388,60 @@ app.get('/api/termin/:code', async (req, res) => {
   }
 });
 
+// API: Get praxis documents for a patient's pre-check-in (filtered by started_at timestamp)
+app.get('/api/precheckin/documents', async (req, res) => {
+  const { termin } = req.query;
+  console.log(`[GET /api/precheckin/documents] termin=${termin}`);
+  if (!termin) {
+    return res.status(400).json({ error: 'Termin-Code fehlt.' });
+  }
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, documents: [] });
+  }
+  try {
+    // 1. Get practice name from the appointment
+    const terminRes = await pool.query('SELECT praxis FROM termine WHERE code = $1', [termin]);
+    if (terminRes.rows.length === 0) {
+      console.log(`[GET /api/precheckin/documents] No appointment found for code: ${termin}`);
+      return res.json({ success: true, documents: [] });
+    }
+    const praxisName = terminRes.rows[0].praxis;
+
+    // 2. Find the practice user ID (case-insensitive)
+    const userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' AND LOWER(praxis_name) = LOWER($1)", [praxisName]);
+    if (userRes.rows.length === 0) {
+      return res.json({ success: true, documents: [] });
+    }
+    const praxisId = userRes.rows[0].id;
+
+    // 3. Load documents that existed when the PreCheckIn was started (directly comparing timestamps in SQL)
+    // If the precheckin is not yet submitted, always show all currently available documents.
+    const docsRes = await pool.query(
+      `SELECT pd.id, pd.title, pd.doc_type, pd.file_id, pd.created_at,
+              uf.filename, uf.mime_type, uf.file_size
+       FROM praxis_documents pd
+       LEFT JOIN uploaded_files uf ON pd.file_id = uf.id
+       WHERE pd.praxis_id = $1 
+         AND (
+           COALESCE((SELECT submitted FROM precheckins WHERE termin_code = $2), FALSE) = FALSE
+           OR
+           pd.created_at <= COALESCE(
+             (SELECT started_at FROM precheckins WHERE termin_code = $2),
+             CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+           )
+         )
+       ORDER BY pd.created_at ASC`,
+      [praxisId, termin]
+    );
+
+    console.log(`[GET /api/precheckin/documents] Found ${docsRes.rows.length} documents for termin=${termin}`);
+    res.json({ success: true, documents: docsRes.rows });
+  } catch (err) {
+    console.error('Error loading patient precheckin documents:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Praxis-Dokumente.' });
+  }
+});
+
 // API: Get existing pre-check-in info by appointment code
 app.get('/api/precheckin/:terminCode', async (req, res) => {
   const { terminCode } = req.params;
@@ -1231,7 +1510,7 @@ app.post('/api/precheckin', async (req, res) => {
          dokumente = EXCLUDED.dokumente,
          signature_data = EXCLUDED.signature_data,
          current_step = EXCLUDED.current_step,
-         submitted = EXCLUDED.submitted,
+         submitted = CASE WHEN precheckins.submitted THEN TRUE ELSE EXCLUDED.submitted END,
          custom_answers = EXCLUDED.custom_answers,
          document_confirmations = EXCLUDED.document_confirmations,
          submitted_at = CURRENT_TIMESTAMP`,
@@ -1251,6 +1530,26 @@ app.post('/api/precheckin', async (req, res) => {
     );
 
     console.log(`Pre-check-in saved/updated for appointment: ${terminCode}`);
+
+    if (submitted) {
+      try {
+        const apptRes = await pool.query('SELECT * FROM termine WHERE code = $1', [terminCode]);
+        if (apptRes.rows.length > 0) {
+          const appt = apptRes.rows[0];
+          const praxisRes = await pool.query('SELECT email FROM users WHERE role = $1 AND praxis_name = $2', ['praxis', appt.praxis]);
+          if (praxisRes.rows.length > 0) {
+            const praxisEmail = praxisRes.rows[0].email;
+            const patientName = `${appt.patient_vorname} ${appt.patient_nachname}`;
+            sendPraxisSubmissionNotification(praxisEmail, appt, patientName).catch(err => {
+              console.error('Failed to send praxis submission notification:', err);
+            });
+          }
+        }
+      } catch (notifyErr) {
+        console.error('Failed to trigger praxis notification on pre-check-in submission:', notifyErr);
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error saving pre-check-in:', err);
@@ -1305,6 +1604,78 @@ app.post('/api/upload', async (req, res) => {
   } catch (err) {
     console.error('Error uploading file:', err);
     res.status(500).json({ error: 'Database upload error' });
+  }
+});
+
+// API: Praxis uploads a file for a patient (shares document and sends email notification)
+app.post('/api/praxis/termin/:code/upload-patient-doc', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const { code } = req.params;
+  const { filename, mimeType, fileData, docCategory } = req.body;
+
+  if (!filename || !mimeType || !fileData || !docCategory) {
+    return res.status(400).json({ error: 'Fehlende erforderliche Felder.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, file: { id: 999, filename, mimeType, fileSize: 100 } });
+  }
+
+  try {
+    // 1. Verify appointment exists and belongs to this praxis
+    const apptRes = await pool.query('SELECT * FROM termine WHERE code = $1 AND praxis = $2', [code, req.session.user.praxis_name]);
+    if (apptRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const appt = apptRes.rows[0];
+
+    // 2. Insert into uploaded_files
+    const buffer = Buffer.from(fileData, 'base64');
+    const fileSize = buffer.length;
+
+    const result = await pool.query(
+      `INSERT INTO uploaded_files (termin_code, filename, mime_type, file_size, file_data, uploaded_by, doc_category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, filename, mime_type, file_size, doc_category`,
+      [code, filename, mimeType, fileSize, buffer, 'praxis', docCategory]
+    );
+
+    const fileRow = result.rows[0];
+
+    // 3. Find patient email
+    let patientEmail = appt.notify_email;
+    if (appt.user_id) {
+      const userRes = await pool.query('SELECT email, vorname, nachname FROM users WHERE id = $1', [appt.user_id]);
+      if (userRes.rows.length > 0) {
+        patientEmail = userRes.rows[0].email;
+        appt.patient_vorname = userRes.rows[0].vorname;
+        appt.patient_nachname = userRes.rows[0].nachname;
+      }
+    }
+
+    if (patientEmail) {
+      // Send notification email in background
+      sendDoctorDocumentSharedNotificationEmail(patientEmail, appt, filename, docCategory).catch(err => {
+        console.error('Failed to send doctor shared document notification email:', err);
+      });
+    }
+
+    res.json({
+      success: true,
+      file: {
+        id: fileRow.id,
+        filename: fileRow.filename,
+        mimeType: fileRow.mime_type,
+        fileSize: fileRow.file_size,
+        docCategory: fileRow.doc_category
+      }
+    });
+  } catch (err) {
+    console.error('Error in praxis patient doc upload:', err);
+    res.status(500).json({ error: 'Fehler beim Hochladen des Dokuments.' });
   }
 });
 
@@ -1476,57 +1847,6 @@ app.delete('/api/praxis/documents/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting praxis document:', err);
     res.status(500).json({ error: 'Fehler beim Löschen des Dokuments.' });
-  }
-});
-
-// API: Get praxis documents for a patient's pre-check-in (filtered by started_at timestamp)
-app.get('/api/precheckin/documents', async (req, res) => {
-  const { termin } = req.query;
-  if (!termin) {
-    return res.status(400).json({ error: 'Termin-Code fehlt.' });
-  }
-  if (!isDbConnected || !pool) {
-    return res.json({ success: true, documents: [] });
-  }
-  try {
-    // 1. Get practice name from the appointment
-    const terminRes = await pool.query('SELECT praxis FROM termine WHERE code = $1', [termin]);
-    if (terminRes.rows.length === 0) {
-      return res.json({ success: true, documents: [] });
-    }
-    const praxisName = terminRes.rows[0].praxis;
-
-    // 2. Find the practice user ID (case-insensitive)
-    const userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' AND LOWER(praxis_name) = LOWER($1)", [praxisName]);
-    if (userRes.rows.length === 0) {
-      return res.json({ success: true, documents: [] });
-    }
-    const praxisId = userRes.rows[0].id;
-
-    // 3. Load documents that existed when the PreCheckIn was started (directly comparing timestamps in SQL)
-    // If the precheckin is not yet submitted, always show all currently available documents.
-    const docsRes = await pool.query(
-      `SELECT pd.id, pd.title, pd.doc_type, pd.file_id, pd.created_at,
-              uf.filename, uf.mime_type, uf.file_size
-       FROM praxis_documents pd
-       LEFT JOIN uploaded_files uf ON pd.file_id = uf.id
-       WHERE pd.praxis_id = $1 
-         AND (
-           COALESCE((SELECT submitted FROM precheckins WHERE termin_code = $2), FALSE) = FALSE
-           OR
-           pd.created_at <= COALESCE(
-             (SELECT started_at FROM precheckins WHERE termin_code = $2),
-             CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-           )
-         )
-       ORDER BY pd.created_at ASC`,
-      [praxisId, termin]
-    );
-
-    res.json({ success: true, documents: docsRes.rows });
-  } catch (err) {
-    console.error('Error loading patient precheckin documents:', err);
-    res.status(500).json({ error: 'Fehler beim Laden der Praxis-Dokumente.' });
   }
 });
 
@@ -1811,6 +2131,141 @@ async function sendNotificationEmail(email, appointment) {
   }
 }
 
+async function sendPraxisSubmissionNotification(praxisEmail, appointment, patientName) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const dashboardLink = `${appUrl}/#praxis`;
+
+  const subject = `Neuer Pre-Check-In ausgefüllt: ${patientName}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <h2 style="color: #0063BE; margin-bottom: 20px; font-weight: 700; font-size: 22px;">Neuer Pre-Check-In eingegangen</h2>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Der Patient <strong>${patientName}</strong> hat den Pre-Check-In für den folgenden Termin ausgefüllt:
+      </p>
+      
+      <div style="background-color: #f8fafc; padding: 18px; border-radius: 8px; margin: 24px 0; border: 1px solid #f1f5f9;">
+        <p style="margin: 0; font-size: 14px; color: #475569;">
+          📅 <strong>Termin:</strong> ${appointment.date} um ${appointment.time} Uhr
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          👤 <strong>Behandler:</strong> ${appointment.doctor}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          🔑 <strong>Termin-Code:</strong> ${appointment.code}
+        </p>
+      </div>
+
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 24px;">
+        Bitte loggen Sie sich in Ihr Praxis-Dashboard ein, um die Details (Anamnese, hochgeladene Dokumente, Allergien und digitale Unterschriften) einzusehen.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${dashboardLink}" style="background-color: #0063BE; color: white; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+          Praxis-Dashboard öffnen
+        </a>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Benachrichtigung Ihres Doctolib Pre-Check-In Services für Praxen.
+      </p>
+    </div>
+  `;
+
+  try {
+    await sendEmail({ to: praxisEmail, subject, html });
+    console.log(`📧 Praxis submission notification sent to ${praxisEmail} for patient ${patientName}`);
+  } catch (err) {
+    console.error('Failed to send praxis submission notification:', err);
+  }
+}
+
+async function sendPostVisitNotificationEmail(email, appointment) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const feedbackLink = `${appUrl}/#feedback?code=${appointment.code}`;
+
+  const subject = `Ihr Feedback zu Ihrem Termin bei ${appointment.doctor}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <h2 style="color: #0063BE; margin-bottom: 20px; font-weight: 700; font-size: 22px;">Hallo ${appointment.patient_vorname},</h2>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        vor kurzem hatten Sie einen Termin bei <strong>${appointment.doctor}</strong> in der Praxis <strong>${appointment.praxis}</strong>.
+      </p>
+      
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Wir hoffen, dass Sie sich gut betreut gefühlt haben und es Ihnen gut geht. Um unseren Service stetig zu verbessern, würden wir uns über Ihr kurzes Feedback freuen. Das Ausfüllen dauert weniger als eine Minute.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${feedbackLink}" style="background-color: #0063BE; color: white; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+          Termin bewerten & Feedback geben
+        </a>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Benachrichtigung Ihres Doctolib Pre-Check-In Services.
+      </p>
+    </div>
+  `;
+
+  try {
+    await sendEmail({ to: email, subject, html });
+    console.log(`📧 Post-visit feedback email sent to ${email} for appointment ${appointment.code}`);
+  } catch (err) {
+    console.error('Failed to send post-visit feedback email:', err);
+  }
+}
+
+async function sendDoctorDocumentSharedNotificationEmail(email, appointment, filename, docCategory) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const portalLink = `${appUrl}/#landing`;
+
+  const subject = `Neues Dokument für Sie bereitgestellt: ${docCategory}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <h2 style="color: #0063BE; margin-bottom: 20px; font-weight: 700; font-size: 22px;">Hallo ${appointment.patient_vorname},</h2>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Dr. med. <strong>${appointment.doctor}</strong> hat ein neues Dokument für Sie freigegeben.
+      </p>
+      
+      <div style="background-color: #f8fafc; padding: 18px; border-radius: 8px; margin: 24px 0; border: 1px solid #f1f5f9;">
+        <p style="margin: 0; font-size: 14px; color: #475569;">
+          📄 <strong>Dokumenttyp:</strong> ${docCategory}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          📁 <strong>Dateiname:</strong> ${filename}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          🏥 <strong>Praxis:</strong> ${appointment.praxis}
+        </p>
+      </div>
+
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 24px;">
+        Sie können dieses Dokument ab sofort sicher in Ihrem Patient-Portal einsehen und herunterladen.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${portalLink}" style="background-color: #0063BE; color: white; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+          Zum Patient-Portal & Download
+        </a>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Benachrichtigung Ihres Doctolib Pre-Check-In Services.
+      </p>
+    </div>
+  `;
+
+  try {
+    await sendEmail({ to: email, subject, html });
+    console.log(`📧 Document shared notification email sent to ${email} for file ${filename}`);
+  } catch (err) {
+    console.error('Failed to send document shared email:', err);
+  }
+}
+
 async function checkAndSendNotifications() {
   if (!isDbConnected || !pool) return;
   try {
@@ -1832,8 +2287,44 @@ async function checkAndSendNotifications() {
   }
 }
 
-// Start background worker to check notifications every 10 seconds
+async function checkAndSendPostVisitNotifications() {
+  if (!isDbConnected || !pool) return;
+  try {
+    const result = await pool.query(
+      `SELECT t.*, u.email as user_email
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE t.post_visit_notified = FALSE`
+    );
+
+    const now = new Date();
+    for (const appt of result.rows) {
+      const apptTime = parseGermanDateTime(appt.date, appt.time);
+      if (!apptTime) continue;
+
+      const diffMs = now - apptTime;
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      // If the appointment happened at least 24 hours ago
+      if (diffHours >= 24) {
+        // Only send if it happened within the last 5 days (120 hours), to avoid spamming very old seed/demo appointments
+        if (diffHours <= 120) {
+          const email = appt.user_email || appt.notify_email;
+          if (email) {
+            await sendPostVisitNotificationEmail(email, appt);
+          }
+        }
+        await pool.query('UPDATE termine SET post_visit_notified = TRUE WHERE code = $1', [appt.code]);
+      }
+    }
+  } catch (err) {
+    console.error('Error running post-visit notification worker:', err);
+  }
+}
+
+// Start background workers every 10 seconds
 setInterval(checkAndSendNotifications, 10000);
+setInterval(checkAndSendPostVisitNotifications, 10000);
 
 // ============================================
 // PRAXIS CALENDAR & NOTES & HINTS API
@@ -1890,13 +2381,34 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
     );
     const patientHints = hintsRes.rows;
 
+    const docsRes = await pool.query('SELECT id, title FROM praxis_documents WHERE praxis_id = $1', [req.session.userId]);
+    const praxisDocuments = docsRes.rows;
+
+    const sharedDocsRes = await pool.query(
+      `SELECT id, filename, mime_type, file_size, uploaded_at, doc_category 
+       FROM uploaded_files 
+       WHERE termin_code = $1 AND uploaded_by = 'praxis' 
+       ORDER BY uploaded_at DESC`,
+      [code]
+    );
+    const sharedDocuments = sharedDocsRes.rows;
+
+    const aftercareRes = await pool.query(
+      'SELECT id, instructions, sent_at, email_sent FROM aftercare_instructions WHERE termin_code = $1 ORDER BY sent_at DESC',
+      [code]
+    );
+    const aftercareInstructions = aftercareRes.rows;
+
     res.json({
       success: true,
       details: {
         termin,
         patientProfile,
         doctorNote,
-        patientHints
+        patientHints,
+        praxisDocuments,
+        sharedDocuments,
+        aftercareInstructions
       }
     });
   } catch (err) {
@@ -1939,6 +2451,83 @@ app.post('/api/praxis/termin/:code/notes', async (req, res) => {
   } catch (err) {
     console.error('Error saving doctor note:', err);
     res.status(500).json({ error: 'Fehler beim Speichern der Notiz.' });
+  }
+});
+
+// API: Send aftercare instructions to patient
+app.post('/api/praxis/termin/:code/aftercare', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { code } = req.params;
+  const { instructions } = req.body;
+
+  if (!instructions || !instructions.trim()) {
+    return res.status(400).json({ error: 'Nachsorge-Hinweise dürfen nicht leer sein.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbank nicht verfügbar.' });
+  }
+
+  try {
+    // 1. Get patient email and doctor info
+    const terminRes = await pool.query(
+      'SELECT doctor, praxis, notify_email, patient_vorname FROM termine WHERE code = $1',
+      [code]
+    );
+
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    const appt = terminRes.rows[0];
+    const emailTo = appt.notify_email;
+
+    if (!emailTo) {
+      return res.status(400).json({ error: 'Für diesen Termin ist keine E-Mail-Adresse hinterlegt.' });
+    }
+
+    // 2. Insert into database
+    await pool.query(
+      'INSERT INTO aftercare_instructions (termin_code, instructions, email_sent) VALUES ($1, $2, true)',
+      [code, instructions.trim()]
+    );
+
+    // 3. Send email to patient
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+        <div style="background-color: #0063be; padding: 24px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: bold;">🩺 Nachsorge-Hinweise Ihrer Arztpraxis</h2>
+        </div>
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="margin-top: 0;">Hallo <strong>${appt.patient_vorname || 'Patient'}</strong>,</p>
+          <p>Ihre Praxis (<strong>${appt.praxis}</strong>) hat Ihnen folgende Nachsorge-Hinweise zu Ihrem Termin bei <strong>${appt.doctor}</strong> übermittelt:</p>
+          
+          <div style="background-color: #f8fafc; border-left: 4px solid #0063be; padding: 16px; margin: 24px 0; border-radius: 4px; font-style: italic;">
+            "${instructions.trim().replace(/\n/g, '<br>')}"
+          </div>
+          
+          <p>Bitte befolgen Sie diese Anweisungen sorgfältig für eine optimale Genesung.</p>
+          <p style="color: #64748b; font-size: 13px;">Bei medizinischen Rückfragen, Beschwerden oder im Notfall kontaktieren Sie bitte direkt Ihre Praxis oder den ärztlichen Notdienst.</p>
+        </div>
+        <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+          Diese E-Mail wurde automatisch im Auftrag Ihrer Praxis über den Doctolib Pre-Check-In Service gesendet.
+        </div>
+      </div>
+    `;
+
+    await sendEmail({
+      to: emailTo,
+      subject: `Wichtige Nachsorge-Hinweise - ${appt.praxis}`,
+      html: emailHtml
+    });
+
+    console.log(`📧 Aftercare email notification sent successfully to ${emailTo}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error sending aftercare email:', err);
+    res.status(500).json({ error: 'Fehler beim Senden der Nachsorge-Hinweise.' });
   }
 });
 

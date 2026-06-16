@@ -397,6 +397,48 @@ export async function initLandingView() {
         `;
       }
 
+      // Check for doctor-shared documents
+      let sharedDocsHtml = '';
+      if (appt.shared_documents && appt.shared_documents.length > 0) {
+        sharedDocsHtml = `
+          <div class="shared-docs-patient-container" style="padding: var(--space-4) var(--space-6); border-top: 1px solid var(--gray-100); background: #F8FAFC; border-bottom: 1px solid var(--gray-100);">
+            <h5 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-xs); color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+              📂 Bereitgestellte Dokumente Ihrer Praxis:
+            </h5>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-2);">
+              ${appt.shared_documents.map(doc => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+                  <div style="display: flex; flex-direction: column; overflow: hidden; margin-right: var(--space-2);">
+                    <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${doc.filename}">${doc.filename}</span>
+                    <span style="font-size: 10px; color: var(--gray-400); font-weight: 600;">${doc.doc_category}</span>
+                  </div>
+                  <a href="/api/file/${doc.id}" target="_blank" class="btn" style="background: var(--primary-lightest); color: var(--primary); padding: 4px 10px; font-size: 11px; font-weight: 700; text-decoration: none; border-radius: var(--radius-md); flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; height: 24px; border: 1px solid rgba(0, 99, 190, 0.15);">
+                    Laden
+                  </a>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      // Check for doctor-sent aftercare instructions
+      let aftercareHtml = '';
+      if (appt.aftercare_instructions && appt.aftercare_instructions.length > 0) {
+        aftercareHtml = `
+          <div class="aftercare-patient-container" style="padding: var(--space-4) var(--space-6); border-top: 1px solid var(--gray-100); background: #EFF6FF; border-bottom: 1px solid var(--gray-100);">
+            <h5 style="margin: 0 0 var(--space-2) 0; font-size: var(--font-size-xs); color: #1D4ED8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+              🩺 Wichtige Nachsorge-Hinweise Ihrer Praxis:
+            </h5>
+            ${appt.aftercare_instructions.map(instr => `
+              <div style="background: white; border: 1px solid #BFDBFE; padding: var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-sm); color: var(--gray-700); font-style: italic; line-height: 1.5; box-shadow: var(--shadow-sm); margin-bottom: var(--space-2);">
+                "${instr.instructions}"
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
       listHtml += `
         <div class="dl-profile-card fade-in-up" style="animation-delay: ${idx * 0.1}s; display: flex; flex-direction: column; overflow: hidden; padding: 0; background: white; border-radius: var(--radius-xl); box-shadow: var(--shadow-md); border: 1px solid var(--gray-200);">
           
@@ -425,6 +467,12 @@ export async function initLandingView() {
 
           <!-- Precheckin Banner Section inside Card -->
           ${precheckBannerHtml}
+
+          <!-- Shared documents from Praxis -->
+          ${sharedDocsHtml}
+
+          <!-- Aftercare instructions -->
+          ${aftercareHtml}
 
           <!-- Card Action Footer -->
           ${!isPast ? `

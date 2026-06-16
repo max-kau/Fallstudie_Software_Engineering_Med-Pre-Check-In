@@ -11,7 +11,7 @@ let currentView = null;
 const appEl = () => document.getElementById('app');
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['home', 'auth', 'praxis', 'suche'];
+const PUBLIC_ROUTES = ['home', 'auth', 'praxis', 'suche', 'feedback'];
 
 export function registerRoute(hash, renderFn) {
   routes[hash] = renderFn;
@@ -53,7 +53,7 @@ async function handleRoute() {
   }
 
   // If praxis user tries to access patient-only routes, redirect to praxis dashboard
-  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'];
+  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'praxis-dokumente', 'zusammenfassung'];
   if (loggedIn && auth.isPraxis() && PATIENT_ONLY_ROUTES.includes(routeKey)) {
     navigate('praxis-dashboard');
     return;
@@ -111,26 +111,27 @@ async function handleRoute() {
       const apptDateTime = parseDateTime(termin.date, termin.time);
       const isPast = apptDateTime && apptDateTime < new Date();
       
-      const PRECHECK_STEPS = ['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente'];
+      const PRECHECK_STEPS = ['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'praxis-dokumente'];
       if (isPast && !isSubmitted && PRECHECK_STEPS.includes(routeKey)) {
         navigate('landing');
         return;
       }
     }
 
-    // Guard: If the pre-check-in is already submitted, redirect to summary/success view
-    if (isSubmitted && routeKey !== 'zusammenfassung') {
+    // Guard: If the pre-check-in is already submitted, redirect to summary/success view when trying to access active pre-check-in steps
+    const PRECHECK_STEPS = ['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'praxis-dokumente'];
+    if (isSubmitted && PRECHECK_STEPS.includes(routeKey)) {
       navigate('zusammenfassung');
       return;
     }
 
     // Update current step in store for autosave/resumption (if navigating to a valid step)
-    if (['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'zusammenfassung'].includes(routeKey)) {
+    if (['confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'praxis-dokumente', 'zusammenfassung'].includes(routeKey)) {
       const data = store.getAll();
       if (data.currentStep !== routeKey) {
         data.currentStep = routeKey;
         store.saveAll(data);
-        if (['beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente'].includes(routeKey)) {
+        if (['beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'dokumente', 'praxis-dokumente'].includes(routeKey)) {
           store.triggerAutosave();
         }
       }

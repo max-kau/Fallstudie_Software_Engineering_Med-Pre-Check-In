@@ -56,11 +56,11 @@ async function loadPatientDetails(terminCode) {
       return;
     }
 
-    const { termin, patientProfile, doctorNote, patientHints } = data.details;
-    body.innerHTML = renderDetailContent(termin, patientProfile, doctorNote, patientHints, terminCode);
+    const { termin, patientProfile, doctorNote, patientHints, praxisDocuments, sharedDocuments, aftercareInstructions } = data.details;
+    body.innerHTML = renderDetailContent(termin, patientProfile, doctorNote, patientHints, terminCode, praxisDocuments, sharedDocuments, aftercareInstructions);
 
     // Attach event listeners
-    attachDetailListeners(terminCode, doctorNote, patientHints);
+    attachDetailListeners(terminCode, doctorNote, patientHints, sharedDocuments, aftercareInstructions);
 
   } catch (err) {
     console.error('Error loading patient details:', err);
@@ -68,7 +68,7 @@ async function loadPatientDetails(terminCode) {
   }
 }
 
-function renderDetailContent(termin, patient, note, hints, terminCode) {
+function renderDetailContent(termin, patient, note, hints, terminCode, praxisDocuments = [], sharedDocuments = [], aftercareInstructions = []) {
   const patientName = `${termin.patient_vorname || ''} ${termin.patient_nachname || ''}`.trim() || 'Patient';
 
   // Parse precheck data
@@ -226,10 +226,12 @@ function renderDetailContent(termin, patient, note, hints, terminCode) {
               const statusColor = conf.status === 'rejected' ? '#DC2626' : '#059669';
               const statusBg = conf.status === 'rejected' ? '#FEF2F2' : '#ECFDF5';
               const statusLabel = conf.status === 'confirmed' ? '✓ Bestätigt' : conf.status === 'accepted' ? '✓ Akzeptiert' : conf.status === 'rejected' ? '✗ Abgelehnt' : '– Ausstehend';
+              const docItem = praxisDocuments.find(d => String(d.id) === String(docId));
+              const docTitle = docItem ? docItem.title : `Dokument #${docId}`;
               return `
                 <div style="display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: ${statusBg}; border-radius: var(--radius-md); margin-bottom: var(--space-2); border: 1px solid ${conf.status === 'rejected' ? '#FCA5A5' : '#A7F3D0'};">
                   <span style="font-size: var(--font-size-sm); font-weight: 700; color: ${statusColor}; white-space: nowrap;">${statusLabel}</span>
-                  <span style="font-size: var(--font-size-sm); color: var(--gray-600);">Dokument #${docId}</span>
+                  <span style="font-size: var(--font-size-sm); color: var(--gray-600); font-weight: 500;">${docTitle}</span>
                   ${conf.status === 'rejected' && conf.reason ? `<span style="font-size: var(--font-size-xs); color: var(--gray-500); font-style: italic; margin-left: auto;">"${conf.reason}"</span>` : ''}
                 </div>
               `;
@@ -256,6 +258,24 @@ function renderDetailContent(termin, patient, note, hints, terminCode) {
     </div>
     `}
 
+    <!-- Section 1.5: Patient Feedback -->
+    ${termin.rating != null ? `
+    <div class="pdm-section" style="margin-bottom: var(--space-5); background: #FFFBEB; border: 1px solid #FCD34D; padding: var(--space-4); border-radius: var(--radius-lg);">
+      <h4 class="pdm-section-title" style="color: #D97706; margin-bottom: var(--space-2); font-weight: 800; display: flex; align-items: center; gap: 6px;">
+        ⭐ Patienten-Feedback & Bewertung
+      </h4>
+      <div style="font-size: var(--font-size-lg); font-weight: 700; color: #D97706; display: flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
+        ${'★'.repeat(termin.rating)}${'☆'.repeat(5 - termin.rating)} 
+        <span style="font-size: var(--font-size-xs); color: var(--gray-600); font-weight: 600; margin-left: 4px;">(${termin.rating} von 5 Sternen)</span>
+      </div>
+      ${termin.feedback_text ? `
+        <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-style: italic; background: white; padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid #FEF3C7; line-height: 1.4;">
+          "${termin.feedback_text}"
+        </div>
+      ` : ''}
+    </div>
+    ` : ''}
+
     <!-- Section 3: Doctor Notes -->
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
       <h4 class="pdm-section-title">📝 Eigene Notizen (nur für Sie sichtbar)</h4>
@@ -269,17 +289,101 @@ function renderDetailContent(termin, patient, note, hints, terminCode) {
     </div>
 
     <!-- Section 4: Patient Hints -->
-    <div class="pdm-section">
+    <div class="pdm-section" style="margin-bottom: var(--space-5);">
       <h4 class="pdm-section-title">💡 Hinweise an den Patienten</h4>
       ${hintsHtml || '<p style="font-size: var(--font-size-sm); color: var(--gray-400); margin-bottom: var(--space-3);">Noch keine Hinweise gesendet.</p>'}
       <button id="btn-send-hint" class="btn" style="background: var(--primary); color: white; padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: var(--space-3); font-size: var(--font-size-sm);">
         📨 Hinweis schicken
       </button>
     </div>
+
+    <!-- Section 5: Documents for Patient -->
+    <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
+      <h4 class="pdm-section-title">📂 Dokumente für den Patienten bereitstellen (Laborberichte, Rezepte, etc.)</h4>
+      <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
+        Hier hochgeladene Dateien werden für den Patienten in seinem Portal freigegeben und er erhält eine sofortige Benachrichtigung per E-Mail.
+      </p>
+      
+      <!-- List of already shared documents -->
+      <div id="praxis-shared-docs-list" style="margin-bottom: var(--space-4);">
+        ${
+          sharedDocuments && sharedDocuments.length > 0
+            ? sharedDocuments.map(doc => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); background: var(--bg-gray); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                  <div>
+                    <span style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 700;">📄 ${doc.filename} (${formatBytes(doc.file_size || doc.fileSize)})</span>
+                    <span style="font-size: 10px; color: var(--gray-400); display: block; font-weight: 600;">Kategorie: ${doc.doc_category || 'Sonstiges'}</span>
+                  </div>
+                  <a href="/api/file/${doc.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">Ansehen</a>
+                </div>
+              `).join('')
+            : '<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">Noch keine Dokumente freigegeben</div>'
+        }
+      </div>
+      
+      <!-- Upload form -->
+      <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
+        <div id="praxis-upload-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: flex-end;">
+          <div>
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Dokumententyp *</label>
+            <select id="praxis-upload-category" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: 6px; font-size: var(--font-size-xs); background: white; cursor: pointer; height: 32px;">
+              <option value="Laborbefund">Laborbefund</option>
+              <option value="Arztbrief">Arztbrief</option>
+              <option value="eRezept">eRezept</option>
+              <option value="Sonstiges">Sonstiges</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Datei auswählen *</label>
+            <input type="file" id="praxis-upload-file-input" style="font-size: var(--font-size-xs); width: 100%;">
+          </div>
+        </div>
+        <button id="btn-praxis-upload-doc" class="btn btn-primary" style="margin-top: var(--space-3); width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
+          📤 Dokument freigeben & Patient benachrichtigen
+        </button>
+      </div>
+    </div>
+
+    <!-- Section 6: Aftercare Instructions (Nachsorge) -->
+    <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
+      <h4 class="pdm-section-title">🩺 Nachsorge-Hinweise (Post-Treatment)</h4>
+      <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
+        Senden Sie dem Patienten nach dem Termin wichtige Anweisungen (z. B. Schonung, Wundpflege, Kühlung) per E-Mail.
+      </p>
+
+      <!-- List of already sent aftercare instructions -->
+      <div id="praxis-aftercare-list" style="margin-bottom: var(--space-4);">
+        ${
+          aftercareInstructions && aftercareInstructions.length > 0
+            ? aftercareInstructions.map(instr => `
+                <div style="padding: var(--space-3); background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2); box-shadow: var(--shadow-sm);">
+                  <div style="font-size: 10px; color: var(--gray-400); margin-bottom: var(--space-1); font-weight: 600;">
+                    Gesendet am ${new Date(instr.sent_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr ${instr.email_sent ? '· 📧 E-Mail gesendet' : ''}
+                  </div>
+                  <div style="font-size: var(--font-size-sm); color: var(--gray-700); font-style: italic; white-space: pre-wrap; line-height: 1.4;">"${instr.instructions}"</div>
+                </div>
+              `).join('')
+            : '<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">Noch keine Nachsorge-Hinweise gesendet.</div>'
+        }
+      </div>
+
+      <!-- Send new aftercare instructions -->
+      <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
+        <div id="praxis-aftercare-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
+        
+        <textarea id="praxis-aftercare-input" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); min-height: 80px; margin-bottom: var(--space-2); background: white; resize: vertical;" placeholder="Z. B. Bitte denken Sie daran, die Wunde heute noch zu kühlen und keinen Sport zu treiben."></textarea>
+        
+        <button id="btn-send-aftercare" class="btn btn-primary" style="width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
+          📨 Nachsorge-Hinweise per E-Mail senden
+        </button>
+      </div>
+    </div>
   `;
 }
 
-function attachDetailListeners(terminCode, existingNote, existingHints) {
+function attachDetailListeners(terminCode, existingNote, existingHints, sharedDocuments = [], aftercareInstructions = []) {
   // Save note
   document.getElementById('btn-save-note')?.addEventListener('click', async () => {
     const noteText = document.getElementById('doctor-note-input')?.value || '';
@@ -318,6 +422,122 @@ function attachDetailListeners(terminCode, existingNote, existingHints) {
       openHintModal(terminCode, hint);
     });
   });
+
+  // Upload document for patient
+  const uploadBtn = document.getElementById('btn-praxis-upload-doc');
+  uploadBtn?.addEventListener('click', async () => {
+    const fileInput = document.getElementById('praxis-upload-file-input');
+    const categorySelect = document.getElementById('praxis-upload-category');
+    const errorDiv = document.getElementById('praxis-upload-error');
+
+    if (errorDiv) errorDiv.style.display = 'none';
+
+    const file = fileInput?.files?.[0];
+    if (!file) {
+      showUploadError('Bitte wählen Sie zuerst eine Datei aus.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showUploadError('Die Datei ist zu groß (maximal 5 MB erlaubt).');
+      return;
+    }
+
+    const category = categorySelect?.value || 'Sonstiges';
+
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = `
+      <div class="dl-auth-spinner" style="width: 12px; height: 12px; border-width: 2px; margin-right: 4px; display: inline-block;"></div>
+      Hochladen...
+    `;
+
+    try {
+      const base64Data = await toBase64(file);
+      const payload = {
+        filename: file.name,
+        mimeType: file.type,
+        fileData: base64Data.split(',')[1],
+        docCategory: category
+      };
+
+      const res = await fetch(`/api/praxis/termin/${terminCode}/upload-patient-doc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fehler beim Hochladen.');
+
+      // Refresh patient details modal
+      loadPatientDetails(terminCode);
+    } catch (err) {
+      console.error(err);
+      showUploadError(err.message || 'Verbindung zum Server fehlgeschlagen.');
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = `📤 Dokument freigeben & Patient benachrichtigen`;
+    }
+  });
+
+  function showUploadError(msg) {
+    const errorDiv = document.getElementById('praxis-upload-error');
+    if (errorDiv) {
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  // Send aftercare instructions
+  const sendAftercareBtn = document.getElementById('btn-send-aftercare');
+  sendAftercareBtn?.addEventListener('click', async () => {
+    const input = document.getElementById('praxis-aftercare-input');
+    const errorDiv = document.getElementById('praxis-aftercare-error');
+    if (errorDiv) errorDiv.style.display = 'none';
+
+    const text = input?.value || '';
+    if (!text.trim()) {
+      showAftercareError('Bitte geben Sie zuerst die Nachsorge-Hinweise ein.');
+      return;
+    }
+
+    sendAftercareBtn.disabled = true;
+    sendAftercareBtn.textContent = 'Wird gesendet...';
+
+    try {
+      const res = await fetch(`/api/praxis/termin/${terminCode}/aftercare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructions: text })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fehler beim Senden.');
+
+      // Refresh patient details modal
+      loadPatientDetails(terminCode);
+    } catch (err) {
+      console.error(err);
+      showAftercareError(err.message || 'Verbindung zum Server fehlgeschlagen.');
+      sendAftercareBtn.disabled = false;
+      sendAftercareBtn.textContent = '📨 Nachsorge-Hinweise per E-Mail senden';
+    }
+  });
+
+  function showAftercareError(msg) {
+    const errorDiv = document.getElementById('praxis-aftercare-error');
+    if (errorDiv) {
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  function toBase64(f) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(f);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  }
 }
 
 // ── Hint Modal ────────
