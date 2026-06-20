@@ -49,7 +49,7 @@ export function renderDokumenteView() {
   return `
     ${renderHeader()}
     <div class="view">
-      ${renderProgressBar(4)}
+      ${renderProgressBar(5)}
       <div class="container container--form">
         <div class="view-content">
           <h2 style="margin-bottom: var(--space-2);">Befunde und Dokumente</h2>
@@ -75,7 +75,7 @@ export function renderDokumenteView() {
             </div>
           </div>
 
-          ${renderStepNavigation('allergien', nextStep, nextLabel)}
+          ${renderStepNavigation('ai-fragen', nextStep, nextLabel)}
         </div>
       </div>
     </div>

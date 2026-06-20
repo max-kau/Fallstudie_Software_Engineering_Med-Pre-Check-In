@@ -81,7 +81,7 @@ export function renderPraxisDokumenteView() {
   return `
     ${renderHeader()}
     <div class="view">
-      ${renderProgressBar(5)}
+      ${renderProgressBar(6)}
       <div class="container container--form">
         <div class="view-content">
           <h2 style="margin-bottom: var(--space-2);">Einwilligungen & Praxis-Dokumente</h2>

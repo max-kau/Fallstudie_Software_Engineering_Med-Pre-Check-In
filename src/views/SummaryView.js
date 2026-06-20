@@ -78,6 +78,17 @@ export function renderSummaryView() {
       `).join('')
     : '<div class="summary-item text-muted">Keine Dokumente hochgeladen</div>';
 
+  const aiQuestions = allData.aiQuestions || [];
+  const hasAiQuestions = aiQuestions.length > 0;
+  const aiQuestionsContent = hasAiQuestions
+    ? aiQuestions.map((q, idx) => `
+        <div class="summary-item">
+          <div class="summary-item-label">${idx + 1}. ${q.question}</div>
+          <div style="font-weight: 500; color: var(--gray-800); margin-top: 4px;">${q.answer || 'Keine Antwort'}</div>
+        </div>
+      `).join('')
+    : '<div class="summary-item text-muted">Keine Folgefragen beantwortet</div>';
+
   return `
     ${renderHeader()}
     <div class="view">
@@ -127,6 +138,16 @@ export function renderSummaryView() {
             </div>
             <div class="summary-content">${allerContent}</div>
           </div>
+
+          ${hasAiQuestions ? `
+          <div class="summary-section card fade-in-up" style="border-left: 4px solid var(--blue-600);">
+            <div class="summary-header">
+              <div class="summary-title" style="display: flex; align-items: center; gap: var(--space-2);">🤖 Spezifische Folgefragen (KI)</div>
+              <button class="summary-edit" data-edit="ai-fragen">Bearbeiten</button>
+            </div>
+            <div class="summary-content">${aiQuestionsContent}</div>
+          </div>
+          ` : ''}
 
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
@@ -335,6 +356,28 @@ function generatePDF(allData, signatureDataUrl) {
     y += 5;
   }
   y += 5;
+
+  // Section 4.5: AI Specific Questions
+  const aiQuestions = allData.aiQuestions || [];
+  if (aiQuestions.length > 0) {
+    sectionIdx++;
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${sectionIdx}. Spezifische Folgefragen (KI)`, 20, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    for (const q of aiQuestions) {
+      const lines = doc.splitTextToSize(`${q.question}: ${q.answer || 'Keine Antwort'}`, 170);
+      if (y + lines.length * 5 > 285) {
+        doc.addPage();
+        y = 25;
+      }
+      doc.text(lines, 20, y);
+      y += lines.length * 5 + 2;
+    }
+    y += 5;
+  }
 
   // Section 5: Documents
   sectionIdx++;

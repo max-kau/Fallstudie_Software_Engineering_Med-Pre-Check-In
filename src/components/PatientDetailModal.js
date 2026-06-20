@@ -81,6 +81,8 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
   const d = termin.dokumente ? (typeof termin.dokumente === 'string' ? JSON.parse(termin.dokumente) : termin.dokumente) : { liste: [] };
   const docList = d.liste || [];
   const docConfirmations = termin.document_confirmations ? (typeof termin.document_confirmations === 'string' ? JSON.parse(termin.document_confirmations) : termin.document_confirmations) : {};
+  const aiQuestions = termin.ai_questions ? (typeof termin.ai_questions === 'string' ? JSON.parse(termin.ai_questions) : termin.ai_questions) : [];
+  const hasAiQuestions = aiQuestions.length > 0;
 
   const formatBytes = (bytes) => {
     if (!bytes) return '0 Bytes';
@@ -209,6 +211,19 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
               const ansText = Array.isArray(a) ? a.join(', ') : (a || 'Keine Antwort');
               return `<div style="margin-bottom: var(--space-2);"><strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${q}</strong><br><span style="font-weight: 600;">${ansText}</span></div>`;
             }).join('')}
+          </div>
+        </div>
+        ` : ''}
+        ${hasAiQuestions ? `
+        <div>
+          <div class="pdm-subsection-title" style="display: flex; align-items: center; gap: 6px;">🤖 Spezifische Folgefragen (KI)</div>
+          <div class="pdm-data-block">
+            ${aiQuestions.map((q, idx) => `
+              <div style="margin-bottom: var(--space-2); border-left: 2px solid var(--primary); padding-left: var(--space-2); padding-top: 2px; padding-bottom: 2px;">
+                <strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${idx + 1}. ${q.question}</strong><br>
+                <span style="font-weight: 600;">${q.answer || 'Keine Antwort'}</span>
+              </div>
+            `).join('')}
           </div>
         </div>
         ` : ''}

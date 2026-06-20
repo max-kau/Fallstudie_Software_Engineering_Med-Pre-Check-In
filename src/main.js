@@ -8,6 +8,7 @@ import { renderIntroView, initIntroView } from './views/IntroView.js';
 import { renderBeschwerdenView, initBeschwerdenView } from './views/BeschwerdenView.js';
 import { renderMedikamenteView, initMedikamenteView } from './views/MedikamenteView.js';
 import { renderAllergienView, initAllergienView } from './views/AllergienView.js';
+import { renderAIZusatzfragenView, initAIZusatzfragenView } from './views/AIZusatzfragenView.js';
 import { renderDokumenteView, initDokumenteView } from './views/DokumenteView.js';
 import { renderSummaryView, initSummaryView } from './views/SummaryView.js';
 import { renderPraxisView, initPraxisView } from './views/PraxisView.js';
@@ -27,6 +28,7 @@ registerRoute('beschwerden', renderBeschwerdenView);
 registerRoute('zusatzfragen', renderZusatzfragenView);
 registerRoute('medikamente', renderMedikamenteView);
 registerRoute('allergien', renderAllergienView);
+registerRoute('ai-fragen', renderAIZusatzfragenView);
 registerRoute('dokumente', renderDokumenteView);
 registerRoute('praxis-dokumente', renderPraxisDokumenteView);
 registerRoute('zusammenfassung', renderSummaryView);
@@ -46,6 +48,7 @@ const initializers = {
   zusatzfragen: initZusatzfragenView,
   medikamente: initMedikamenteView,
   allergien: initAllergienView,
+  'ai-fragen': initAIZusatzfragenView,
   dokumente: initDokumenteView,
   'praxis-dokumente': initPraxisDokumenteView,
   zusammenfassung: initSummaryView,

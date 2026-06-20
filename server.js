@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import session from 'express-session';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 dotenv.config();
 
@@ -262,8 +263,9 @@ async function initDb() {
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS document_confirmations JSONB NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
     `);
-    console.log('Columns "document_confirmations" and "started_at" on precheckins verified.');
+    console.log('Columns "document_confirmations", "started_at" and "ai_questions" on precheckins verified.');
 
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
@@ -616,7 +618,7 @@ app.get('/api/praxis/termine', async (req, res) => {
     const result = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
               p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers,
-              p.document_confirmations,
+              p.document_confirmations, p.ai_questions,
               u.geburtsdatum as patient_geburtsdatum, u.krankenversicherung as patient_versicherung, u.krankenkasse as patient_krankenkasse
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
@@ -1452,7 +1454,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at FROM precheckins WHERE termin_code = $1',
+      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at, ai_questions FROM precheckins WHERE termin_code = $1',
       [terminCode]
     );
 
@@ -1471,7 +1473,8 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
         submitted: row.submitted,
         customAnswers: row.custom_answers || {},
         documentConfirmations: row.document_confirmations || {},
-        startedAt: row.started_at
+        startedAt: row.started_at,
+        aiQuestions: row.ai_questions || []
       });
     }
 
@@ -1484,7 +1487,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
 // API: Submit or autosave pre-check-in data
 app.post('/api/precheckin', async (req, res) => {
-  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers, documentConfirmations } = req.body;
+  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers, documentConfirmations, aiQuestions } = req.body;
 
   if (!sessionId || !terminCode) {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
@@ -1499,8 +1502,8 @@ app.post('/api/precheckin', async (req, res) => {
     // Save to database, upsert if the appointment already exists
     // started_at is only set on INSERT (not updated on conflict)
     await pool.query(
-      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
+      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at, ai_questions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, $12)
        ON CONFLICT (termin_code)
        DO UPDATE SET
          session_id = EXCLUDED.session_id,
@@ -1513,6 +1516,7 @@ app.post('/api/precheckin', async (req, res) => {
          submitted = CASE WHEN precheckins.submitted THEN TRUE ELSE EXCLUDED.submitted END,
          custom_answers = EXCLUDED.custom_answers,
          document_confirmations = EXCLUDED.document_confirmations,
+         ai_questions = EXCLUDED.ai_questions,
          submitted_at = CURRENT_TIMESTAMP`,
       [
         terminCode,
@@ -1525,7 +1529,8 @@ app.post('/api/precheckin', async (req, res) => {
         currentStep || 'intro',
         submitted || false,
         JSON.stringify(customAnswers || {}),
-        JSON.stringify(documentConfirmations || {})
+        JSON.stringify(documentConfirmations || {}),
+        JSON.stringify(aiQuestions || [])
       ]
     );
 
@@ -1554,6 +1559,164 @@ app.post('/api/precheckin', async (req, res) => {
   } catch (err) {
     console.error('Error saving pre-check-in:', err);
     res.status(500).json({ error: 'Database save error' });
+  }
+});
+
+// API: Generate context-aware AI questions or fetch existing ones
+app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) => {
+  const { terminCode } = req.params;
+
+  if (!isDbConnected || !pool) {
+    // Fallback mock questions in offline mode
+    return res.json({
+      success: true,
+      questions: [
+        { question: 'Gibt es Begleitsymptome wie Schwindel oder Fieber?', answer: '' },
+        { question: 'Seit wann treten diese Symptome genau auf?', answer: '' }
+      ]
+    });
+  }
+
+  try {
+    // 1. Fetch existing precheckin
+    const precheckRes = await pool.query(
+      'SELECT beschwerden, medikamente, allergien, ai_questions FROM precheckins WHERE termin_code = $1',
+      [terminCode]
+    );
+
+    if (precheckRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Kein Pre-Check-In für diesen Termin gefunden.' });
+    }
+
+    const precheck = precheckRes.rows[0];
+
+    // 2. If ai_questions is already generated and non-empty, return it!
+    if (precheck.ai_questions && Array.isArray(precheck.ai_questions) && precheck.ai_questions.length > 0) {
+      return res.json({ success: true, questions: precheck.ai_questions });
+    }
+
+    // 3. Otherwise, generate questions!
+    const beschwerden = precheck.beschwerden || {};
+    const medikamente = precheck.medikamente || {};
+    const allergien = precheck.allergien || {};
+
+    let questions = [];
+
+    // Attempt Gemini API call
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      const genAI = new GoogleGenerativeAI(apiKey);
+      // As requested, using the flash model
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const prompt = `
+Du bist ein erfahrener medizinischer Assistent. Deine Aufgabe ist es, für einen Patienten, der einen Pre-Check-In ausfüllt, genau 2 bis 3 gezielte, medizinisch sinnvolle und nachvollziehbare Folgefragen (Anamnese-Fragen) zu generieren.
+Nutze die bereitgestellten Angaben zu Beschwerden (Hauptsymptome, Details, Stärke, Dauer), Medikamenten und Allergien des Patienten.
+
+Patienten-Angaben:
+- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
+- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
+- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
+- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
+- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
+- Medikamente: ${JSON.stringify(medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.list || [])}
+
+Die Fragen müssen:
+1. Direkt auf Deutsch formuliert sein (höfliche Ansprache "Sie").
+2. Medizinisch relevant und präzise sein (z.B. Fragen nach Begleitsymptomen, Einnahmefrequenz von Medikamenten, Auslösern oder Charakter des Schmerzes).
+3. Klar strukturiert sein als Fragen.
+Antworte AUSSCHLIESSLICH im folgenden JSON-Format (ein Array von Objekten mit dem Key "question" und leerem Wert für "answer"):
+[
+  {
+    "question": "Fragetext...",
+    "answer": ""
+  }
+]
+Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das rohe JSON.
+      `;
+
+      const result = await model.generateContent(prompt);
+      let text = result.response.text().trim();
+
+      // Strip markdown code blocks if any
+      if (text.startsWith('```')) {
+        text = text.replace(/^```json\s*/, '').replace(/```$/, '').trim();
+      }
+
+      const generatedQuestions = JSON.parse(text);
+      if (Array.isArray(generatedQuestions) && generatedQuestions.length > 0) {
+        questions = generatedQuestions.map(q => ({
+          question: q.question,
+          answer: ''
+        }));
+      }
+    } catch (aiErr) {
+      console.warn('Gemini API call failed, falling back to rule-based questions:', aiErr.message);
+    }
+
+    // 4. Fallback to rule-based generator if Gemini failed or returned invalid output
+    if (questions.length === 0) {
+      const chips = (beschwerden.chips || []).map(c => c.toLowerCase());
+      const freitext = (beschwerden.freitext || '').toLowerCase();
+      const customKeywords = (beschwerden.customKeywords || []).map(k => k.toLowerCase());
+      const meds = (medikamente.list || []);
+      const allergies = (allergien.list || []);
+
+      // Analyze for specific conditions
+      if (chips.includes('kopfschmerzen') || freitext.includes('kopfschmerz') || freitext.includes('migräne')) {
+        questions.push({ question: 'Sind die Kopfschmerzen eher drückend, stechend oder pulsierend?', answer: '' });
+        questions.push({ question: 'Treten die Kopfschmerzen vermehrt bei körperlicher Anstrengung oder im Liegen auf?', answer: '' });
+      } else if (chips.includes('fieber') || freitext.includes('fieber') || freitext.includes('temperatur')) {
+        questions.push({ question: 'Haben Sie zusätzlich Schüttelfrost, vermehrtes Schwitzen oder Gliederschmerzen bemerkt?', answer: '' });
+        questions.push({ question: 'Wie hoch war die gemessene Körpertemperatur maximal?', answer: '' });
+      } else if (chips.includes('husten') || chips.includes('halsschmerzen') || freitext.includes('hust') || freitext.includes('hals')) {
+        questions.push({ question: 'Ist der Husten trocken (Reizhusten) oder geht er mit Auswurf einher?', answer: '' });
+        questions.push({ question: 'Tritt der Husten vermehrt nachts oder tagsüber auf?', answer: '' });
+      } else if (chips.includes('bauchschmerzen') || freitext.includes('bauchschmerz') || freitext.includes('magen')) {
+        questions.push({ question: 'Sind die Bauchschmerzen eher krampfartig, dumpf oder stechend, und wo genau liegen sie?', answer: '' });
+        questions.push({ question: 'Besteht ein zeitlicher Zusammenhang mit bestimmten Lebensmitteln oder Mahlzeiten?', answer: '' });
+      } else if (chips.includes('zahnschmerzen') || freitext.includes('zahn')) {
+        questions.push({ question: 'Sind die Zahnschmerzen empfindlich gegenüber Kälte oder Wärme?', answer: '' });
+        questions.push({ question: 'Pulsieren die Schmerzen oder sind sie dauerhaft spürbar?', answer: '' });
+      } else if (chips.includes('hautausschlag') || chips.includes('juckreiz') || freitext.includes('haut') || freitext.includes('ausschlag')) {
+        questions.push({ question: 'Juckt der Ausschlag oder brennt er, und an welchen Körperstellen tritt er auf?', answer: '' });
+        questions.push({ question: 'Haben Sie in letzter Zeit neue Pflegeprodukte, Waschmittel oder Lebensmittel verwendet?', answer: '' });
+      } else if (chips.includes('herzrasen') || chips.includes('atemnot') || freitext.includes('herz') || freitext.includes('luft')) {
+        questions.push({ question: 'Tritt das Herzrasen oder die Atemnot in Ruhe oder bei körperlicher Belastung auf?', answer: '' });
+        questions.push({ question: 'Haben Sie zusätzlich Schwindel oder ein Engegefühl in der Brust?', answer: '' });
+      }
+
+      // Check medications fallback question
+      if (meds.length > 0 && questions.length < 3) {
+        questions.push({ question: 'Nehmen Sie die angegebenen Medikamente regelmäßig oder nur bei Bedarf ein?', answer: '' });
+      }
+
+      // Check allergies fallback question
+      if (allergies.length > 0 && questions.length < 3) {
+        questions.push({ question: 'Welche Reaktionen (z.B. Hautausschlag, Atemnot) lösen die genannten Allergene bei Ihnen aus?', answer: '' });
+      }
+
+      // Default fallback questions if not enough questions generated
+      if (questions.length < 2) {
+        questions.push({ question: 'Gibt es bestimmte Faktoren (z.B. Wärme, Kälte, Ruhe), die Ihre Beschwerden lindern oder verschlimmern?', answer: '' });
+        questions.push({ question: 'Hatten Sie ähnliche Beschwerden in der Vergangenheit schon einmal?', answer: '' });
+      }
+    }
+
+    // Limit to max 3 questions
+    questions = questions.slice(0, 3);
+
+    // 5. Save the generated questions back to database so they persist
+    await pool.query(
+      'UPDATE precheckins SET ai_questions = $1 WHERE termin_code = $2',
+      [JSON.stringify(questions), terminCode]
+    );
+
+    res.json({ success: true, questions });
+  } catch (err) {
+    console.error('Error generating AI questions:', err);
+    res.status(500).json({ error: 'Fehler bei der Generierung der Folgefragen.' });
   }
 });
 
@@ -2344,7 +2507,7 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
     const terminRes = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
               p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers,
-              p.document_confirmations
+              p.document_confirmations, p.ai_questions
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
