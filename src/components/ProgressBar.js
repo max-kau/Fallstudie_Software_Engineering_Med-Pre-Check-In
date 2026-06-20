@@ -6,11 +6,12 @@ export function renderProgressBar(currentStep) {
     { num: 1, label: 'Beschwerden' },
     { num: 2, label: 'Medikamente' },
     { num: 3, label: 'Allergien' },
-    { num: 4, label: 'Dokumente' },
+    { num: 4, label: 'Folgefragen' },
+    { num: 5, label: 'Dokumente' },
   ];
 
   if (hasPraxisDocs) {
-    steps.push({ num: 5, label: 'Einwilligungen' });
+    steps.push({ num: 6, label: 'Einwilligungen' });
   }
 
   const totalSteps = steps.length;
