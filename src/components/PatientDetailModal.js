@@ -11,6 +11,8 @@ const DEFAULT_HINTS = [
   'Bitte nehmen Sie Ihre Medikamente wie gewohnt ein'
 ];
 
+let currentAiAssessments = null;
+
 export function openPatientDetailModal(terminCode) {
   // Remove any existing modal
   document.getElementById('patient-detail-modal')?.remove();
@@ -291,6 +293,19 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     </div>
     ` : ''}
 
+    <!-- Section 2.5: KI-Einschätzungen -->
+    ${termin.precheck_submitted ? `
+    <div class="pdm-section" id="ai-assessments-section" style="margin-bottom: var(--space-5); background: #f8fafc; border: 1px solid #e2e8f0; padding: var(--space-4); border-radius: var(--radius-lg);">
+      <h4 class="pdm-section-title" style="color: var(--primary); margin-bottom: var(--space-3); font-weight: 800; display: flex; align-items: center; gap: 6px;">
+        🤖 KI-Einschätzungen
+      </h4>
+      <div id="ai-assessments-container" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
+        <div class="dl-auth-spinner" style="width: 24px; height: 24px; border-width: 2.5px; border-color: var(--primary) transparent transparent transparent;"></div>
+        <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">Einschätzungen werden geladen...</p>
+      </div>
+    </div>
+    ` : ''}
+
     <!-- Section 3: Doctor Notes -->
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
       <h4 class="pdm-section-title">📝 Eigene Notizen (nur für Sie sichtbar)</h4>
@@ -399,6 +414,11 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
 }
 
 function attachDetailListeners(terminCode, existingNote, existingHints, sharedDocuments = [], aftercareInstructions = []) {
+  // Load AI assessments if the container exists
+  if (document.getElementById('ai-assessments-container')) {
+    fetchAiAssessments(terminCode);
+  }
+
   // Save note
   document.getElementById('btn-save-note')?.addEventListener('click', async () => {
     const noteText = document.getElementById('doctor-note-input')?.value || '';
@@ -688,7 +708,8 @@ async function loadHintOptions(selectedHints) {
     console.warn('Could not load default hints, using fallback:', err);
   }
 
-  container.innerHTML = options.map((opt, i) => `
+  // Generate HTML for standard options
+  let standardHtml = options.map((opt, i) => `
     <label class="hint-option" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s; margin-bottom: var(--space-2); border: 1px solid var(--gray-200); background: white;">
       <input type="checkbox" class="hint-option-checkbox" value="${opt}" 
              ${selectedHints.includes(opt) ? 'checked' : ''}
@@ -697,15 +718,53 @@ async function loadHintOptions(selectedHints) {
     </label>
   `).join('');
 
-  // Hover effect
+  // Generate HTML for AI patient suggestions
+  let aiHtml = '';
+  const aiPatientTodos = currentAiAssessments?.patientTodos || [];
+  if (aiPatientTodos.length > 0) {
+    aiHtml = `
+      <div style="margin-bottom: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px dashed var(--gray-200);">
+        <span style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; display: flex; align-items: center; gap: 4px;">
+          🤖 KI-Vorschläge (vorselektiert)
+        </span>
+      </div>
+    ` + aiPatientTodos.map(item => {
+      const val = item.patientText || item.text;
+      // We check it by default unless it's an edit view and it wasn't selected (though normally new AI suggestions are checked by default)
+      const isChecked = selectedHints.length > 0 ? selectedHints.includes(val) : true;
+      return `
+        <label class="hint-option ai-hint-option" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s; margin-bottom: var(--space-2); border: 1px dashed var(--primary); background: #eff6ff;">
+          <input type="checkbox" class="hint-option-checkbox" value="${val}" 
+                 ${isChecked ? 'checked' : ''}
+                 style="margin-top: 2px; width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0;">
+          <div style="font-size: var(--font-size-sm); color: #1e3a8a; line-height: 1.4; display: flex; flex-direction: column;">
+            <span style="font-weight: 600;">${val}</span>
+            <span style="font-size: 10px; color: var(--gray-500); margin-top: 2px; font-style: italic;">Basierend auf KI: "${item.text}"</span>
+          </div>
+        </label>
+      `;
+    }).join('');
+  }
+
+  container.innerHTML = aiHtml + standardHtml;
+
+  // Hover and background effects
   container.querySelectorAll('.hint-option').forEach(label => {
+    const isAi = label.classList.contains('ai-hint-option');
+    const checkedBg = isAi ? '#eff6ff' : 'var(--primary-lightest)';
+    const uncheckedBg = isAi ? '#f8fafc' : 'white';
+    
+    // Set initial background based on checkbox state
+    const checked = label.querySelector('input')?.checked;
+    label.style.background = checked ? checkedBg : uncheckedBg;
+
     label.addEventListener('mouseenter', () => { label.style.background = 'var(--primary-lightest)'; });
     label.addEventListener('mouseleave', () => {
-      const checked = label.querySelector('input')?.checked;
-      label.style.background = checked ? 'var(--primary-lightest)' : 'white';
+      const currentChecked = label.querySelector('input')?.checked;
+      label.style.background = currentChecked ? checkedBg : uncheckedBg;
     });
     label.querySelector('input')?.addEventListener('change', (e) => {
-      label.style.background = e.target.checked ? 'var(--primary-lightest)' : 'white';
+      label.style.background = e.target.checked ? checkedBg : uncheckedBg;
     });
   });
 }
@@ -782,4 +841,137 @@ async function loadHintSettings() {
       if (status) { status.textContent = '❌ Fehler'; status.style.color = '#DC2626'; }
     }
   });
+}
+
+// ── AI Assessments Helpers ────────
+
+async function fetchAiAssessments(terminCode) {
+  const container = document.getElementById('ai-assessments-container');
+  if (!container) return;
+
+  try {
+    const res = await fetch(`/api/praxis/termin/${terminCode}/ai-assessments`);
+    const data = await res.json();
+
+    if (data.success && data.ai_assessments) {
+      currentAiAssessments = data.ai_assessments;
+      renderAiAssessments(terminCode);
+    } else {
+      container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Keine KI-Einschätzungen verfügbar.</p>`;
+    }
+  } catch (err) {
+    console.error('Error fetching AI assessments:', err);
+    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Fehler beim Laden der KI-Einschätzungen.</p>`;
+  }
+}
+
+function renderAiAssessments(terminCode) {
+  const container = document.getElementById('ai-assessments-container');
+  if (!container) return;
+
+  const doctorTodos = currentAiAssessments?.doctorTodos || [];
+  const patientTodos = currentAiAssessments?.patientTodos || [];
+
+  if (doctorTodos.length === 0 && patientTodos.length === 0) {
+    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; text-align: center; width: 100%;">Alle Einschätzungen wurden bearbeitet oder ausgeblendet.</p>`;
+    return;
+  }
+
+  const doctorHtml = doctorTodos.map(item => `
+    <div class="ai-todo-card" data-id="${item.id}" style="background: #ffffff; border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; min-height: 100px; box-shadow: var(--shadow-sm); margin-bottom: var(--space-2);">
+      <div>
+        <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--primary); background: var(--primary-lightest); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: var(--space-2);">${item.category}</span>
+        <p style="font-size: var(--font-size-sm); color: var(--gray-800); margin: 0; font-weight: 600; line-height: 1.4;">${item.text}</p>
+        ${item.reasoning ? `<p style="font-size: 10px; color: var(--gray-500); margin: var(--space-1) 0 0 0; line-height: 1.3; font-style: italic;">💡 ${item.reasoning}</p>` : ''}
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2);">
+        <button class="btn-ai-add" data-id="${item.id}" title="Zu Notizen hinzufügen" style="background: var(--primary); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; font-weight: 600; transition: transform 0.1s ease; outline: none;">
+          ➕ Zu Notizen
+        </button>
+        <button class="btn-ai-remove" data-id="${item.id}" title="Entfernen" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
+          ❌ Entfernen
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  const patientHtml = patientTodos.map(item => `
+    <div class="ai-todo-card" data-id="${item.id}" style="background: #ffffff; border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; min-height: 100px; box-shadow: var(--shadow-sm); margin-bottom: var(--space-2);">
+      <div>
+        <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--primary); background: var(--primary-lightest); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: var(--space-2);">${item.category}</span>
+        <p style="font-size: var(--font-size-sm); color: var(--gray-800); margin: 0; font-weight: 600; line-height: 1.4;">${item.text}</p>
+        ${item.reasoning ? `<p style="font-size: 10px; color: var(--gray-500); margin: var(--space-1) 0 0 0; line-height: 1.3; font-style: italic;">💡 ${item.reasoning}</p>` : ''}
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: var(--space-2);">
+        <button class="btn-ai-remove" data-id="${item.id}" title="Entfernen" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
+          ❌ Entfernen
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: var(--space-1); width: 100%; text-align: left;">
+      ${doctorHtml}
+      ${patientHtml}
+    </div>
+  `;
+
+  // Attach button event listeners
+  container.querySelectorAll('.btn-ai-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const item = doctorTodos.find(t => t.id === id);
+      if (item) {
+        addTodoToNotes(item.text);
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-ai-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      removeAiAssessment(terminCode, id);
+    });
+  });
+}
+
+function addTodoToNotes(text) {
+  const textarea = document.getElementById('doctor-note-input');
+  if (!textarea) return;
+
+  const currentVal = textarea.value.trim();
+  if (currentVal) {
+    textarea.value = currentVal + '\n- ' + text;
+  } else {
+    textarea.value = '- ' + text;
+  }
+  // Visual feedback pulse
+  textarea.style.transition = 'all 0.3s ease';
+  textarea.style.borderColor = 'var(--primary)';
+  textarea.style.boxShadow = '0 0 0 3px rgba(16,122,202,0.25)';
+  setTimeout(() => {
+    textarea.style.borderColor = '';
+    textarea.style.boxShadow = '';
+  }, 1000);
+}
+
+async function removeAiAssessment(terminCode, id) {
+  if (!currentAiAssessments) return;
+
+  currentAiAssessments.doctorTodos = (currentAiAssessments.doctorTodos || []).filter(t => t.id !== id);
+  currentAiAssessments.patientTodos = (currentAiAssessments.patientTodos || []).filter(t => t.id !== id);
+
+  // Re-render immediately
+  renderAiAssessments(terminCode);
+
+  try {
+    await fetch(`/api/praxis/termin/${terminCode}/ai-assessments`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_assessments: currentAiAssessments })
+    });
+  } catch (err) {
+    console.error('Error saving updated AI assessments:', err);
+  }
 }
