@@ -122,7 +122,12 @@ async function initDb() {
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS signature_data TEXT;
     `);
-    console.log('Columns "current_step", "submitted", "dokumente" and "signature_data" verified.');
+    
+    // 4.6. Add the "ai_assessments" column to precheckins for AI recommendations
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_assessments JSONB DEFAULT NULL;
+    `);
+    console.log('Columns "current_step", "submitted", "dokumente", "signature_data" and "ai_assessments" verified.');
 
     // 5. Create uploaded files table for binary data storage
     await pool.query(`
@@ -2507,7 +2512,7 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
     const terminRes = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
               p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers,
-              p.document_confirmations, p.ai_questions
+              p.document_confirmations, p.ai_questions, p.ai_assessments
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
@@ -2614,6 +2619,300 @@ app.post('/api/praxis/termin/:code/notes', async (req, res) => {
   } catch (err) {
     console.error('Error saving doctor note:', err);
     res.status(500).json({ error: 'Fehler beim Speichern der Notiz.' });
+  }
+});
+
+// API: Get/generate AI assessments for doctor dashboard
+app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { code } = req.params;
+  if (!isDbConnected || !pool) {
+    // Return mock data if database is not connected
+    return res.json({
+      success: true,
+      ai_assessments: {
+        doctorTodos: [
+          { 
+            id: 'doc-1', 
+            category: 'Diagnostik', 
+            text: 'Aufgrund des angegebenen Verdachts auf einen Atemwegsinfekt sollte eine gründliche Auskultation der Lunge durchgeführt werden. Achten Sie dabei besonders auf Rasselgeräusche oder ein abgeschwächtes Atemgeräusch, um eine beginnende Bronchitis oder Pneumonie frühzeitig auszuschließen.', 
+            reasoning: 'Basierend auf den Symptom-Chips (Husten, Halsschmerzen)' 
+          },
+          { 
+            id: 'doc-2', 
+            category: 'Risiko', 
+            text: 'Da der Patient sowohl Ibuprofen als auch Paracetamol einnimmt, sollte die genaue Tagesdosis und Einnahmefrequenz erfragt werden. Prüfen Sie, ob ein Risiko für eine medikamenteninduzierte Hepatotoxizität oder nephrotoxische Wechselwirkungen vorliegt.', 
+            reasoning: 'Aufgrund der Medikamentenliste (Ibuprofen 400mg, Paracetamol 500mg)' 
+          },
+          {
+            id: 'doc-3',
+            category: 'Anamnese',
+            text: 'Fragen Sie den Patienten gezielt nach dem zeitlichen Verlauf der Atembeschwerden. Insbesondere das Auftreten von nächtlichem Reizhusten oder Atemnot bei körperlicher Belastung liefert wichtige klinische Hinweise zur Differenzierung zwischen Asthma und einem akuten Infekt.',
+            reasoning: 'Symptombasierte Abklärung bei Hustenbeschwerden'
+          }
+        ],
+        patientTodos: [
+          { 
+            id: 'pat-1', 
+            category: 'Vorbereitung', 
+            text: 'Allergiepass und Befunde zum Termin mitbringen.', 
+            patientText: 'Da Sie eine Penicillin-Allergie angegeben haben, bringen Sie bitte Ihren Allergiepass sowie etwaige Vorbefunde oder Berichte über frühere allergische Reaktionen zum Termin mit. Dies hilft uns, die Medikation für Sie sicher zu planen.', 
+            reasoning: 'Basierend auf der angegebenen Penicillin-Allergie' 
+          },
+          { 
+            id: 'pat-2', 
+            category: 'Medikation', 
+            text: 'Einnahme-Dokumentation für den behandelnden Arzt bereithalten.', 
+            patientText: 'Bitte notieren Sie sich für das Gespräch mit dem Arzt, wie häufig und in welcher Dosierung Sie Ibuprofen und Paracetamol in den letzten Tagen eingenommen haben, und bringen Sie diese Aufstellung mit.', 
+            reasoning: 'Aufgrund der Einnahme von freiverkäuflichen Schmerzmitteln' 
+          }
+        ]
+      }
+    });
+  }
+
+  try {
+    const terminRes = await pool.query(
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments
+       FROM termine t
+       LEFT JOIN precheckins p ON t.code = p.termin_code
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [code, req.session.user.praxis_name]
+    );
+
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    const termin = terminRes.rows[0];
+
+    if (!termin.submitted) {
+      return res.json({ success: false, message: 'Pre-Check-In noch nicht abgeschlossen.' });
+    }
+
+    if (termin.ai_assessments) {
+      return res.json({ success: true, ai_assessments: termin.ai_assessments });
+    }
+
+    // Generate assessments using Gemini or fallback
+    const beschwerden = termin.beschwerden || {};
+    const medikamente = termin.medikamente || {};
+    const allergien = termin.allergien || {};
+    const customAnswers = termin.custom_answers || {};
+    const aiQuestions = termin.ai_questions || [];
+
+    let ai_assessments = null;
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not defined');
+      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const prompt = `
+Du bist ein hochqualifizierter medizinischer Experte und klinischer Assistent. Deine Aufgabe ist es, auf Basis der Angaben aus dem Patienten-Pre-Check-In und dem Praxis-Kontext eine tiefgehende, klinisch fundierte und patientenindividuelle medizinische Einschätzung zu generieren.
+Die Einschätzung muss zwischen ToDos für den Arzt (doctorTodos) und ToDos für den Patienten (patientTodos) unterscheiden.
+
+Praxis- & Termin-Kontext:
+- Fachrichtung: ${termin.fachrichtung}
+- Termin-Art: ${termin.art}
+- Praxis-Name: ${termin.praxis}
+- Arzt: ${termin.doctor}
+
+Patienten-Angaben (Pre-Check-In):
+- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
+- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
+- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
+- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
+- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
+- Medikamente: ${JSON.stringify(medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.list || [])}
+- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
+- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
+
+Anforderungen an die Generierung (Sehr wichtig für Qualität und Umfang):
+1. **Maximale Anzahl an Einschätzungen**: Die Gesamtzahl der Empfehlungen (doctorTodos und patientTodos zusammen) darf insgesamt **maximal 5** betragen. Generiere z.B. 2-3 doctorTodos und 2-3 patientTodos.
+2. **Kurz und Prägnant**: Jede Empfehlung ("text" und "patientText") muss **exakt 1 Satz mit maximal 12 Wörtern** sein. Halte dich extrem kurz und direkt.
+3. **Fokus auf Symptome**: Richte die Empfehlungen direkt an den individuellen Beschwerden des Patienten aus.
+4. **Begründung ("reasoning")**: Begründe kurz in 1 Satz, worauf diese Einschätzung basiert (wie die KI darauf gekommen ist).
+
+Generiere:
+1. "doctorTodos" (Array von Objekten): Einschätzungen für den Arzt.
+   Jedes Objekt muss folgende Struktur haben:
+   - "id": Eine eindeutige ID (z.B. "doc_1", "doc_2", ...)
+   - "category": Kategorie als kurzes Wort (z.B. "Diagnostik", "Risiko")
+   - "text": Der extrem kurze, klinische Text für den Arzt (1 Satz, max. 12 Wörter).
+   - "reasoning": Kurzer Satz, wie die KI darauf gekommen ist.
+2. "patientTodos" (Array von Objekten): Vorbereitungen oder ToDos für den Patienten.
+   Jedes Objekt muss folgende Struktur haben:
+   - "id": Eine eindeutige ID (z.B. "pat_1", "pat_2", ...)
+   - "category": Kategorie als kurzes Wort (z.B. "Vorbereitung", "Medikation")
+   - "text": Der extrem kurze Text für den Arzt im Dashboard (1 Satz, max. 12 Wörter).
+   - "patientText": Die sehr höfliche Bitte an den Patienten (1 Satz, max. 12 Wörter).
+   - "reasoning": Kurzer Satz, wie die KI darauf gekommen ist.
+
+Antworte AUSSCHLIESSLICH im folgenden JSON-Format:
+{
+  "doctorTodos": [
+    { "id": "doc_1", "category": "Kategorie", "text": "...", "reasoning": "..." }
+  ],
+  "patientTodos": [
+    { "id": "pat_1", "category": "Kategorie", "text": "...", "patientText": "...", "reasoning": "..." }
+  ]
+}
+Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das rohe JSON.
+`;
+
+      const result = await model.generateContent(prompt);
+      let text = result.response.text().trim();
+
+      // Strip markdown code blocks if any
+      if (text.startsWith('```')) {
+        text = text.replace(/^```json\s*/, '').replace(/```$/, '').trim();
+      }
+
+      const parsed = JSON.parse(text);
+      if (parsed && (Array.isArray(parsed.doctorTodos) || Array.isArray(parsed.patientTodos))) {
+        ai_assessments = {
+          doctorTodos: Array.isArray(parsed.doctorTodos) ? parsed.doctorTodos : [],
+          patientTodos: Array.isArray(parsed.patientTodos) ? parsed.patientTodos : []
+        };
+      }
+    } catch (aiErr) {
+      console.warn('Gemini API call failed for assessments, falling back to rule-based generation:', aiErr.message);
+    }
+
+    // Fallback rule-based generator
+    if (!ai_assessments) {
+      const doctorTodos = [];
+      const patientTodos = [];
+
+      const chips = (beschwerden.chips || []).map(c => c.toLowerCase());
+      const freitext = (beschwerden.freitext || '').toLowerCase();
+      const meds = (medikamente.list || medikamente.liste || []);
+      const allergies = (allergien.list || allergien.liste || []);
+
+      // Specific heuristics
+      if (chips.includes('kopfschmerzen') || freitext.includes('kopfschmerz') || freitext.includes('migräne')) {
+        doctorTodos.push({
+          id: 'doc_fall_head_1',
+          category: 'Risiko',
+          text: 'Führen Sie eine gezielte neurologische Basisuntersuchung durch, um rote Flaggen (z.B. Hirnnervenstörungen, Nackensteifigkeit, plötzlicher Vernichtungskopfschmerz) sicher auszuschließen und eine sekundäre Kopfschmerzursache abzugrenzen.',
+          reasoning: 'Ausschluss roter Flaggen bei akuten/subakuten Kopfschmerzen'
+        });
+        doctorTodos.push({
+          id: 'doc_fall_head_2',
+          category: 'Anamnese',
+          text: 'Erfragen Sie die genaue Schmerzcharakteristik (pulsierend, drückend, stechend), eventuelle Begleitsymptome (Übelkeit, Lichtempfindlichkeit) und mögliche Triggerfaktoren wie Schlafmangel oder Stress.',
+          reasoning: 'Ermittlung der Kopfschmerz-Phänotypen für die Diagnose'
+        });
+        patientTodos.push({
+          id: 'pat_fall_head',
+          category: 'Vorbereitung',
+          text: 'Schmerztagebuch der letzten Wochen mitbringen.',
+          patientText: 'Falls Sie in den letzten Wochen ein Schmerztagebuch oder Notizen über die Häufigkeit und Stärke Ihrer Kopfschmerzen geführt haben, bringen Sie diese Aufzeichnungen bitte zum Termin mit.',
+          reasoning: 'Unterstützung der präzisen Diagnose durch Verlaufsprotokolle'
+        });
+      }
+
+      if (chips.includes('fieber') || freitext.includes('fieber')) {
+        doctorTodos.push({
+          id: 'doc_fall_fever_1',
+          category: 'Diagnostik',
+          text: 'Führen Sie eine strukturierte Suche nach dem Infektfokus durch (HNO, Lunge, Abdomen, Harnwege) und bestimmen Sie bei klinischem Verdacht die Entzündungsparameter (z.B. CRP oder Differenzialblutbild).',
+          reasoning: 'Fokussuche und systemische Entzündungsabklärung bei Fieber'
+        });
+        doctorTodos.push({
+          id: 'doc_fall_fever_2',
+          category: 'Anamnese',
+          text: 'Erheben Sie die genaue Temperaturkurve, das Ansprechen auf Antipyretika und das Vorliegen von B-Symptomatik (Nachtschweiß, Gewichtsverlust) oder Schüttelfrost.',
+          reasoning: 'Klinische Verlaufserhebung des Fiebers'
+        });
+      }
+
+      if (meds.length > 0) {
+        doctorTodos.push({
+          id: 'doc_fall_meds_1',
+          category: 'Medikation',
+          text: `Abgleich der angegebenen Medikamente (Gesamtanzahl: ${meds.length}) zur Vermeidung potenzieller Interaktionen, Doppelmedikationen oder Kontraindikationen bei Neuverschreibungen.`,
+          reasoning: 'Interaktions- und Kontraindikationsprüfung'
+        });
+        patientTodos.push({
+          id: 'pat_fall_meds',
+          category: 'Vorbereitung',
+          text: 'Aktuellen Medikationsplan oder Originalverpackungen mitbringen.',
+          patientText: 'Bitte bringen Sie Ihren aktuellen, offiziellen Medikationsplan (bundeseinheitlicher Medikationsplan) oder die Originalverpackungen Ihrer derzeit eingenommenen Medikamente mit zum Termin.',
+          reasoning: 'Vermeidung von Übertragungsfehlern bei der Medikamentenanamnese'
+        });
+      }
+
+      if (allergies.length > 0) {
+        doctorTodos.push({
+          id: 'doc_fall_all_1',
+          category: 'Allergien',
+          text: `Berücksichtigen Sie die gemeldeten Allergien (${allergies.map(a => a.name || a).join(', ')}) bei jeder geplanten Verordnung oder medizinischen Intervention, um anaphylaktische Reaktionen zu vermeiden.`,
+          reasoning: 'Prävention allergischer/anaphylaktischer Reaktionen'
+        });
+      }
+
+      // Default symptom-focused item if doctor list is empty
+      if (doctorTodos.length === 0) {
+        doctorTodos.push({
+          id: 'doc_fall_gen',
+          category: 'Anamnese',
+          text: 'Erheben Sie im Gespräch eine detaillierte Anamnese bezüglich der Hauptbeschwerden, der zeitlichen Dynamik, eventueller Auslöser sowie bereits durchgeführter Selbsttherapieversuche.',
+          reasoning: 'Klinische Anamneseerhebung bei Erstvorstellung'
+        });
+      }
+
+      ai_assessments = { doctorTodos, patientTodos };
+    }
+
+    // Save to database
+    await pool.query(
+      'UPDATE precheckins SET ai_assessments = $1 WHERE termin_code = $2',
+      [JSON.stringify(ai_assessments), code]
+    );
+
+    res.json({ success: true, ai_assessments });
+  } catch (err) {
+    console.error('Error generating AI assessments:', err);
+    res.status(500).json({ error: 'Fehler beim Generieren der KI-Einschätzungen.' });
+  }
+});
+
+// API: Save/update AI assessments (e.g. after removing one)
+app.put('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { code } = req.params;
+  const { ai_assessments } = req.body;
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+
+  try {
+    // Verify appointment belongs to this praxis
+    const check = await pool.query('SELECT code FROM termine WHERE code = $1 AND praxis = $2', [code, req.session.user.praxis_name]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    await pool.query(
+      'UPDATE precheckins SET ai_assessments = $1 WHERE termin_code = $2',
+      [JSON.stringify(ai_assessments), code]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating AI assessments:', err);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren der KI-Einschätzungen.' });
   }
 });
 
