@@ -218,7 +218,9 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
         ` : ''}
         ${hasAiQuestions ? `
         <div>
-          <div class="pdm-subsection-title" style="display: flex; align-items: center; gap: 6px;">🤖 Spezifische Folgefragen (KI)</div>
+          <div class="pdm-subsection-title" style="display: flex; align-items: center; gap: 6px;">
+            ${termin.ai_consent === false ? '📋 Standardisierte Folgefragen' : '🤖 Spezifische Folgefragen (KI)'}
+          </div>
           <div class="pdm-data-block">
             ${aiQuestions.map((q, idx) => `
               <div style="margin-bottom: var(--space-2); border-left: 2px solid var(--primary); padding-left: var(--space-2); padding-top: 2px; padding-bottom: 2px;">
@@ -853,7 +855,14 @@ async function fetchAiAssessments(terminCode) {
     const res = await fetch(`/api/praxis/termin/${terminCode}/ai-assessments`);
     const data = await res.json();
 
-    if (data.success && data.ai_assessments) {
+    if (data.consentDeclined) {
+      container.innerHTML = `
+        <div style="width: 100%; padding: var(--space-4); background: #f8fafc; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); text-align: center; color: var(--gray-500); font-size: var(--font-size-sm); line-height: 1.4;">
+          <span style="font-size: 20px; display: block; margin-bottom: 4px;">📋</span>
+          Der Patient hat der KI-gestützten Auswertung widersprochen. Es wurden keine KI-Einschätzungen generiert.
+        </div>
+      `;
+    } else if (data.success && data.ai_assessments) {
       currentAiAssessments = data.ai_assessments;
       renderAiAssessments(terminCode);
     } else {

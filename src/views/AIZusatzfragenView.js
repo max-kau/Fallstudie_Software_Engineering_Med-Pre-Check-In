@@ -5,7 +5,8 @@ import { store } from '../utils/store.js';
 
 export function renderAIZusatzfragenView() {
   const aiQuestions = store.get('aiQuestions') || [];
-  const isLoading = aiQuestions.length === 0;
+  const hasConsent = store.get('aiConsent') !== false;
+  const isLoading = aiQuestions.length === 0 && hasConsent;
 
   let contentHtml = '';
 
@@ -18,20 +19,31 @@ export function renderAIZusatzfragenView() {
       </div>
     `;
   } else {
-    const questionsHtml = aiQuestions.map((q, idx) => {
+    // Show standard questions or generated AI questions
+    const displayQuestions = aiQuestions.length > 0 ? aiQuestions : [];
+    
+    const questionsHtml = displayQuestions.map((q, idx) => {
+      const isAi = hasConsent;
+      const cardBg = isAi 
+        ? 'linear-gradient(135deg, #f8faff 0%, #f1f5ff 100%)' 
+        : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
+      const badgeBg = isAi ? 'rgba(16, 122, 202, 0.1)' : 'rgba(100, 116, 139, 0.1)';
+      const badgeColor = isAi ? 'var(--blue-600)' : 'var(--gray-600)';
+      const borderStyle = isAi ? '1px solid rgba(16, 122, 202, 0.15)' : '1px solid rgba(100, 116, 139, 0.15)';
+
       return `
-        <div class="form-group ai-question-card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #f8faff 0%, #f1f5ff 100%); padding: var(--space-5) var(--space-6); border-radius: var(--radius-xl); border: 1px solid rgba(16, 122, 202, 0.15); box-shadow: 0 4px 12px rgba(16, 122, 202, 0.03); transition: transform 0.2s ease, border-color 0.2s ease;">
+        <div class="form-group ai-question-card" style="margin-bottom: var(--space-6); background: ${cardBg}; padding: var(--space-5) var(--space-6); border-radius: var(--radius-xl); border: ${borderStyle}; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); transition: transform 0.2s ease, border-color 0.2s ease;">
           <label class="form-label" style="display: flex; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-3); color: var(--gray-800); font-weight: 600; font-size: var(--font-size-base); line-height: 1.4;">
-            <span style="display: inline-flex; align-items: center; justify-content: center; background: rgba(16, 122, 202, 0.1); color: var(--blue-600); border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: bold; flex-shrink: 0; margin-top: 2px;">${idx + 1}</span>
+            <span style="display: inline-flex; align-items: center; justify-content: center; background: ${badgeBg}; color: ${badgeColor}; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: bold; flex-shrink: 0; margin-top: 2px;">${idx + 1}</span>
             <span>${q.question}</span>
             <span style="color: var(--red-600); font-weight: bold; font-size: var(--font-size-sm); margin-left: 2px;">*</span>
           </label>
-          <textarea class="form-textarea ai-q-input" data-idx="${idx}" placeholder="Ihre Antwort..." style="margin-top: var(--space-2); min-height: 90px; border-color: rgba(16, 122, 202, 0.2); background: #ffffff;" required>${q.answer || ''}</textarea>
+          <textarea class="form-textarea ai-q-input" data-idx="${idx}" placeholder="Ihre Antwort..." style="margin-top: var(--space-2); min-height: 90px; border-color: rgba(0, 0, 0, 0.15); background: #ffffff;" required>${q.answer || ''}</textarea>
         </div>
       `;
     }).join('');
 
-    contentHtml = `
+    const bannerHtml = hasConsent ? `
       <div style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5); background: linear-gradient(90deg, #eef2ff 0%, #e0e7ff 100%); border-radius: var(--radius-lg); display: flex; align-items: center; gap: var(--space-3); border: 1px solid rgba(99, 102, 241, 0.2);">
         <span style="font-size: var(--font-size-2xl);">🤖</span>
         <div>
@@ -39,6 +51,18 @@ export function renderAIZusatzfragenView() {
           <p style="color: #4338ca; font-size: var(--font-size-xs); margin: 0; line-height: 1.3;">Basierend auf Ihren Angaben hat unser System spezifische Fragen generiert, die für Ihre Behandlung wichtig sein könnten.</p>
         </div>
       </div>
+    ` : `
+      <div style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5); background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-radius: var(--radius-lg); display: flex; align-items: center; gap: var(--space-3); border: 1px solid rgba(148, 163, 184, 0.2);">
+        <span style="font-size: var(--font-size-2xl);">📋</span>
+        <div>
+          <h4 style="color: #1e293b; font-weight: 600; margin-bottom: 2px;">Standardisierte Folgefragen</h4>
+          <p style="color: #475569; font-size: var(--font-size-xs); margin: 0; line-height: 1.3;">Für Ihren Pre-Check-In wird ein standardisierter medizinischer Fragenkatalog verwendet.</p>
+        </div>
+      </div>
+    `;
+
+    contentHtml = `
+      ${bannerHtml}
       <form id="ai-questions-form" onsubmit="event.preventDefault();">
         ${questionsHtml}
       </form>
@@ -48,6 +72,10 @@ export function renderAIZusatzfragenView() {
   // Determine back route based on whether practice custom questions exist
   const hasCustomQuestions = store.getCustomQuestions().length > 0;
   const prevStep = hasCustomQuestions ? 'zusatzfragen' : 'allergien';
+  const headingText = hasConsent ? 'Spezifische Folgefragen' : 'Standardisierte Folgefragen';
+  const subHeadingText = hasConsent 
+    ? 'Bitte beantworten Sie diese kurzen Fragen, um Ihrem Arzt ein präziseres Bild zu vermitteln.'
+    : 'Bitte beantworten Sie diesen standardisierten Fragenkatalog, um Ihren Termin optimal vorzubereiten.';
 
   return `
     ${renderHeader()}
@@ -55,8 +83,8 @@ export function renderAIZusatzfragenView() {
       ${renderProgressBar(3.5)}
       <div class="container container--form">
         <div class="view-content">
-          <h2 style="margin-bottom: var(--space-2);">Spezifische Folgefragen</h2>
-          <p class="text-muted" style="margin-bottom: var(--space-6);">Bitte beantworten Sie diese kurzen Fragen, um Ihrem Arzt ein präziseres Bild zu vermitteln.</p>
+          <h2 style="margin-bottom: var(--space-2);">${headingText}</h2>
+          <p class="text-muted" style="margin-bottom: var(--space-6);">${subHeadingText}</p>
 
           <div id="ai-questions-content">
             ${contentHtml}
@@ -71,7 +99,7 @@ export function renderAIZusatzfragenView() {
 
 function validateAIQuestions() {
   const aiQuestions = store.get('aiQuestions') || [];
-  if (aiQuestions.length === 0) return { valid: false, message: 'Folgefragen werden generiert...' };
+  if (aiQuestions.length === 0) return { valid: false, message: 'Fragen werden geladen...' };
 
   for (const q of aiQuestions) {
     if (!q.answer || q.answer.trim().length === 0) {
@@ -84,9 +112,28 @@ function validateAIQuestions() {
 
 export function initAIZusatzfragenView() {
   const aiQuestions = store.get('aiQuestions') || [];
+  const hasConsent = store.get('aiConsent') !== false;
 
   if (aiQuestions.length === 0) {
-    // We need to fetch and generate from backend
+    if (!hasConsent) {
+      // Load standard questions catalogue
+      const standardQuestions = [
+        { question: 'Welche genauen Begleitsymptome (z.B. Fieber, Schwindel, Übelkeit) liegen bei Ihnen vor?', answer: '' },
+        { question: 'Seit wann bestehen diese Beschwerden genau und haben sie sich in letzter Zeit verändert?', answer: '' },
+        { question: 'Gibt es bekannte Auslöser oder Situationen, in denen sich die Beschwerden verschlimmern oder verbessern?', answer: '' },
+        { question: 'Haben Sie bereits selbsttherapeutische Maßnahmen ergriffen (z.B. Einnahme von Schmerzmitteln, Ruhe, Kühlung)?', answer: '' }
+      ];
+      store.set('aiQuestions', standardQuestions);
+      
+      const appEl = document.getElementById('app');
+      if (appEl) {
+        appEl.innerHTML = renderAIZusatzfragenView();
+        initAIZusatzfragenView();
+      }
+      return;
+    }
+
+    // Call dynamic AI generation endpoint if consent is granted
     const terminCode = store.getTerminCode();
     
     fetch(`/api/precheckin/${terminCode}/generate-ai-questions`, {
@@ -102,7 +149,6 @@ export function initAIZusatzfragenView() {
       .then(data => {
         if (data.success && Array.isArray(data.questions)) {
           store.set('aiQuestions', data.questions);
-          // Re-render and re-init
           const appEl = document.getElementById('app');
           if (appEl) {
             appEl.innerHTML = renderAIZusatzfragenView();
@@ -112,7 +158,7 @@ export function initAIZusatzfragenView() {
       })
       .catch(err => {
         console.error('Failed to generate AI questions:', err);
-        // Fallback to simple local generation so the app never gets stuck
+        // Local fallback
         const localFallback = [
           { question: 'Gibt es Begleitsymptome wie Schwindel oder Fieber?', answer: '' },
           { question: 'Seit wann treten diese Symptome genau auf?', answer: '' }
@@ -143,7 +189,7 @@ export function initAIZusatzfragenView() {
     input.addEventListener('focus', () => {
       const card = input.closest('.ai-question-card');
       if (card) {
-        card.style.borderColor = 'var(--blue-600)';
+        card.style.borderColor = hasConsent ? 'var(--blue-600)' : 'var(--gray-600)';
         card.style.transform = 'translateY(-2px)';
       }
     });
@@ -151,7 +197,7 @@ export function initAIZusatzfragenView() {
     input.addEventListener('blur', () => {
       const card = input.closest('.ai-question-card');
       if (card) {
-        card.style.borderColor = 'rgba(16, 122, 202, 0.15)';
+        card.style.borderColor = hasConsent ? 'rgba(16, 122, 202, 0.15)' : 'rgba(100, 116, 139, 0.15)';
         card.style.transform = 'translateY(0)';
       }
     });

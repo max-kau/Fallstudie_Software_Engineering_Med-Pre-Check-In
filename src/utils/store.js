@@ -91,6 +91,7 @@ function getDefaultData() {
     customAnswers: {},
     documentConfirmations: {},
     aiQuestions: [],
+    aiConsent: null,
   };
 }
 
@@ -128,7 +129,8 @@ async function saveProgressToServer() {
       submitted: allData.submitted,
       customAnswers: allData.customAnswers || {},
       documentConfirmations: allData.documentConfirmations || {},
-      aiQuestions: allData.aiQuestions || []
+      aiQuestions: allData.aiQuestions || [],
+      aiConsent: allData.aiConsent
     })
   });
   if (!res.ok) throw new Error('API save failed');
@@ -332,7 +334,8 @@ async function loadData() {
             submitted: result.submitted || false,
             customAnswers: result.customAnswers || {},
             documentConfirmations: result.documentConfirmations || {},
-            aiQuestions: result.aiQuestions || []
+            aiQuestions: result.aiQuestions || [],
+            aiConsent: result.aiConsent
           };
           saveAll(savedState);
         }
@@ -443,7 +446,8 @@ async function submitPreCheckIn() {
       submitted: true,
       customAnswers: allData.customAnswers || {},
       documentConfirmations: allData.documentConfirmations || {},
-      aiQuestions: allData.aiQuestions || []
+      aiQuestions: allData.aiQuestions || [],
+      aiConsent: allData.aiConsent
     })
   });
 
