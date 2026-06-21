@@ -458,10 +458,26 @@ export async function initLandingView() {
               </div>
             </div>
             
-            <div style="background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); text-align: right; border: 1px solid var(--gray-200); min-width: 170px;">
-              <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Termin</span>
-              <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block;">${formatGermanDate(appt.date)}</strong>
-              <span style="font-size: var(--font-size-xs); color: var(--gray-500); display: block; margin-top: 2px;">${appt.time} Uhr · ${appt.art}</span>
+            <div style="display: flex; align-items: flex-start; gap: var(--space-3);">
+              <div style="background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); text-align: right; border: 1px solid var(--gray-200); min-width: 170px;">
+                <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Termin</span>
+                <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block;">${formatGermanDate(appt.date)}</strong>
+                <span style="font-size: var(--font-size-xs); color: var(--gray-500); display: block; margin-top: 2px;">${appt.time} Uhr · ${appt.art}</span>
+              </div>
+
+              ${!isPast ? `
+              <!-- 3-Dots Menu Button -->
+              <div style="position: relative;" class="dl-menu-container">
+                <button class="btn-menu-trigger" data-code="${appt.code}" data-consent="${appt.precheck_consent}" style="background: none; border: none; font-size: 20px; color: var(--gray-500); cursor: pointer; padding: 4px 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; height: 36px; width: 36px; transition: background 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">
+                  ⋮
+                </button>
+                <div class="dl-menu-dropdown" id="dropdown-${appt.code}" style="display: none; position: absolute; right: 0; top: 40px; background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); box-shadow: var(--shadow-md); z-index: 100; min-width: 200px; padding: 4px 0;">
+                  <button class="btn-menu-action btn-manage-ai" data-code="${appt.code}" data-consent="${appt.precheck_consent}" style="width: 100%; text-align: left; background: none; border: none; padding: 10px 16px; font-size: var(--font-size-sm); color: var(--gray-700); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
+                    🤖 <span>KI-Einstellungen</span>
+                  </button>
+                </div>
+              </div>
+              ` : ''}
             </div>
           </div>
 
@@ -574,6 +590,52 @@ export async function initLandingView() {
           button.disabled = false;
           alert('Die Aktivierung der E-Mail-Benachrichtigung ist fehlgeschlagen. Bitte versuchen Sie es erneut.');
         }
+      });
+    });
+
+    // Handle dropdown toggle clicks for 3-dots menu
+    container.querySelectorAll('.btn-menu-trigger').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const code = e.currentTarget.getAttribute('data-code');
+        const dropdown = document.getElementById(`dropdown-${code}`);
+        
+        // Close all other dropdowns first
+        document.querySelectorAll('.dl-menu-dropdown').forEach(d => {
+          if (d.id !== `dropdown-${code}`) {
+            d.style.display = 'none';
+          }
+        });
+
+        if (dropdown) {
+          const isHidden = dropdown.style.display === 'none';
+          dropdown.style.display = isHidden ? 'block' : 'none';
+        }
+      });
+    });
+
+    // Global click listener to close dropdowns when clicking outside
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.dl-menu-dropdown').forEach(d => {
+        d.style.display = 'none';
+      });
+    });
+
+    // Attach click events for managing AI settings in the dropdown
+    container.querySelectorAll('.btn-manage-ai').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const code = e.currentTarget.getAttribute('data-code');
+        const consentAttr = e.currentTarget.getAttribute('data-consent');
+        
+        let currentConsent = null;
+        if (consentAttr === 'true') currentConsent = true;
+        if (consentAttr === 'false') currentConsent = false;
+
+        openAiConsentModal(code, currentConsent, (savedConsent) => {
+          showConsentUpdateToast(savedConsent);
+          initLandingView();
+        });
       });
     });
 
@@ -694,6 +756,129 @@ function openCancelConfirmModal(code, dateStr, timeStr, onConfirmed) {
   document.getElementById('btn-cancel-confirm')?.addEventListener('click', () => {
     close();
     onConfirmed();
+  });
+}
+
+function showConsentUpdateToast(consent) {
+  document.querySelector('.notify-toast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'notify-toast';
+  toast.innerHTML = `
+    <div class="notify-toast__icon" style="color: var(--primary);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="notify-toast__text">
+      <strong>KI-Einstellungen aktualisiert</strong>
+      <span>Die KI-Unterstützung wurde erfolgreich ${consent ? 'aktiviert' : 'deaktiviert'}.</span>
+    </div>
+  `;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('notify-toast--visible'));
+  setTimeout(() => {
+    toast.classList.remove('notify-toast--visible');
+    setTimeout(() => toast.remove(), 400);
+  }, 5000);
+}
+
+function openAiConsentModal(terminCode, currentConsent, onSaved) {
+  document.getElementById('ai-consent-modal')?.remove();
+
+  const isConsentEnabled = currentConsent !== false; // Defaults to true/enabled
+
+  const html = `
+    <div class="dl-modal-backdrop" id="ai-consent-modal" style="z-index: 9200;">
+      <div class="dl-modal-card fade-in-up" style="max-width: 500px; padding: var(--space-6); border-radius: var(--radius-xl); background: white;">
+        <h3 style="font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2); font-size: var(--font-size-lg); display: flex; align-items: center; gap: 8px;">
+          🤖 KI-Zustimmung verwalten
+        </h3>
+        <p style="font-size: var(--font-size-sm); color: var(--gray-600); line-height: 1.5; margin-bottom: var(--space-4);">
+          Bestimmen Sie, ob künstliche Intelligenz zur Datenverarbeitung und Auswertung für diesen Termin verwendet werden darf.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6); text-align: left;">
+          <!-- Option 1: Mit KI -->
+          <label class="modal-ai-consent-card" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 2px solid ${isConsentEnabled ? 'var(--primary)' : 'var(--gray-200)'}; background: ${isConsentEnabled ? '#eff6ff' : 'white'}; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; box-shadow: ${isConsentEnabled ? '0 0 0 3px rgba(16, 122, 202, 0.15)' : 'none'};">
+            <input type="radio" name="modal-ai-consent-choice" value="true" ${isConsentEnabled ? 'checked' : ''} style="margin-top: 3px; accent-color: var(--primary);" />
+            <div>
+              <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block; margin-bottom: 2px;">KI-Unterstützung zulassen (empfohlen)</strong>
+              <span style="font-size: var(--font-size-xs); color: var(--gray-500);">Für personalisierte Folgefragen und automatisierte Zusammenfassungen.</span>
+            </div>
+          </label>
+          
+          <!-- Option 2: Ohne KI -->
+          <label class="modal-ai-consent-card" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 2px solid ${!isConsentEnabled ? 'var(--primary)' : 'var(--gray-200)'}; background: ${!isConsentEnabled ? '#eff6ff' : 'white'}; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; box-shadow: ${!isConsentEnabled ? '0 0 0 3px rgba(16, 122, 202, 0.15)' : 'none'};">
+            <input type="radio" name="modal-ai-consent-choice" value="false" ${!isConsentEnabled ? 'checked' : ''} style="margin-top: 3px; accent-color: var(--primary);" />
+            <div>
+              <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block; margin-bottom: 2px;">KI-Unterstützung ablehnen / entziehen</strong>
+              <span style="font-size: var(--font-size-xs); color: var(--gray-500);">Verwendung eines standardisierten Fragenkatalogs. Keine automatisierte Analyse Ihrer Angaben.</span>
+            </div>
+          </label>
+        </div>
+
+        <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); font-size: var(--font-size-xs); color: #b45309; margin-bottom: var(--space-6); text-align: left; line-height: 1.4;">
+          ⚠️ <strong>Wichtiger Hinweis:</strong> Das Ändern Ihrer Zustimmung löscht alle bisher für diesen Pre-Check-In gespeicherten Folgefragen und Auswertungen, damit diese passend neu generiert werden können.
+        </div>
+
+        <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+          <button class="btn btn-outline" id="btn-modal-ai-cancel" style="padding: var(--space-2) var(--space-4); font-weight: 600;">Abbrechen</button>
+          <button class="btn btn-primary" id="btn-modal-ai-save" style="padding: var(--space-2) var(--space-4); font-weight: 600;">Einstellungen speichern</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const modal = document.getElementById('ai-consent-modal');
+  const close = () => modal?.remove();
+
+  document.getElementById('btn-modal-ai-cancel')?.addEventListener('click', close);
+  modal?.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+  const choiceRadios = document.querySelectorAll('input[name="modal-ai-consent-choice"]');
+  choiceRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      choiceRadios.forEach(r => {
+        const card = r.closest('.modal-ai-consent-card');
+        if (card) {
+          if (r.checked) {
+            card.style.borderColor = 'var(--primary)';
+            card.style.background = '#eff6ff';
+            card.style.boxShadow = '0 0 0 3px rgba(16, 122, 202, 0.15)';
+          } else {
+            card.style.borderColor = 'var(--gray-200)';
+            card.style.background = 'white';
+            card.style.boxShadow = 'none';
+          }
+        }
+      });
+    });
+  });
+
+  document.getElementById('btn-modal-ai-save')?.addEventListener('click', async () => {
+    const isConsentSelected = document.querySelector('input[name="modal-ai-consent-choice"]:checked')?.value === 'true';
+    const saveBtn = document.getElementById('btn-modal-ai-save');
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+      const res = await fetch(`/api/precheckin/${terminCode}/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consent: isConsentSelected })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Fehler beim Speichern der KI-Zustimmung.');
+      }
+
+      close();
+      onSaved(isConsentSelected);
+    } catch (err) {
+      alert(err.message || 'Speichern fehlgeschlagen.');
+      if (saveBtn) saveBtn.disabled = false;
+    }
   });
 }
 

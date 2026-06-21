@@ -269,8 +269,9 @@ async function initDb() {
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS document_confirmations JSONB NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_consent BOOLEAN DEFAULT NULL;
     `);
-    console.log('Columns "document_confirmations", "started_at" and "ai_questions" on precheckins verified.');
+    console.log('Columns "document_confirmations", "started_at", "ai_questions" and "ai_consent" on precheckins verified.');
 
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
@@ -1118,7 +1119,7 @@ app.get('/api/user/termine', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step
+      `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step, p.ai_consent as precheck_consent
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.user_id = $1
@@ -1459,7 +1460,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at, ai_questions FROM precheckins WHERE termin_code = $1',
+      'SELECT session_id, termin_code, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at, ai_questions, ai_consent FROM precheckins WHERE termin_code = $1',
       [terminCode]
     );
 
@@ -1479,7 +1480,8 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
         customAnswers: row.custom_answers || {},
         documentConfirmations: row.document_confirmations || {},
         startedAt: row.started_at,
-        aiQuestions: row.ai_questions || []
+        aiQuestions: row.ai_questions || [],
+        aiConsent: row.ai_consent
       });
     }
 
@@ -1492,7 +1494,7 @@ app.get('/api/precheckin/:terminCode', async (req, res) => {
 
 // API: Submit or autosave pre-check-in data
 app.post('/api/precheckin', async (req, res) => {
-  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers, documentConfirmations, aiQuestions } = req.body;
+  const { sessionId, terminCode, beschwerden, medikamente, allergien, dokumente, signatureData, currentStep, submitted, customAnswers, documentConfirmations, aiQuestions, aiConsent } = req.body;
 
   if (!sessionId || !terminCode) {
     return res.status(400).json({ error: 'Missing required fields: sessionId and terminCode' });
@@ -1507,8 +1509,8 @@ app.post('/api/precheckin', async (req, res) => {
     // Save to database, upsert if the appointment already exists
     // started_at is only set on INSERT (not updated on conflict)
     await pool.query(
-      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at, ai_questions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, $12)
+      `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, signature_data, current_step, submitted, custom_answers, document_confirmations, started_at, ai_questions, ai_consent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, $12, $13)
        ON CONFLICT (termin_code)
        DO UPDATE SET
          session_id = EXCLUDED.session_id,
@@ -1522,6 +1524,7 @@ app.post('/api/precheckin', async (req, res) => {
          custom_answers = EXCLUDED.custom_answers,
          document_confirmations = EXCLUDED.document_confirmations,
          ai_questions = EXCLUDED.ai_questions,
+         ai_consent = EXCLUDED.ai_consent,
          submitted_at = CURRENT_TIMESTAMP`,
       [
         terminCode,
@@ -1535,7 +1538,8 @@ app.post('/api/precheckin', async (req, res) => {
         submitted || false,
         JSON.stringify(customAnswers || {}),
         JSON.stringify(documentConfirmations || {}),
-        JSON.stringify(aiQuestions || [])
+        JSON.stringify(aiQuestions || []),
+        aiConsent === undefined ? null : aiConsent
       ]
     );
 
@@ -1564,6 +1568,53 @@ app.post('/api/precheckin', async (req, res) => {
   } catch (err) {
     console.error('Error saving pre-check-in:', err);
     res.status(500).json({ error: 'Database save error' });
+  }
+});
+
+// API: Update AI consent for a pre-check-in (used by patient)
+app.post('/api/precheckin/:terminCode/consent', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { terminCode } = req.params;
+  const { consent } = req.body; // boolean: true or false
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+
+  try {
+    // Verify appointment belongs to this user
+    const check = await pool.query('SELECT code FROM termine WHERE code = $1 AND user_id = $2', [terminCode, req.session.userId]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    // Check if precheckin exists
+    const pci = await pool.query('SELECT termin_code FROM precheckins WHERE termin_code = $1', [terminCode]);
+    if (pci.rows.length > 0) {
+      // Update existing consent, and reset ai_questions and ai_assessments to force regeneration
+      await pool.query(
+        `UPDATE precheckins 
+         SET ai_consent = $1, ai_questions = '[]'::jsonb, ai_assessments = NULL 
+         WHERE termin_code = $2`,
+        [consent, terminCode]
+      );
+    } else {
+      // Insert new empty precheckin record
+      const sessionId = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+      await pool.query(
+        `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, dokumente, custom_answers, document_confirmations, ai_questions, ai_consent)
+         VALUES ($1, $2, '{"chips":[],"freitext":"","customKeywords":[]}'::jsonb, '{"liste":[],"keine":false}'::jsonb, '{"liste":[],"chips":[],"keine":false}'::jsonb, '{"liste":[]}'::jsonb, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, $3)`,
+        [terminCode, sessionId, consent]
+      );
+    }
+
+    console.log(`AI Consent updated to ${consent} for termin: ${terminCode}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating AI consent:', err);
+    res.status(500).json({ error: 'Fehler beim Speichern der KI-Zustimmung.' });
   }
 });
 
@@ -2512,7 +2563,7 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
     const terminRes = await pool.query(
       `SELECT t.*, p.submitted as precheck_submitted, p.current_step as precheck_step,
               p.beschwerden, p.medikamente, p.allergien, p.dokumente, p.signature_data, p.custom_answers,
-              p.document_confirmations, p.ai_questions, p.ai_assessments
+              p.document_confirmations, p.ai_questions, p.ai_assessments, p.ai_consent
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
@@ -2675,7 +2726,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
 
   try {
     const terminRes = await pool.query(
-      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
@@ -2687,6 +2738,10 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     }
 
     const termin = terminRes.rows[0];
+
+    if (termin.ai_consent === false) {
+      return res.json({ success: true, ai_assessments: null, consentDeclined: true });
+    }
 
     if (!termin.submitted) {
       return res.json({ success: false, message: 'Pre-Check-In noch nicht abgeschlossen.' });
