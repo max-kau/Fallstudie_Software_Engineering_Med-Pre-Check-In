@@ -129,18 +129,25 @@ export function renderCalendarView() {
         <div class="cal-view-toggle">
           <button class="cal-toggle-btn active" id="cal-view-day" data-view="day">Tag</button>
           <button class="cal-toggle-btn" id="cal-view-week" data-view="week">Woche</button>
+          <button class="cal-toggle-btn" id="cal-view-buffer" data-view="buffer" style="border-left: 1px solid var(--gray-300);">⏸️ Pufferzeiten</button>
         </div>
       </div>
 
       <!-- Legend -->
-      <div class="cal-legend">
+      <div class="cal-legend" id="cal-legend">
         <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>Pre-Check-In erledigt</span>
         <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>Pre-Check-In offen</span>
         <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94A3B8;"></span>Nicht freigeschaltet</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#F59E0B;"></span>Pufferzeit</span>
       </div>
 
       <!-- Calendar Body -->
       <div class="cal-body" id="cal-body">
+        <!-- Dynamically rendered -->
+      </div>
+
+      <!-- Buffer Panel (hidden by default) -->
+      <div class="cal-buffer-panel" id="cal-buffer-panel" style="display: none;">
         <!-- Dynamically rendered -->
       </div>
     </div>
@@ -196,7 +203,46 @@ function renderShadingBlocks(date, openingHours) {
   return html;
 }
 
-function renderDayView(date, appointments, openingHours) {
+function renderBufferBlocks(date, bufferTimes) {
+  if (!bufferTimes || bufferTimes.length === 0) return '';
+  const dayOfWeek = date.getDay();
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const calStartMin = CALENDAR_START_HOUR * 60;
+  const calEndMin = CALENDAR_END_HOUR * 60;
+
+  let html = '';
+  for (const bt of bufferTimes) {
+    let matches = false;
+    if (bt.is_recurring && bt.day_of_week === dayOfWeek) {
+      matches = true;
+    } else if (!bt.is_recurring && bt.specific_date === dateStr) {
+      matches = true;
+    }
+    if (!matches) continue;
+
+    const startMin = parseTimeToMinutes(bt.start_time);
+    const endMin = parseTimeToMinutes(bt.end_time);
+    const clampedStart = Math.max(startMin, calStartMin);
+    const clampedEnd = Math.min(endMin, calEndMin);
+    if (clampedEnd <= clampedStart) continue;
+
+    const topPx = ((clampedStart - calStartMin) / 60) * HOUR_HEIGHT_PX;
+    const heightPx = ((clampedEnd - clampedStart) / 60) * HOUR_HEIGHT_PX;
+    const title = bt.title || 'Pufferzeit';
+
+    html += `
+      <div class="cal-buffer-block"
+           style="position: absolute; left: 0; right: 0; top: ${topPx}px; height: ${heightPx}px; z-index: 2;"
+           title="${title}: ${bt.start_time} – ${bt.end_time}">
+        <span class="cal-buffer-label">⏸️ ${title}</span>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderDayView(date, appointments, openingHours, bufferTimes) {
   const dayAppts = filterAppointmentsByDate(appointments, date);
   const isToday = isSameDay(date, new Date());
 
@@ -209,6 +255,7 @@ function renderDayView(date, appointments, openingHours) {
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
           ${renderShadingBlocks(date, openingHours)}
+          ${renderBufferBlocks(date, bufferTimes)}
           ${renderTimeGridLines()}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
@@ -220,7 +267,7 @@ function renderDayView(date, appointments, openingHours) {
   `;
 }
 
-function renderWeekView(mondayDate, appointments, openingHours) {
+function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
   const today = new Date();
   let cols = '';
   for (let i = 0; i < 7; i++) {
@@ -236,6 +283,7 @@ function renderWeekView(mondayDate, appointments, openingHours) {
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
           ${renderShadingBlocks(d, openingHours)}
+          ${renderBufferBlocks(d, bufferTimes)}
           ${renderTimeGridLines()}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
@@ -308,7 +356,7 @@ function filterAppointmentsByDate(appointments, date) {
   });
 }
 
-function markConflicts(appointments) {
+function markConflicts(appointments, bufferTimes = []) {
   // Group by date
   const byDate = {};
   for (const appt of appointments) {
@@ -321,10 +369,21 @@ function markConflicts(appointments) {
   // Check overlaps within each date
   for (const key of Object.keys(byDate)) {
     const dayAppts = byDate[key];
+    const dateObj = new Date(key + 'T00:00:00');
+    const dayOfWeek = dateObj.getDay();
+
+    // Find buffer times for this date
+    const dailyBuffers = bufferTimes.filter(bt => {
+      if (bt.is_recurring && bt.day_of_week === dayOfWeek) return true;
+      if (!bt.is_recurring && bt.specific_date === key) return true;
+      return false;
+    });
+
     for (let i = 0; i < dayAppts.length; i++) {
       const a = dayAppts[i];
       const aStart = parseTimeToMinutes(a.time);
       const aEnd = aStart + (a.duration || DEFAULT_DURATION);
+
       for (let j = i + 1; j < dayAppts.length; j++) {
         const b = dayAppts[j];
         const bStart = parseTimeToMinutes(b.time);
@@ -342,36 +401,325 @@ function markConflicts(appointments) {
           }
         }
       }
+
+      // Check overlaps with buffer times
+      for (const bt of dailyBuffers) {
+        const bStart = parseTimeToMinutes(bt.start_time);
+        const bEnd = parseTimeToMinutes(bt.end_time);
+        if (aEnd > bStart && aStart < bEnd) {
+          a._hasConflict = true;
+        }
+      }
     }
   }
 }
 
 // ── Calendar Controller ────────
 
-export function initCalendarView(appointments, onAppointmentClick, openingHours) {
+export function initCalendarView(appointments, onAppointmentClick, openingHours, bufferTimes) {
   let currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
-  let viewMode = 'day'; // 'day' | 'week'
+  let viewMode = 'day'; // 'day' | 'week' | 'buffer'
   let allAppointments = appointments || [];
   let currentOpeningHours = openingHours || null;
+  let allBufferTimes = bufferTimes || [];
 
   // Mark conflicts
-  markConflicts(allAppointments);
+  markConflicts(allAppointments, allBufferTimes);
 
   const calBody = document.getElementById('cal-body');
   const calTitle = document.getElementById('cal-title');
+  const calBufferPanel = document.getElementById('cal-buffer-panel');
+  const calLegend = document.getElementById('cal-legend');
   if (!calBody || !calTitle) return;
 
+  const DAY_NAMES_FULL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
   function render() {
-    if (viewMode === 'day') {
-      calTitle.textContent = formatDateHeader(currentDate);
-      calBody.innerHTML = renderDayView(currentDate, allAppointments, currentOpeningHours);
+    if (viewMode === 'buffer') {
+      calTitle.textContent = 'Pufferzeiten verwalten';
+      calBody.style.display = 'none';
+      if (calBufferPanel) {
+        calBufferPanel.style.display = 'block';
+        calBufferPanel.innerHTML = renderBufferPanel();
+        attachBufferPanelListeners();
+      }
+      if (calLegend) calLegend.style.display = 'none';
     } else {
-      const monday = getMonday(currentDate);
-      calTitle.textContent = formatWeekHeader(monday);
-      calBody.innerHTML = renderWeekView(monday, allAppointments, currentOpeningHours);
+      calBody.style.display = 'block';
+      if (calBufferPanel) calBufferPanel.style.display = 'none';
+      if (calLegend) calLegend.style.display = 'flex';
+      if (viewMode === 'day') {
+        calTitle.textContent = formatDateHeader(currentDate);
+        calBody.innerHTML = renderDayView(currentDate, allAppointments, currentOpeningHours, allBufferTimes);
+      } else {
+        const monday = getMonday(currentDate);
+        calTitle.textContent = formatWeekHeader(monday);
+        calBody.innerHTML = renderWeekView(monday, allAppointments, currentOpeningHours, allBufferTimes);
+      }
+      attachEventListeners();
     }
-    attachEventListeners();
+  }
+
+  // ── Buffer Panel ────────
+  function renderBufferPanel() {
+    const recurringBts = allBufferTimes.filter(bt => bt.is_recurring);
+    const onetimeBts = allBufferTimes.filter(bt => !bt.is_recurring);
+
+    const recurringHtml = recurringBts.length === 0
+      ? '<p style="color: var(--gray-400); font-size: var(--font-size-sm); text-align: center; padding: var(--space-4) 0;">Keine wiederkehrenden Pufferzeiten definiert.</p>'
+      : recurringBts.map(bt => `
+          <div class="buffer-card">
+            <div class="buffer-card-info">
+              <span class="buffer-card-icon">🔁</span>
+              <div class="buffer-card-details">
+                <span class="buffer-card-title">${bt.title || 'Pufferzeit'}</span>
+                <span class="buffer-card-meta">Jeden ${DAY_NAMES_FULL[bt.day_of_week]}, ${bt.start_time} – ${bt.end_time} Uhr</span>
+              </div>
+            </div>
+            <button class="btn-delete-buffer" data-bt-id="${bt.id}" title="Pufferzeit löschen">🗑️</button>
+          </div>
+        `).join('');
+
+    const onetimeHtml = onetimeBts.length === 0
+      ? '<p style="color: var(--gray-400); font-size: var(--font-size-sm); text-align: center; padding: var(--space-4) 0;">Keine einmaligen Pufferzeiten definiert.</p>'
+      : onetimeBts.map(bt => {
+          let displayDate = bt.specific_date || '';
+          if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) {
+            const parts = displayDate.split('-');
+            displayDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+          }
+          return `
+            <div class="buffer-card">
+              <div class="buffer-card-info">
+                <span class="buffer-card-icon">📅</span>
+                <div class="buffer-card-details">
+                  <span class="buffer-card-title">${bt.title || 'Pufferzeit'}</span>
+                  <span class="buffer-card-meta">${displayDate}, ${bt.start_time} – ${bt.end_time} Uhr</span>
+                </div>
+              </div>
+              <button class="btn-delete-buffer" data-bt-id="${bt.id}" title="Pufferzeit löschen">🗑️</button>
+            </div>
+          `;
+        }).join('');
+
+    // Generate time options from 07:00 to 17:30 in 30-min steps
+    let timeOptions = '';
+    for (let h = CALENDAR_START_HOUR; h <= CALENDAR_END_HOUR; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        if (h === CALENDAR_END_HOUR && m > 0) break;
+        const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        timeOptions += `<option value="${val}">${val}</option>`;
+      }
+    }
+
+    // Day-of-week options
+    const dowOptions = DAY_NAMES_FULL.map((name, i) => `<option value="${i}">${name}</option>`).join('');
+
+    // Default date: tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const defaultDateStr = tomorrow.toISOString().split('T')[0];
+
+    return `
+      <div class="buffer-panel">
+        <!-- Existing Buffer Times -->
+        <div class="buffer-section">
+          <h3 class="buffer-section-title">🔁 Wiederkehrende Pufferzeiten</h3>
+          <div class="buffer-list">
+            ${recurringHtml}
+          </div>
+        </div>
+
+        <div class="buffer-section">
+          <h3 class="buffer-section-title">📅 Einmalige Pufferzeiten</h3>
+          <div class="buffer-list">
+            ${onetimeHtml}
+          </div>
+        </div>
+
+        <!-- Create New Buffer Time -->
+        <div class="buffer-section buffer-create-section">
+          <h3 class="buffer-section-title">➕ Neue Pufferzeit einplanen</h3>
+
+          <div class="buffer-form">
+            <div class="buffer-type-toggle">
+              <button class="buffer-type-btn active" id="buf-type-recurring" data-type="recurring">🔁 Wiederkehrend</button>
+              <button class="buffer-type-btn" id="buf-type-onetime" data-type="onetime">📅 Einmalig</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-4);">
+              <div>
+                <label class="buffer-form-label">Titel (optional)</label>
+                <input type="text" id="buf-title" placeholder="z.B. Mittagspause" class="buffer-form-input">
+              </div>
+              <div id="buf-dow-container">
+                <label class="buffer-form-label">Wochentag</label>
+                <select id="buf-day-of-week" class="buffer-form-input">
+                  ${dowOptions}
+                </select>
+              </div>
+              <div id="buf-date-container" style="display: none;">
+                <label class="buffer-form-label">Datum</label>
+                <input type="date" id="buf-specific-date" value="${defaultDateStr}" class="buffer-form-input">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-4);">
+              <div>
+                <label class="buffer-form-label">Startzeit</label>
+                <select id="buf-start-time" class="buffer-form-input">
+                  ${timeOptions}
+                </select>
+              </div>
+              <div>
+                <label class="buffer-form-label">Endzeit</label>
+                <select id="buf-end-time" class="buffer-form-input">
+                  ${timeOptions}
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-top: var(--space-5); display: flex; gap: var(--space-3); align-items: center;">
+              <button class="btn btn-primary" id="buf-create-btn" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: var(--font-size-sm);">
+                ⏸️ Pufferzeit einplanen
+              </button>
+              <span id="buf-status-msg" style="font-size: var(--font-size-sm); font-weight: 600; display: none;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function attachBufferPanelListeners() {
+    // Type toggle
+    const recurringBtn = document.getElementById('buf-type-recurring');
+    const onetimeBtn = document.getElementById('buf-type-onetime');
+    const dowContainer = document.getElementById('buf-dow-container');
+    const dateContainer = document.getElementById('buf-date-container');
+
+    let isRecurring = true;
+
+    recurringBtn?.addEventListener('click', () => {
+      isRecurring = true;
+      recurringBtn.classList.add('active');
+      onetimeBtn.classList.remove('active');
+      if (dowContainer) dowContainer.style.display = 'block';
+      if (dateContainer) dateContainer.style.display = 'none';
+    });
+
+    onetimeBtn?.addEventListener('click', () => {
+      isRecurring = false;
+      onetimeBtn.classList.add('active');
+      recurringBtn.classList.remove('active');
+      if (dowContainer) dowContainer.style.display = 'none';
+      if (dateContainer) dateContainer.style.display = 'block';
+    });
+
+    // Set default end time to 1 hour after start
+    const startSelect = document.getElementById('buf-start-time');
+    const endSelect = document.getElementById('buf-end-time');
+    if (startSelect && endSelect) {
+      // Default: start=11:30, end=12:00
+      startSelect.value = '11:30';
+      endSelect.value = '12:00';
+      startSelect.addEventListener('change', () => {
+        const [h, m] = startSelect.value.split(':').map(Number);
+        const endMin = h * 60 + m + 30;
+        const eh = Math.floor(endMin / 60);
+        const em = endMin % 60;
+        const endVal = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+        if ([...endSelect.options].some(o => o.value === endVal)) {
+          endSelect.value = endVal;
+        }
+      });
+    }
+
+    // Create buffer time
+    document.getElementById('buf-create-btn')?.addEventListener('click', async () => {
+      const title = document.getElementById('buf-title')?.value?.trim() || '';
+      const dayOfWeek = parseInt(document.getElementById('buf-day-of-week')?.value || '1');
+      const specificDate = document.getElementById('buf-specific-date')?.value || '';
+      const startTime = document.getElementById('buf-start-time')?.value;
+      const endTime = document.getElementById('buf-end-time')?.value;
+      const statusMsg = document.getElementById('buf-status-msg');
+      const createBtn = document.getElementById('buf-create-btn');
+
+      if (!startTime || !endTime || startTime >= endTime) {
+        if (statusMsg) {
+          statusMsg.style.display = 'inline';
+          statusMsg.style.color = '#DC2626';
+          statusMsg.textContent = 'Startzeit muss vor der Endzeit liegen.';
+        }
+        return;
+      }
+
+      createBtn.disabled = true;
+      createBtn.innerHTML = '<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> Wird erstellt...';
+
+      try {
+        const res = await fetch('/api/praxis/buffer-times', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title || 'Pufferzeit',
+            isRecurring,
+            dayOfWeek: isRecurring ? dayOfWeek : null,
+            specificDate: !isRecurring ? specificDate : null,
+            startTime,
+            endTime
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.bufferTime) {
+          allBufferTimes.push(data.bufferTime);
+          if (statusMsg) {
+            statusMsg.style.display = 'inline';
+            statusMsg.style.color = '#059669';
+            statusMsg.textContent = '✓ Pufferzeit erstellt!';
+            setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
+          }
+          allAppointments.forEach(a => { a._hasConflict = false; });
+          markConflicts(allAppointments, allBufferTimes);
+          render(); // Re-render panel
+        } else {
+          throw new Error(data.error || 'Fehler');
+        }
+      } catch (err) {
+        if (statusMsg) {
+          statusMsg.style.display = 'inline';
+          statusMsg.style.color = '#DC2626';
+          statusMsg.textContent = '❌ ' + (err.message || 'Fehler beim Erstellen.');
+        }
+        createBtn.disabled = false;
+        createBtn.innerHTML = '⏸️ Pufferzeit einplanen';
+      }
+    });
+
+    // Delete buffer time
+    document.querySelectorAll('.btn-delete-buffer').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const btId = parseInt(btn.dataset.btId);
+        if (!confirm('Pufferzeit wirklich löschen?')) return;
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          const res = await fetch(`/api/praxis/buffer-times/${btId}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (data.success) {
+            allBufferTimes = allBufferTimes.filter(bt => bt.id !== btId);
+            allAppointments.forEach(a => { a._hasConflict = false; });
+            markConflicts(allAppointments, allBufferTimes);
+            render();
+          }
+        } catch (err) {
+          console.error('Error deleting buffer time:', err);
+          btn.disabled = false;
+          btn.textContent = '🗑️';
+        }
+      });
+    });
   }
 
   function attachEventListeners() {
@@ -457,7 +805,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours)
 
           // Re-mark conflicts
           allAppointments.forEach(a => { a._hasConflict = false; });
-          markConflicts(allAppointments);
+          markConflicts(allAppointments, allBufferTimes);
 
           // Check if there are conflicts
           if (data.conflicts && data.conflicts.length > 0) {
@@ -594,7 +942,13 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours)
     updateAppointments(newAppts) {
       allAppointments = newAppts;
       allAppointments.forEach(a => { a._hasConflict = false; });
-      markConflicts(allAppointments);
+      markConflicts(allAppointments, allBufferTimes);
+      render();
+    },
+    updateBufferTimes(newBts) {
+      allBufferTimes = newBts || [];
+      allAppointments.forEach(a => { a._hasConflict = false; });
+      markConflicts(allAppointments, allBufferTimes);
       render();
     }
   };

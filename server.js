@@ -282,6 +282,22 @@ async function initDb() {
     `);
     console.log('Columns "document_confirmations", "started_at", "ai_questions" and "ai_consent" on precheckins verified.');
 
+    // Create buffer_times table for praxis buffer/break times
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS buffer_times (
+        id SERIAL PRIMARY KEY,
+        praxis_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) DEFAULT 'Pufferzeit',
+        is_recurring BOOLEAN DEFAULT FALSE,
+        day_of_week INTEGER,
+        specific_date VARCHAR(20),
+        start_time VARCHAR(10) NOT NULL,
+        end_time VARCHAR(10) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "buffer_times" verified/created.');
+
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
     console.log('Demo user max@doctolib.de verified removed from database.');
@@ -618,7 +634,7 @@ app.put('/api/auth/profile', async (req, res) => {
 });
 
 // Helper to validate slot times against opening hours
-async function validateAppointmentTime(praxisName, dateStr, timeStr) {
+async function validateAppointmentTime(praxisName, dateStr, timeStr, req = null) {
   const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
   let dayIndex;
   try {
@@ -674,6 +690,47 @@ async function validateAppointmentTime(praxisName, dateStr, timeStr) {
     return { valid: false, error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' };
   }
 
+  // Check buffer times
+  let bufferTimesList = [];
+  if (isDbConnected && pool) {
+    try {
+      const btResult = await pool.query(
+        `SELECT * FROM buffer_times bt
+         JOIN users u ON bt.praxis_id = u.id
+         WHERE u.praxis_name = $1 AND (
+           (bt.is_recurring = TRUE AND bt.day_of_week = $2)
+           OR (bt.is_recurring = FALSE AND bt.specific_date = $3)
+         )`,
+        [praxisName, dayIndex, dateStr]
+      );
+      bufferTimesList = btResult.rows;
+    } catch (err) {
+      console.error('Error checking buffer times in validateAppointmentTime:', err);
+    }
+  } else if (req && req.session && req.session.mockBufferTimes) {
+    bufferTimesList = req.session.mockBufferTimes.filter(bt => {
+      if (bt.is_recurring && bt.day_of_week === dayIndex) {
+        return true;
+      }
+      if (!bt.is_recurring && bt.specific_date === dateStr) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  const apptStartMin = h * 60 + m;
+  const apptEndMin = apptStartMin + 30;
+  for (const bt of bufferTimesList) {
+    const [bsh, bsm] = bt.start_time.split(':').map(Number);
+    const [beh, bem] = bt.end_time.split(':').map(Number);
+    const bufStart = bsh * 60 + bsm;
+    const bufEnd = beh * 60 + bem;
+    if (apptStartMin < bufEnd && apptEndMin > bufStart) {
+      return { valid: false, error: `Der gewählte Termin liegt in einer Pufferzeit (${bt.title}: ${bt.start_time}–${bt.end_time}).` };
+    }
+  }
+
   return { valid: true };
 }
 
@@ -715,6 +772,122 @@ app.get('/api/praxis/opening-hours', async (req, res) => {
   } catch (err) {
     console.error('Error fetching opening hours:', err);
     return res.status(500).json({ error: 'Fehler beim Laden der Öffnungszeiten.' });
+  }
+});
+
+// ============================================
+// BUFFER TIMES (PUFFERZEITEN) API ENDPOINTS
+// ============================================
+
+// API: Get all buffer times for the logged-in praxis
+app.get('/api/praxis/buffer-times', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const praxisId = req.session.userId;
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, bufferTimes: req.session.mockBufferTimes || [] });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM buffer_times WHERE praxis_id = $1 ORDER BY is_recurring DESC, day_of_week ASC, specific_date ASC, start_time ASC',
+      [praxisId]
+    );
+    res.json({ success: true, bufferTimes: result.rows });
+  } catch (err) {
+    console.error('Error fetching buffer times:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Pufferzeiten.' });
+  }
+});
+
+// API: Create a new buffer time
+app.post('/api/praxis/buffer-times', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const { title, isRecurring, dayOfWeek, specificDate, startTime, endTime } = req.body;
+  const praxisId = req.session.userId;
+
+  if (!startTime || !endTime) {
+    return res.status(400).json({ error: 'Start- und Endzeit sind erforderlich.' });
+  }
+
+  if (startTime >= endTime) {
+    return res.status(400).json({ error: 'Die Startzeit muss vor der Endzeit liegen.' });
+  }
+
+  if (isRecurring && (dayOfWeek === undefined || dayOfWeek === null)) {
+    return res.status(400).json({ error: 'Für wiederkehrende Pufferzeiten muss ein Wochentag gewählt werden.' });
+  }
+
+  if (!isRecurring && !specificDate) {
+    return res.status(400).json({ error: 'Für einmalige Pufferzeiten muss ein Datum gewählt werden.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    // Mock mode
+    if (!req.session.mockBufferTimes) req.session.mockBufferTimes = [];
+    const mockBt = {
+      id: Date.now(),
+      praxis_id: praxisId,
+      title: title || 'Pufferzeit',
+      is_recurring: !!isRecurring,
+      day_of_week: isRecurring ? parseInt(dayOfWeek) : null,
+      specific_date: !isRecurring ? specificDate : null,
+      start_time: startTime,
+      end_time: endTime,
+      created_at: new Date().toISOString()
+    };
+    req.session.mockBufferTimes.push(mockBt);
+    return res.json({ success: true, bufferTime: mockBt });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO buffer_times (praxis_id, title, is_recurring, day_of_week, specific_date, start_time, end_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        praxisId,
+        title || 'Pufferzeit',
+        !!isRecurring,
+        isRecurring ? parseInt(dayOfWeek) : null,
+        !isRecurring ? specificDate : null,
+        startTime,
+        endTime
+      ]
+    );
+    res.json({ success: true, bufferTime: result.rows[0] });
+  } catch (err) {
+    console.error('Error creating buffer time:', err);
+    res.status(500).json({ error: 'Fehler beim Erstellen der Pufferzeit.' });
+  }
+});
+
+// API: Delete a buffer time
+app.delete('/api/praxis/buffer-times/:id', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const btId = parseInt(req.params.id);
+  const praxisId = req.session.userId;
+
+  if (!isDbConnected || !pool) {
+    if (req.session.mockBufferTimes) {
+      req.session.mockBufferTimes = req.session.mockBufferTimes.filter(bt => bt.id !== btId);
+    }
+    return res.json({ success: true });
+  }
+
+  try {
+    await pool.query('DELETE FROM buffer_times WHERE id = $1 AND praxis_id = $2', [btId, praxisId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting buffer time:', err);
+    res.status(500).json({ error: 'Fehler beim Löschen der Pufferzeit.' });
   }
 });
 
@@ -768,9 +941,9 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
   const adresse = req.session.user.praxis_adresse || 'Musterstraße 1, 12345 Musterstadt';
 
   // Validate opening hours
-  const timeValidation = await validateAppointmentTime(praxisName, date, time);
+  const timeValidation = await validateAppointmentTime(praxisName, date, time, req);
   if (!timeValidation.valid) {
-    return res.status(400).json({ error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
+    return res.status(400).json({ error: timeValidation.error || 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
   }
 
   if (!isDbConnected || !pool) {
@@ -1066,6 +1239,38 @@ app.get('/api/termine/blocked', async (req, res) => {
     const matches = (req.session.mockAppointments || [])
       .filter(appt => appt.date === date && appt.code !== excludeCode && (appt.praxis === praxis || (userId && appt.user_id === userId)))
       .map(appt => appt.time);
+
+    // Also block slots that fall within mock buffer times
+    if (req.session.mockBufferTimes) {
+      try {
+        const dateObj = new Date(date + 'T00:00:00');
+        const dayOfWeek = dateObj.getDay();
+        const relevantBts = req.session.mockBufferTimes.filter(bt => {
+          if (bt.is_recurring && bt.day_of_week === dayOfWeek) return true;
+          if (!bt.is_recurring && bt.specific_date === date) return true;
+          return false;
+        });
+
+        for (const bt of relevantBts) {
+          const [bsh, bsm] = bt.start_time.split(':').map(Number);
+          const [beh, bem] = bt.end_time.split(':').map(Number);
+          const bufStartMin = bsh * 60 + bsm;
+          const bufEndMin = beh * 60 + bem;
+          for (let slotMin = 7 * 60; slotMin < 18 * 60; slotMin += 30) {
+            const slotEnd = slotMin + 30;
+            if (slotMin < bufEndMin && slotEnd > bufStartMin) {
+              const slotStr = `${String(Math.floor(slotMin / 60)).padStart(2, '0')}:${String(slotMin % 60).padStart(2, '0')}`;
+              if (!matches.includes(slotStr)) {
+                matches.push(slotStr);
+              }
+            }
+          }
+        }
+      } catch (btErr) {
+        console.error('Error filtering mock buffer times:', btErr);
+      }
+    }
+
     return res.json({ blocked: matches });
   }
 
@@ -1076,6 +1281,40 @@ app.get('/api/termine/blocked', async (req, res) => {
       [date, praxis, userId || -1, excludeCode || '']
     );
     const blockedSlots = result.rows.map(row => row.time);
+
+    // Also block slots that fall within buffer times
+    try {
+      const dateObj = new Date(date + 'T00:00:00');
+      const dayOfWeek = dateObj.getDay();
+      const btResult = await pool.query(
+        `SELECT bt.start_time, bt.end_time FROM buffer_times bt
+         JOIN users u ON bt.praxis_id = u.id
+         WHERE u.praxis_name = $1 AND (
+           (bt.is_recurring = TRUE AND bt.day_of_week = $2)
+           OR (bt.is_recurring = FALSE AND bt.specific_date = $3)
+         )`,
+        [praxis, dayOfWeek, date]
+      );
+      for (const bt of btResult.rows) {
+        const [bsh, bsm] = bt.start_time.split(':').map(Number);
+        const [beh, bem] = bt.end_time.split(':').map(Number);
+        const bufStartMin = bsh * 60 + bsm;
+        const bufEndMin = beh * 60 + bem;
+        // Generate all 30-min slots that overlap
+        for (let slotMin = 7 * 60; slotMin < 18 * 60; slotMin += 30) {
+          const slotEnd = slotMin + 30;
+          if (slotMin < bufEndMin && slotEnd > bufStartMin) {
+            const slotStr = `${String(Math.floor(slotMin / 60)).padStart(2, '0')}:${String(slotMin % 60).padStart(2, '0')}`;
+            if (!blockedSlots.includes(slotStr)) {
+              blockedSlots.push(slotStr);
+            }
+          }
+        }
+      }
+    } catch (btErr) {
+      console.error('Error fetching buffer times for blocked slots:', btErr);
+    }
+
     console.log(`[GET /api/termine/blocked] returning blocked slots:`, blockedSlots);
     res.json({ blocked: blockedSlots });
   } catch (err) {
@@ -1098,9 +1337,9 @@ app.post('/api/termine/buchen', async (req, res) => {
   }
 
   // Validate opening hours
-  const timeValidation = await validateAppointmentTime(praxis, date, time);
+  const timeValidation = await validateAppointmentTime(praxis, date, time, req);
   if (!timeValidation.valid) {
-    return res.status(400).json({ error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
+    return res.status(400).json({ error: timeValidation.error || 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
   }
 
   if (!isDbConnected || !pool) {
