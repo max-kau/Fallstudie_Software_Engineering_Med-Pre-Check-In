@@ -137,6 +137,82 @@ function openProfileModal() {
 
   function showOverview() {
     const u = auth.getUser() || {};
+    
+    if (u.role === 'praxis') {
+      const addressFormatted = u.praxis_adresse || '—';
+      const defaultHours = {
+        "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+        "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+      };
+      const oh = u.opening_hours || defaultHours;
+
+      let hoursHtml = '';
+      const days = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+      days.forEach(d => {
+        const dayHours = oh[d] || defaultHours[d];
+        const timeText = dayHours.closed ? '<span style="color: var(--danger); font-weight: 600;">Geschlossen</span>' : `${dayHours.start} - ${dayHours.end} Uhr`;
+        hoursHtml += `
+          <div style="display: flex; justify-content: space-between; padding: var(--space-2) 0; border-bottom: 1px solid var(--gray-100);">
+            <span style="font-weight: 500; color: var(--gray-700);">${d}</span>
+            <span style="color: var(--gray-900);">${timeText}</span>
+          </div>
+        `;
+      });
+
+      contentContainer.innerHTML = `
+        <div class="dl-modal-body" style="overflow-y: auto; padding: var(--space-6); flex-grow: 1;">
+          <p class="text-muted" style="margin-bottom: var(--space-5); font-size: var(--font-size-sm); line-height: 1.4; color: var(--gray-500);">
+            Hier finden Sie die in Ihrem Doctolib-Konto hinterlegten Praxisdaten und Öffnungszeiten.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: var(--space-4); margin-bottom: var(--space-6);">
+            <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
+              <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Ansprechpartner</div>
+              <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.vorname || '—'} ${u.nachname || '—'}</div>
+            </div>
+
+            <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
+              <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Praxisname</div>
+              <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.praxis_name || '—'}</div>
+            </div>
+
+            <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
+              <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Fachbereich</div>
+              <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.praxis_fachbereich || '—'}</div>
+            </div>
+
+            <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
+              <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Adresse</div>
+              <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${addressFormatted || '—'}</div>
+            </div>
+
+            <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
+              <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Telefonnummer</div>
+              <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.praxis_telefon || '—'}</div>
+            </div>
+          </div>
+
+          <h4 style="margin-bottom: var(--space-3); color: var(--gray-800); border-bottom: 2px solid var(--primary); padding-bottom: 4px; display: inline-block;">Öffnungszeiten</h4>
+          <div style="background: var(--gray-50); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
+            ${hoursHtml}
+          </div>
+        </div>
+        <div class="dl-modal-footer" style="flex-shrink: 0;">
+          <button type="button" class="btn btn-outline" id="btn-close-overview" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Schließen</button>
+          <button type="button" class="btn btn-primary" id="btn-edit-profile" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Ändern</button>
+        </div>
+      `;
+
+      document.getElementById('btn-close-overview')?.addEventListener('click', closeModal);
+      document.getElementById('btn-edit-profile')?.addEventListener('click', showEditForm);
+      return;
+    }
+
     const versicherungText = u.krankenversicherung === 'privat' ? 'Privat' : 'Gesetzlich';
     const addressFormatted = [u.strasse_hnr, u.plz_ort].filter(Boolean).join(', ');
 
@@ -185,6 +261,164 @@ function openProfileModal() {
 
   function showEditForm() {
     const u = auth.getUser() || {};
+
+    if (u.role === 'praxis') {
+      const defaultHours = {
+        "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+        "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+      };
+      const oh = u.opening_hours || defaultHours;
+      const days = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+
+      let hoursFormHtml = '';
+      days.forEach(d => {
+        const dayHours = oh[d] || defaultHours[d];
+        const isChecked = !dayHours.closed;
+        hoursFormHtml += `
+          <div class="opening-hour-row" style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap;">
+            <div style="min-width: 100px; font-weight: 600; color: var(--gray-700);">${d}</div>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--font-size-sm); color: var(--gray-600); margin: 0; user-select: none;">
+              <input type="checkbox" class="oh-toggle" data-day="${d}" ${isChecked ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer;" />
+              Geöffnet
+            </label>
+            <div class="time-inputs-container" style="display: flex; align-items: center; gap: 8px;">
+              <input type="time" class="oh-start" data-day="${d}" value="${dayHours.start || '08:00'}" ${!isChecked ? 'disabled' : ''} style="border: 1px solid var(--gray-300); padding: 4px var(--space-2); border-radius: var(--radius-md); font-size: var(--font-size-sm);" />
+              <span style="font-size: var(--font-size-xs); color: var(--gray-400);">bis</span>
+              <input type="time" class="oh-end" data-day="${d}" value="${dayHours.end || '16:00'}" ${!isChecked ? 'disabled' : ''} style="border: 1px solid var(--gray-300); padding: 4px var(--space-2); border-radius: var(--radius-md); font-size: var(--font-size-sm);" />
+            </div>
+          </div>
+        `;
+      });
+
+      contentContainer.innerHTML = `
+        <form id="form-profile-update" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; margin: 0;">
+          <div class="dl-modal-body" style="overflow-y: auto; padding: var(--space-6); flex-grow: 1;">
+            <p class="text-muted" style="margin-bottom: var(--space-4); font-size: var(--font-size-sm); line-height: 1.4; color: var(--gray-500);">
+              Nehmen Sie hier Ihre gewünschten Änderungen vor und speichern Sie diese ab.
+            </p>
+
+            <h5 style="font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-3);">Ansprechpartner</h5>
+            <div class="dl-auth-name-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-4);">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-600); margin-bottom: var(--space-1); display: block;">Vorname</label>
+                <input type="text" id="profile-vorname" class="form-input" value="${u.vorname || ''}" required style="width: 100%; border: 1px solid var(--gray-300); padding: var(--space-2); border-radius: var(--radius-md);" />
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-600); margin-bottom: var(--space-1); display: block;">Nachname</label>
+                <input type="text" id="profile-nachname" class="form-input" value="${u.nachname || ''}" required style="width: 100%; border: 1px solid var(--gray-300); padding: var(--space-2); border-radius: var(--radius-md);" />
+              </div>
+            </div>
+
+            <h5 style="font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-3); border-top: 1px solid var(--gray-200); padding-top: var(--space-4);">Praxis-Details</h5>
+            <div class="form-group" style="margin-bottom: var(--space-3);">
+              <label class="form-label" style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-600); margin-bottom: var(--space-1); display: block;">Praxisname</label>
+              <input type="text" id="profile-praxis-name" class="form-input" value="${u.praxis_name || ''}" required style="width: 100%; border: 1px solid var(--gray-300); padding: var(--space-2); border-radius: var(--radius-md);" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: var(--space-3);">
+              <label class="form-label" style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-600); margin-bottom: var(--space-1); display: block;">Fachbereich</label>
+              <input type="text" id="profile-praxis-fachbereich" class="form-input" value="${u.praxis_fachbereich || ''}" required style="width: 100%; border: 1px solid var(--gray-300); padding: var(--space-2); border-radius: var(--radius-md);" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: var(--space-3);">
+              <label class="form-label" style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-600); margin-bottom: var(--space-1); display: block;">Adresse</label>
+              <input type="text" id="profile-praxis-adresse" class="form-input" value="${u.praxis_adresse || ''}" required style="width: 100%; border: 1px solid var(--gray-300); padding: var(--space-2); border-radius: var(--radius-md);" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: var(--space-4);">
+              <label class="form-label" style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-600); margin-bottom: var(--space-1); display: block;">Telefonnummer</label>
+              <input type="tel" id="profile-praxis-telefon" class="form-input" value="${u.praxis_telefon || ''}" required style="width: 100%; border: 1px solid var(--gray-300); padding: var(--space-2); border-radius: var(--radius-md);" />
+            </div>
+
+            <h5 style="font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-3); border-top: 1px solid var(--gray-200); padding-top: var(--space-4);">Öffnungszeiten</h5>
+            <div style="background: var(--gray-50); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200); margin-bottom: var(--space-3);">
+              ${hoursFormHtml}
+            </div>
+
+            <div class="dl-auth-error" id="profile-error" style="display:none; color: var(--danger); font-size: var(--font-size-xs); margin-top: var(--space-2); font-weight: 600;"></div>
+          </div>
+          <div class="dl-modal-footer" style="flex-shrink: 0;">
+            <button type="button" class="btn btn-outline" id="btn-cancel-edit" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Abbrechen</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-profile" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Speichern</button>
+          </div>
+        </form>
+      `;
+
+      // Enable/disable times based on toggle
+      contentContainer.querySelectorAll('.oh-toggle').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+          const day = chk.getAttribute('data-day');
+          const startInput = contentContainer.querySelector(`.oh-start[data-day="${day}"]`);
+          const endInput = contentContainer.querySelector(`.oh-end[data-day="${day}"]`);
+          if (startInput && endInput) {
+            startInput.disabled = !e.target.checked;
+            endInput.disabled = !e.target.checked;
+          }
+        });
+      });
+
+      document.getElementById('btn-cancel-edit')?.addEventListener('click', showOverview);
+
+      const form = document.getElementById('form-profile-update');
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btn-save-profile');
+        const errorEl = document.getElementById('profile-error');
+        errorEl.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = 'Wird gespeichert…';
+
+        // Gather opening hours
+        const opening_hours = {};
+        days.forEach(d => {
+          const chk = form.querySelector(`.oh-toggle[data-day="${d}"]`);
+          const start = form.querySelector(`.oh-start[data-day="${d}"]`).value;
+          const end = form.querySelector(`.oh-end[data-day="${d}"]`).value;
+          opening_hours[d] = {
+            closed: !chk.checked,
+            start: start,
+            end: end
+          };
+        });
+
+        const payload = {
+          vorname: document.getElementById('profile-vorname').value.trim(),
+          nachname: document.getElementById('profile-nachname').value.trim(),
+          praxis_name: document.getElementById('profile-praxis-name').value.trim(),
+          praxis_fachbereich: document.getElementById('profile-praxis-fachbereich').value.trim(),
+          praxis_adresse: document.getElementById('profile-praxis-adresse').value.trim(),
+          praxis_telefon: document.getElementById('profile-praxis-telefon').value.trim(),
+          opening_hours: opening_hours
+        };
+
+        try {
+          const res = await fetch('/api/auth/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Profil konnte nicht gespeichert werden');
+          
+          await auth.checkSession(true);
+          
+          window.dispatchEvent(new CustomEvent('authChanged', { detail: { user: auth.getUser() } }));
+          
+          showOverview();
+        } catch (err) {
+          errorEl.textContent = err.message;
+          errorEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Speichern';
+        }
+      });
+      return;
+    }
 
     contentContainer.innerHTML = `
       <form id="form-profile-update" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; margin: 0;">

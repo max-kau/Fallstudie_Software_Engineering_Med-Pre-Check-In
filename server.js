@@ -48,6 +48,9 @@ if (connectionString) {
         ? false
         : { rejectUnauthorized: false }
     });
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle database client:', err.message);
+    });
     isDbConnected = true;
     console.log('PostgreSQL database pool initialized.');
   } catch (err) {
@@ -127,7 +130,12 @@ async function initDb() {
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_assessments JSONB DEFAULT NULL;
     `);
-    console.log('Columns "current_step", "submitted", "dokumente", "signature_data" and "ai_assessments" verified.');
+    
+    // 4.7. Add the "anamnesis_assessment" column to precheckins for AI diagnostics/assessments
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS anamnesis_assessment TEXT DEFAULT NULL;
+    `);
+    console.log('Columns "current_step", "submitted", "dokumente", "signature_data", "ai_assessments" and "anamnesis_assessment" verified.');
 
     // 5. Create uploaded files table for binary data storage
     await pool.query(`
@@ -164,8 +172,9 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_fachbereich VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_adresse VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_telefon VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS opening_hours JSONB DEFAULT NULL;
     `);
-    console.log('Table "users" verified/created with profile and role columns.');
+    console.log('Table "users" verified/created with profile, role, and opening hours columns.');
 
     // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
@@ -484,7 +493,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon 
+      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
        FROM users 
        WHERE email = $1`,
       [email.toLowerCase()]
@@ -518,7 +527,8 @@ app.post('/api/auth/login', async (req, res) => {
       praxis_name: user.praxis_name,
       praxis_fachbereich: user.praxis_fachbereich,
       praxis_adresse: user.praxis_adresse,
-      praxis_telefon: user.praxis_telefon
+      praxis_telefon: user.praxis_telefon,
+      opening_hours: user.opening_hours
     };
 
     console.log(`User logged in: ${user.email}`);
@@ -557,7 +567,7 @@ app.get('/api/auth/me', async (req, res) => {
   if (req.session && req.session.userId) {
     try {
       const result = await pool.query(
-        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon FROM users WHERE id = $1',
+        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours FROM users WHERE id = $1',
         [req.session.userId]
       );
       if (result.rows.length > 0) {
@@ -578,7 +588,7 @@ app.put('/api/auth/profile', async (req, res) => {
     return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
 
-  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
+  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours } = req.body;
 
   if (!vorname || !nachname) {
     return res.status(400).json({ error: 'Vorname und Nachname sind erforderlich.' });
@@ -591,10 +601,10 @@ app.put('/api/auth/profile', async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE users 
-       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12 
-       WHERE id = $13 
-       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
-      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, req.session.userId]
+       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12, opening_hours = $13 
+       WHERE id = $14 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours`,
+      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, opening_hours ? (typeof opening_hours === 'string' ? opening_hours : JSON.stringify(opening_hours)) : null, req.session.userId]
     );
 
     const user = result.rows[0];
@@ -604,6 +614,107 @@ app.put('/api/auth/profile', async (req, res) => {
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ error: 'Aktualisierung des Profils fehlgeschlagen.' });
+  }
+});
+
+// Helper to validate slot times against opening hours
+async function validateAppointmentTime(praxisName, dateStr, timeStr) {
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  let dayIndex;
+  try {
+    dayIndex = new Date(dateStr + 'T00:00:00').getDay();
+  } catch (err) {
+    return { valid: false, error: 'Ungültiges Datum.' };
+  }
+  const dayName = dayNames[dayIndex];
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  let openingHours = defaultHours;
+
+  if (isDbConnected && pool) {
+    try {
+      const result = await pool.query(
+        'SELECT opening_hours FROM users WHERE role = $1 AND praxis_name = $2 ORDER BY opening_hours IS NOT NULL DESC, id DESC',
+        ['praxis', praxisName]
+      );
+      if (result.rows.length > 0 && result.rows[0].opening_hours) {
+        openingHours = result.rows[0].opening_hours;
+      }
+    } catch (err) {
+      console.error('Error in validateAppointmentTime db query:', err);
+    }
+  }
+
+  const hoursToday = openingHours[dayName];
+  if (!hoursToday || hoursToday.closed) {
+    return { valid: false, error: 'Die Praxis ist an diesem Tag geschlossen.' };
+  }
+
+  const { start, end } = hoursToday;
+  if (!start || !end) {
+    return { valid: false, error: 'Keine Öffnungszeiten für diesen Tag definiert.' };
+  }
+
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + 30;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  const endTimeStr = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+
+  if (timeStr < start || endTimeStr > end) {
+    return { valid: false, error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' };
+  }
+
+  return { valid: true };
+}
+
+// API: Get opening hours of a praxis
+app.get('/api/praxis/opening-hours', async (req, res) => {
+  const praxisName = req.query.praxis;
+  if (!praxisName) {
+    return res.status(400).json({ error: 'praxis-Parameter ist erforderlich.' });
+  }
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  if (!isDbConnected || !pool) {
+    if (req.session.user && req.session.user.role === 'praxis' && req.session.user.praxis_name === praxisName && req.session.user.opening_hours) {
+      return res.json({ success: true, opening_hours: req.session.user.opening_hours });
+    }
+    return res.json({ success: true, opening_hours: defaultHours });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT opening_hours FROM users WHERE role = $1 AND praxis_name = $2 ORDER BY opening_hours IS NOT NULL DESC, id DESC',
+      ['praxis', praxisName]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].opening_hours) {
+      return res.json({ success: true, opening_hours: result.rows[0].opening_hours });
+    }
+
+    return res.json({ success: true, opening_hours: defaultHours });
+  } catch (err) {
+    console.error('Error fetching opening hours:', err);
+    return res.status(500).json({ error: 'Fehler beim Laden der Öffnungszeiten.' });
   }
 });
 
@@ -655,6 +766,12 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
   const praxisName = req.session.user.praxis_name || 'Meine Praxis';
   const fachrichtung = req.session.user.praxis_fachbereich || 'Allgemeinmedizin';
   const adresse = req.session.user.praxis_adresse || 'Musterstraße 1, 12345 Musterstadt';
+
+  // Validate opening hours
+  const timeValidation = await validateAppointmentTime(praxisName, date, time);
+  if (!timeValidation.valid) {
+    return res.status(400).json({ error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
+  }
 
   if (!isDbConnected || !pool) {
     // Offline mode: mock booking
@@ -978,6 +1095,12 @@ app.post('/api/termine/buchen', async (req, res) => {
 
   if (!doctor || !fachrichtung || !adresse || !date || !time || !art || !praxis) {
     return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
+
+  // Validate opening hours
+  const timeValidation = await validateAppointmentTime(praxis, date, time);
+  if (!timeValidation.valid) {
+    return res.status(400).json({ error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
   }
 
   if (!isDbConnected || !pool) {
@@ -2726,7 +2849,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
 
   try {
     const terminRes = await pool.query(
-      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent, p.anamnesis_assessment
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
@@ -2748,7 +2871,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     }
 
     if (termin.ai_assessments) {
-      return res.json({ success: true, ai_assessments: termin.ai_assessments });
+      return res.json({ success: true, ai_assessments: termin.ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
     }
 
     // Generate assessments using Gemini or fallback
@@ -2933,10 +3056,10 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
       [JSON.stringify(ai_assessments), code]
     );
 
-    res.json({ success: true, ai_assessments });
+    res.json({ success: true, ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
   } catch (err) {
     console.error('Error generating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Generieren der KI-Einschätzungen.' });
+    res.status(500).json({ error: 'Fehler beim Generieren der Empfehlungen des KI-Assistenten.' });
   }
 });
 
@@ -2967,7 +3090,101 @@ app.put('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Aktualisieren der KI-Einschätzungen.' });
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des KI-Assistenten.' });
+  }
+});
+
+// API: Generate anamnesis assessment using Gemini
+app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { code } = req.params;
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbankverbindung nicht verfügbar.' });
+  }
+
+  try {
+    // 1. Fetch appointment & precheckin details
+    const terminRes = await pool.query(
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions
+       FROM termine t
+       LEFT JOIN precheckins p ON t.code = p.termin_code
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [code, req.session.user.praxis_name]
+    );
+
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    const termin = terminRes.rows[0];
+    if (!termin.submitted) {
+      return res.status(400).json({ error: 'Pre-Check-In des Patienten ist noch nicht abgeschlossen.' });
+    }
+
+    const beschwerden = termin.beschwerden || {};
+    const medikamente = termin.medikamente || {};
+    const allergien = termin.allergien || {};
+    const customAnswers = termin.custom_answers || {};
+    const aiQuestions = termin.ai_questions || [];
+
+    let anamnesis_assessment = '';
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not defined');
+      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const prompt = `
+Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
+
+Achtung: Dies dient ausschließlich der Vorbereitung des behandelnden Arztes im internen Dashboard.
+Formuliere die Einschätzung professionell, präzise und übersichtlich in deutscher Sprache (ca. 3-4 Sätze).
+
+Praxis- & Termin-Kontext:
+- Fachrichtung: ${termin.fachrichtung}
+- Termin-Art: ${termin.art}
+- Praxis-Name: ${termin.praxis}
+- Arzt: ${termin.doctor}
+
+Patienten-Angaben (Pre-Check-In):
+- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
+- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
+- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
+- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
+- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
+- Medikamente: ${JSON.stringify(medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.list || [])}
+- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
+- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
+
+Erstelle eine präzise Einschätzung mit möglichen Verdachtsdiagnosen oder Empfehlungen. Antworte direkt als Fließtext ohne Markdown-Formatierungen, HTML-Tags oder Begleittext.
+`;
+
+      const result = await model.generateContent(prompt);
+      anamnesis_assessment = result.response.text().trim();
+    } catch (aiErr) {
+      console.warn('Gemini API call failed for anamnesis-assessment, falling back to rule-based generation:', aiErr.message);
+      // Fallback rule-based generation
+      const chipsStr = (beschwerden.chips || []).join(', ');
+      anamnesis_assessment = `Basierend auf den gemeldeten Symptomen (${chipsStr || 'Keine Angabe'}) und der Freitext-Beschreibung liegt der Verdacht nahe, dass eine symptombezogene Abklärung in der Fachrichtung ${termin.fachrichtung} erforderlich ist. Bitte prüfen Sie mögliche Wechselwirkungen mit der aktuellen Medikation und die Ausschlusskriterien für Allergien.`;
+    }
+
+    // Save to DB
+    await pool.query(
+      'UPDATE precheckins SET anamnesis_assessment = $1 WHERE termin_code = $2',
+      [anamnesis_assessment, code]
+    );
+
+    res.json({ success: true, anamnesis_assessment });
+  } catch (err) {
+    console.error('Error generating anamnesis assessment:', err);
+    res.status(500).json({ error: 'Fehler beim Generieren der Einschätzung aus der Anamnese.' });
   }
 });
 

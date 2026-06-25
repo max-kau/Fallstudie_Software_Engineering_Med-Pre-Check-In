@@ -147,7 +147,56 @@ export function renderCalendarView() {
   `;
 }
 
-function renderDayView(date, appointments) {
+function renderShadingBlocks(date, openingHours) {
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  const dayName = dayNames[date.getDay()];
+  
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+  
+  const oh = openingHours || defaultHours;
+  const todayHours = oh[dayName] || defaultHours[dayName] || { closed: true };
+
+  const calStartMin = CALENDAR_START_HOUR * 60;
+  const calEndMin = CALENDAR_END_HOUR * 60;
+
+  const buildBlock = (startMin, endMin) => {
+    if (endMin <= startMin) return '';
+    const topPx = ((startMin - calStartMin) / 60) * HOUR_HEIGHT_PX;
+    const heightPx = ((endMin - startMin) / 60) * HOUR_HEIGHT_PX;
+    return `
+      <div class="cal-shading-block" 
+           style="position: absolute; left: 0; right: 0; top: ${topPx}px; height: ${heightPx}px; background-color: rgba(0, 99, 190, 0.06); pointer-events: none; z-index: 1;">
+      </div>
+    `;
+  };
+
+  if (todayHours.closed) {
+    return buildBlock(calStartMin, calEndMin);
+  }
+
+  const openStart = parseTimeToMinutes(todayHours.start);
+  const openEnd = parseTimeToMinutes(todayHours.end);
+
+  let html = '';
+  if (openStart > calStartMin) {
+    html += buildBlock(calStartMin, Math.min(calEndMin, openStart));
+  }
+  if (openEnd < calEndMin) {
+    html += buildBlock(Math.max(calStartMin, openEnd), calEndMin);
+  }
+
+  return html;
+}
+
+function renderDayView(date, appointments, openingHours) {
   const dayAppts = filterAppointmentsByDate(appointments, date);
   const isToday = isSameDay(date, new Date());
 
@@ -159,6 +208,7 @@ function renderDayView(date, appointments) {
           <span class="cal-day-num ${isToday ? 'cal-day-num--today' : ''}">${date.getDate()}</span>
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
+          ${renderShadingBlocks(date, openingHours)}
           ${renderTimeGridLines()}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
@@ -170,7 +220,7 @@ function renderDayView(date, appointments) {
   `;
 }
 
-function renderWeekView(mondayDate, appointments) {
+function renderWeekView(mondayDate, appointments, openingHours) {
   const today = new Date();
   let cols = '';
   for (let i = 0; i < 7; i++) {
@@ -185,6 +235,7 @@ function renderWeekView(mondayDate, appointments) {
           <span class="cal-day-num ${isToday ? 'cal-day-num--today' : ''}">${d.getDate()}</span>
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
+          ${renderShadingBlocks(d, openingHours)}
           ${renderTimeGridLines()}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
@@ -297,11 +348,12 @@ function markConflicts(appointments) {
 
 // ── Calendar Controller ────────
 
-export function initCalendarView(appointments, onAppointmentClick) {
+export function initCalendarView(appointments, onAppointmentClick, openingHours) {
   let currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
   let viewMode = 'day'; // 'day' | 'week'
   let allAppointments = appointments || [];
+  let currentOpeningHours = openingHours || null;
 
   // Mark conflicts
   markConflicts(allAppointments);
@@ -313,11 +365,11 @@ export function initCalendarView(appointments, onAppointmentClick) {
   function render() {
     if (viewMode === 'day') {
       calTitle.textContent = formatDateHeader(currentDate);
-      calBody.innerHTML = renderDayView(currentDate, allAppointments);
+      calBody.innerHTML = renderDayView(currentDate, allAppointments, currentOpeningHours);
     } else {
       const monday = getMonday(currentDate);
       calTitle.textContent = formatWeekHeader(monday);
-      calBody.innerHTML = renderWeekView(monday, allAppointments);
+      calBody.innerHTML = renderWeekView(monday, allAppointments, currentOpeningHours);
     }
     attachEventListeners();
   }

@@ -285,6 +285,14 @@ function renderQuestions(questions) {
 export async function initPraxisDashboardView() {
   initDlNav();
 
+  if (window._dashboardAuthListener) {
+    window.removeEventListener('authChanged', window._dashboardAuthListener);
+  }
+  window._dashboardAuthListener = () => {
+    initPraxisDashboardView();
+  };
+  window.addEventListener('authChanged', window._dashboardAuthListener);
+
   // Handle manual appointment creation
   document.getElementById('btn-create-appointment')?.addEventListener('click', () => {
     openCreateAppointmentModal(() => {
@@ -352,10 +360,11 @@ export async function initPraxisDashboardView() {
         });
       });
 
-      // Initialize Calendar with appointment data
+      // Initialize Calendar with appointment data and opening hours
+      const user = auth.getUser() || {};
       initCalendarView(termineData, (appt) => {
         openPatientDetailModal(appt.code);
-      });
+      }, user.opening_hours);
     }
   } catch (err) {
     termineContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Termine konnten nicht geladen werden.</p>';
