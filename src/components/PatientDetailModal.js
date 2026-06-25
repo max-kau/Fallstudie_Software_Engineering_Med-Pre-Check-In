@@ -258,14 +258,6 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
           </div>
         </div>
         ` : ''}
-        ${termin.signature_data ? `
-        <div>
-          <div class="pdm-subsection-title">Digitale Unterschrift</div>
-          <div style="margin-top: var(--space-2); background: white; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2); display: inline-block; max-width: 250px;">
-            <img src="${termin.signature_data}" style="max-height: 80px; display: block;" alt="Unterschrift" />
-          </div>
-        </div>
-        ` : ''}
       </div>
     </div>
     ` : `
