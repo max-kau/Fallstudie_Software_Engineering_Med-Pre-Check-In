@@ -167,8 +167,9 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_fachbereich VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_adresse VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_telefon VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS opening_hours JSONB DEFAULT NULL;
     `);
-    console.log('Table "users" verified/created with profile and role columns.');
+    console.log('Table "users" verified/created with profile, role, and opening hours columns.');
 
     // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
@@ -487,7 +488,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon 
+      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
        FROM users 
        WHERE email = $1`,
       [email.toLowerCase()]
@@ -521,7 +522,8 @@ app.post('/api/auth/login', async (req, res) => {
       praxis_name: user.praxis_name,
       praxis_fachbereich: user.praxis_fachbereich,
       praxis_adresse: user.praxis_adresse,
-      praxis_telefon: user.praxis_telefon
+      praxis_telefon: user.praxis_telefon,
+      opening_hours: user.opening_hours
     };
 
     console.log(`User logged in: ${user.email}`);
@@ -560,7 +562,7 @@ app.get('/api/auth/me', async (req, res) => {
   if (req.session && req.session.userId) {
     try {
       const result = await pool.query(
-        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon FROM users WHERE id = $1',
+        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours FROM users WHERE id = $1',
         [req.session.userId]
       );
       if (result.rows.length > 0) {
@@ -581,7 +583,7 @@ app.put('/api/auth/profile', async (req, res) => {
     return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
 
-  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
+  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours } = req.body;
 
   if (!vorname || !nachname) {
     return res.status(400).json({ error: 'Vorname und Nachname sind erforderlich.' });
@@ -594,10 +596,10 @@ app.put('/api/auth/profile', async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE users 
-       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12 
-       WHERE id = $13 
-       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
-      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, req.session.userId]
+       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12, opening_hours = $13 
+       WHERE id = $14 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours`,
+      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, opening_hours ? (typeof opening_hours === 'string' ? opening_hours : JSON.stringify(opening_hours)) : null, req.session.userId]
     );
 
     const user = result.rows[0];
@@ -607,6 +609,107 @@ app.put('/api/auth/profile', async (req, res) => {
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ error: 'Aktualisierung des Profils fehlgeschlagen.' });
+  }
+});
+
+// Helper to validate slot times against opening hours
+async function validateAppointmentTime(praxisName, dateStr, timeStr) {
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  let dayIndex;
+  try {
+    dayIndex = new Date(dateStr + 'T00:00:00').getDay();
+  } catch (err) {
+    return { valid: false, error: 'Ungültiges Datum.' };
+  }
+  const dayName = dayNames[dayIndex];
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  let openingHours = defaultHours;
+
+  if (isDbConnected && pool) {
+    try {
+      const result = await pool.query(
+        'SELECT opening_hours FROM users WHERE role = $1 AND praxis_name = $2 ORDER BY opening_hours IS NOT NULL DESC, id DESC',
+        ['praxis', praxisName]
+      );
+      if (result.rows.length > 0 && result.rows[0].opening_hours) {
+        openingHours = result.rows[0].opening_hours;
+      }
+    } catch (err) {
+      console.error('Error in validateAppointmentTime db query:', err);
+    }
+  }
+
+  const hoursToday = openingHours[dayName];
+  if (!hoursToday || hoursToday.closed) {
+    return { valid: false, error: 'Die Praxis ist an diesem Tag geschlossen.' };
+  }
+
+  const { start, end } = hoursToday;
+  if (!start || !end) {
+    return { valid: false, error: 'Keine Öffnungszeiten für diesen Tag definiert.' };
+  }
+
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + 30;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  const endTimeStr = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+
+  if (timeStr < start || endTimeStr > end) {
+    return { valid: false, error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' };
+  }
+
+  return { valid: true };
+}
+
+// API: Get opening hours of a praxis
+app.get('/api/praxis/opening-hours', async (req, res) => {
+  const praxisName = req.query.praxis;
+  if (!praxisName) {
+    return res.status(400).json({ error: 'praxis-Parameter ist erforderlich.' });
+  }
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  if (!isDbConnected || !pool) {
+    if (req.session.user && req.session.user.role === 'praxis' && req.session.user.praxis_name === praxisName && req.session.user.opening_hours) {
+      return res.json({ success: true, opening_hours: req.session.user.opening_hours });
+    }
+    return res.json({ success: true, opening_hours: defaultHours });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT opening_hours FROM users WHERE role = $1 AND praxis_name = $2 ORDER BY opening_hours IS NOT NULL DESC, id DESC',
+      ['praxis', praxisName]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].opening_hours) {
+      return res.json({ success: true, opening_hours: result.rows[0].opening_hours });
+    }
+
+    return res.json({ success: true, opening_hours: defaultHours });
+  } catch (err) {
+    console.error('Error fetching opening hours:', err);
+    return res.status(500).json({ error: 'Fehler beim Laden der Öffnungszeiten.' });
   }
 });
 
@@ -658,6 +761,12 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
   const praxisName = req.session.user.praxis_name || 'Meine Praxis';
   const fachrichtung = req.session.user.praxis_fachbereich || 'Allgemeinmedizin';
   const adresse = req.session.user.praxis_adresse || 'Musterstraße 1, 12345 Musterstadt';
+
+  // Validate opening hours
+  const timeValidation = await validateAppointmentTime(praxisName, date, time);
+  if (!timeValidation.valid) {
+    return res.status(400).json({ error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
+  }
 
   if (!isDbConnected || !pool) {
     // Offline mode: mock booking
@@ -981,6 +1090,12 @@ app.post('/api/termine/buchen', async (req, res) => {
 
   if (!doctor || !fachrichtung || !adresse || !date || !time || !art || !praxis) {
     return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
+
+  // Validate opening hours
+  const timeValidation = await validateAppointmentTime(praxis, date, time);
+  if (!timeValidation.valid) {
+    return res.status(400).json({ error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
   }
 
   if (!isDbConnected || !pool) {
