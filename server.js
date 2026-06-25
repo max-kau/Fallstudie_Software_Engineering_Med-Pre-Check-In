@@ -130,7 +130,12 @@ async function initDb() {
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_assessments JSONB DEFAULT NULL;
     `);
-    console.log('Columns "current_step", "submitted", "dokumente", "signature_data" and "ai_assessments" verified.');
+    
+    // 4.7. Add the "anamnesis_assessment" column to precheckins for AI diagnostics/assessments
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS anamnesis_assessment TEXT DEFAULT NULL;
+    `);
+    console.log('Columns "current_step", "submitted", "dokumente", "signature_data", "ai_assessments" and "anamnesis_assessment" verified.');
 
     // 5. Create uploaded files table for binary data storage
     await pool.query(`
@@ -2844,7 +2849,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
 
   try {
     const terminRes = await pool.query(
-      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent, p.anamnesis_assessment
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
@@ -2866,7 +2871,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     }
 
     if (termin.ai_assessments) {
-      return res.json({ success: true, ai_assessments: termin.ai_assessments });
+      return res.json({ success: true, ai_assessments: termin.ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
     }
 
     // Generate assessments using Gemini or fallback
@@ -3051,10 +3056,10 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
       [JSON.stringify(ai_assessments), code]
     );
 
-    res.json({ success: true, ai_assessments });
+    res.json({ success: true, ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
   } catch (err) {
     console.error('Error generating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Generieren der KI-Einschätzungen.' });
+    res.status(500).json({ error: 'Fehler beim Generieren der Empfehlungen des KI-Assistenten.' });
   }
 });
 
@@ -3085,7 +3090,101 @@ app.put('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Aktualisieren der KI-Einschätzungen.' });
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des KI-Assistenten.' });
+  }
+});
+
+// API: Generate anamnesis assessment using Gemini
+app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { code } = req.params;
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbankverbindung nicht verfügbar.' });
+  }
+
+  try {
+    // 1. Fetch appointment & precheckin details
+    const terminRes = await pool.query(
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions
+       FROM termine t
+       LEFT JOIN precheckins p ON t.code = p.termin_code
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [code, req.session.user.praxis_name]
+    );
+
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    const termin = terminRes.rows[0];
+    if (!termin.submitted) {
+      return res.status(400).json({ error: 'Pre-Check-In des Patienten ist noch nicht abgeschlossen.' });
+    }
+
+    const beschwerden = termin.beschwerden || {};
+    const medikamente = termin.medikamente || {};
+    const allergien = termin.allergien || {};
+    const customAnswers = termin.custom_answers || {};
+    const aiQuestions = termin.ai_questions || [];
+
+    let anamnesis_assessment = '';
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not defined');
+      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const prompt = `
+Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
+
+Achtung: Dies dient ausschließlich der Vorbereitung des behandelnden Arztes im internen Dashboard.
+Formuliere die Einschätzung professionell, präzise und übersichtlich in deutscher Sprache (ca. 3-4 Sätze).
+
+Praxis- & Termin-Kontext:
+- Fachrichtung: ${termin.fachrichtung}
+- Termin-Art: ${termin.art}
+- Praxis-Name: ${termin.praxis}
+- Arzt: ${termin.doctor}
+
+Patienten-Angaben (Pre-Check-In):
+- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
+- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
+- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
+- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
+- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
+- Medikamente: ${JSON.stringify(medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.list || [])}
+- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
+- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
+
+Erstelle eine präzise Einschätzung mit möglichen Verdachtsdiagnosen oder Empfehlungen. Antworte direkt als Fließtext ohne Markdown-Formatierungen, HTML-Tags oder Begleittext.
+`;
+
+      const result = await model.generateContent(prompt);
+      anamnesis_assessment = result.response.text().trim();
+    } catch (aiErr) {
+      console.warn('Gemini API call failed for anamnesis-assessment, falling back to rule-based generation:', aiErr.message);
+      // Fallback rule-based generation
+      const chipsStr = (beschwerden.chips || []).join(', ');
+      anamnesis_assessment = `Basierend auf den gemeldeten Symptomen (${chipsStr || 'Keine Angabe'}) und der Freitext-Beschreibung liegt der Verdacht nahe, dass eine symptombezogene Abklärung in der Fachrichtung ${termin.fachrichtung} erforderlich ist. Bitte prüfen Sie mögliche Wechselwirkungen mit der aktuellen Medikation und die Ausschlusskriterien für Allergien.`;
+    }
+
+    // Save to DB
+    await pool.query(
+      'UPDATE precheckins SET anamnesis_assessment = $1 WHERE termin_code = $2',
+      [anamnesis_assessment, code]
+    );
+
+    res.json({ success: true, anamnesis_assessment });
+  } catch (err) {
+    console.error('Error generating anamnesis assessment:', err);
+    res.status(500).json({ error: 'Fehler beim Generieren der Einschätzung aus der Anamnese.' });
   }
 });
 
