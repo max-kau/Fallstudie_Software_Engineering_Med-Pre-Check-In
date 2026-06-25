@@ -48,6 +48,9 @@ if (connectionString) {
         ? false
         : { rejectUnauthorized: false }
     });
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle database client:', err.message);
+    });
     isDbConnected = true;
     console.log('PostgreSQL database pool initialized.');
   } catch (err) {
