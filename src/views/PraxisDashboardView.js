@@ -342,7 +342,7 @@ export async function initPraxisDashboardView() {
     statsContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Statistiken konnten nicht geladen werden.</p>';
   }
 
-  // Load appointments
+  // Load appointments and buffer times
   try {
     const termineRes = await fetch('/api/praxis/termine');
     const data = await termineRes.json();
@@ -360,11 +360,23 @@ export async function initPraxisDashboardView() {
         });
       });
 
-      // Initialize Calendar with appointment data and opening hours
+      // Load buffer times
+      let bufferTimes = [];
+      try {
+        const btRes = await fetch('/api/praxis/buffer-times');
+        const btData = await btRes.json();
+        if (btData.success) {
+          bufferTimes = btData.bufferTimes || [];
+        }
+      } catch (btErr) {
+        console.error('Failed to load buffer times:', btErr);
+      }
+
+      // Initialize Calendar with appointment data, opening hours, and buffer times
       const user = auth.getUser() || {};
       initCalendarView(termineData, (appt) => {
         openPatientDetailModal(appt.code);
-      }, user.opening_hours);
+      }, user.opening_hours, bufferTimes);
     }
   } catch (err) {
     termineContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Termine konnten nicht geladen werden.</p>';
