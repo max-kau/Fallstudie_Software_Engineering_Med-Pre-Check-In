@@ -16,6 +16,16 @@ function getGermanDateToday() {
   return `${days[now.getDay()]}, ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`;
 }
 
+function adjustTime(timeStr, minutesOffset) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  let totalMin = h * 60 + m + minutesOffset;
+  if (totalMin < 0) totalMin = 0;
+  const hOut = Math.floor(totalMin / 60) % 24;
+  const mOut = totalMin % 60;
+  return `${String(hOut).padStart(2, '0')}:${String(mOut).padStart(2, '0')}`;
+}
+
 function getStatusLabel(status) {
   switch (status) {
     case 'waiting': return 'Wartend';
@@ -222,6 +232,15 @@ function renderPatientQueueCards(queue) {
     const personClass = `queue-person-icon--${item.status}`;
     const ownClass = item.is_own ? 'queue-card--own' : '';
 
+    let timeHtml = `${item.time} Uhr`;
+    if (item.status === 'delayed' && item.delay_minutes > 0) {
+      const newTime = adjustTime(item.time, item.delay_minutes);
+      timeHtml = `<span style="text-decoration: line-through; color: #EF4444; margin-right: 6px;">${item.time}</span><span style="font-weight: 800; color: #EF4444;">${newTime} Uhr</span>`;
+    } else if (item.early_request_status === 'accepted' && item.early_minutes > 0) {
+      const newTime = adjustTime(item.time, -item.early_minutes);
+      timeHtml = `<span style="text-decoration: line-through; color: #3B82F6; margin-right: 6px;">${item.time}</span><span style="font-weight: 800; color: #3B82F6;">${newTime} Uhr</span>`;
+    }
+
     return `
       <div class="queue-card ${statusClass} ${ownClass}" style="animation-delay: ${idx * 0.08}s">
         <div class="queue-card-inner">
@@ -238,7 +257,7 @@ function renderPatientQueueCards(queue) {
             </div>
             ${item.patient_geburtsdatum ? `<div class="queue-card-birthday">🎂 ${item.patient_geburtsdatum}</div>` : ''}
             <div class="queue-card-time">
-              🕐 ${item.time} Uhr
+              🕐 ${timeHtml}
             </div>
             ${item.status === 'delayed' && item.delay_minutes > 0 ? `
               <div class="queue-delay-info">
