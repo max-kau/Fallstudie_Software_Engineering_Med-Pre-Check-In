@@ -91,7 +91,7 @@ function getAvailableTimeslotsForDate(dateStr) {
 async function fetchBlockedSlots(praxisName) {
   if (!selectedDate) return;
   try {
-    const res = await fetch(`/api/termine/blocked?date=${selectedDate}&praxis=${encodeURIComponent(praxisName)}`);
+    const res = await fetch(`/api/termine/blocked?date=${selectedDate}&praxis=${encodeURIComponent(praxisName)}&_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
     blockedSlots = data.blocked || [];
   } catch (err) {
@@ -366,7 +366,7 @@ export function initPraxisView() {
 
   async function loadData() {
     try {
-      const ohRes = await fetch(`/api/praxis/opening-hours?praxis=${encodeURIComponent(praxis.name)}`);
+      const ohRes = await fetch(`/api/praxis/opening-hours?praxis=${encodeURIComponent(praxis.name)}&_t=${Date.now()}`, { cache: 'no-store' });
       const ohData = await ohRes.json();
       if (ohData.success) {
         openingHours = ohData.opening_hours;
@@ -433,6 +433,7 @@ export function initPraxisView() {
     await fetchBlockedSlots(praxis.name);
     
     const slots = getAvailableTimeslotsForDate(selectedDate);
+
     if (slots.length === 0) {
       const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
       const dayName = dayNames[new Date(selectedDate + 'T00:00:00').getDay()];

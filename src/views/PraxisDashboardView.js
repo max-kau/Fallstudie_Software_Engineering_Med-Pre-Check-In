@@ -28,9 +28,14 @@ export function renderPraxisDashboardView() {
             </div>
             <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0;">${user.praxis_fachbereich || ''} ${user.praxis_adresse ? '· ' + user.praxis_adresse : ''}</p>
           </div>
-          <button id="btn-create-appointment" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-            ➕ Telefonischen Termin eintragen
-          </button>
+          <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+            <button id="btn-open-live-queue" class="btn" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #10B981, #059669); color: white; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); border: none;">
+              📺 Live-Warteschlange
+            </button>
+            <button id="btn-create-appointment" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              ➕ Telefonischen Termin eintragen
+            </button>
+          </div>
         </div>
 
         <!-- Navigation Tabs (3 tabs: Kalender, Statistik, Gestaltung) -->
@@ -299,6 +304,11 @@ export async function initPraxisDashboardView() {
       // Refresh the view data
       initPraxisDashboardView();
     });
+  });
+
+  // Handle live queue navigation
+  document.getElementById('btn-open-live-queue')?.addEventListener('click', () => {
+    navigate('live-queue');
   });
 
   // Tab switching logic for 3 tabs
