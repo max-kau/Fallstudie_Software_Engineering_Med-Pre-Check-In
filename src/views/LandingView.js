@@ -261,6 +261,16 @@ export async function initLandingView() {
       const appointmentDateTime = parseGermanDateTime(appt.date, appt.time);
       const isPast = appointmentDateTime && appointmentDateTime < new Date();
 
+      // Check if appointment is today
+      const isToday = (() => {
+        const d = parseGermanDate(appt.date);
+        if (!d) return false;
+        const now = new Date();
+        return d.getFullYear() === now.getFullYear() &&
+               d.getMonth() === now.getMonth() &&
+               d.getDate() === now.getDate();
+      })();
+
       // Check availability (2 business days rule with exact 48 business hours match)
       const available = isPrecheckAvailable(appt.date, appt.time);
       const openDate = getPrecheckOpenDate(appt.date, appt.time);
@@ -493,6 +503,11 @@ export async function initLandingView() {
           <!-- Card Action Footer -->
           ${!isPast ? `
           <div class="dl-card-action-footer" style="display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-top: 1px solid var(--gray-100); flex-wrap: wrap;">
+            ${isToday ? `
+            <button class="btn btn-open-queue" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #10B981, #059669); color: white; border: none; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
+              📺 Live-Warteschlange ansehen
+            </button>
+            ` : ''}
             <button class="btn btn-outline btn-reschedule" data-code="${appt.code}" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
               📅 Termin verschieben
             </button>
@@ -517,6 +532,14 @@ export async function initLandingView() {
         
         // Force complete client refresh to update store parameters cleanly
         window.location.href = `?termin=${code}#${target}`;
+      });
+    });
+
+    // Attach click events to open live queue
+    container.querySelectorAll('.btn-open-queue').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const praxis = e.currentTarget.getAttribute('data-praxis');
+        navigate(`warteschlange?praxis=${encodeURIComponent(praxis)}`);
       });
     });
 

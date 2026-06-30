@@ -1,0 +1,413 @@
+/**
+ * LiveQueueDoctorView – Arzt-Ansicht der Live-Warteschlange
+ * Shows today's appointments as a live queue with accept/done/delay/early-request actions.
+ */
+import { auth } from '../utils/auth.js';
+import { navigate } from '../utils/router.js';
+import { renderDlNav, initDlNav } from '../components/DlNav.js';
+import { openDelayModal } from '../components/DelayModal.js';
+
+let _pollInterval = null;
+
+function getGermanDateToday() {
+  const now = new Date();
+  const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  return `${days[now.getDay()]}, ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`;
+}
+
+function getStatusLabel(status) {
+  switch (status) {
+    case 'waiting': return 'Wartend';
+    case 'arrived': return 'Eingetroffen';
+    case 'in_treatment': return 'In Behandlung';
+    case 'treatment_finished': return 'Behandlung beendet';
+    case 'done': return 'Abgeschlossen';
+    case 'delayed': return 'Verzögert';
+    default: return status;
+  }
+}
+
+function getStatusIcon(status) {
+  switch (status) {
+    case 'waiting': return '🕐';
+    case 'arrived': return '👤';
+    case 'in_treatment': return '🩺';
+    case 'treatment_finished': return '🩹';
+    case 'done': return '✅';
+    case 'delayed': return '⏰';
+    default: return '👤';
+  }
+}
+
+function getPersonIcon(status) {
+  switch (status) {
+    case 'waiting': return '🧑';
+    case 'arrived': return '👋';
+    case 'in_treatment': return '🧑‍⚕️';
+    case 'treatment_finished': return '🩹';
+    case 'done': return '✓';
+    case 'delayed': return '⏳';
+    default: return '👤';
+  }
+}
+
+export function renderLiveQueueDoctorView() {
+  const user = auth.getUser() || {};
+  return `
+    ${renderDlNav()}
+    <div class="dl-page live-queue-page">
+      <div class="live-queue-container">
+        <!-- Back Button -->
+        <button class="queue-back-btn" id="queue-back-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Zurück zum Dashboard
+        </button>
+
+        <!-- Header -->
+        <div class="live-queue-header">
+          <div class="live-queue-header-left">
+            <h1 class="live-queue-title">
+              📋 Live-Warteschlange
+              <span class="live-indicator">
+                <span class="live-indicator-dot"></span>
+                LIVE
+              </span>
+            </h1>
+            <p class="live-queue-subtitle">${user.praxis_name || 'Meine Praxis'} – Heutige Termine</p>
+          </div>
+          <div class="live-queue-header-right">
+            <div class="live-queue-clock" id="queue-clock">--:--:--</div>
+            <div class="live-queue-date">${getGermanDateToday()}</div>
+          </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="queue-stats-bar" id="queue-stats-bar">
+          <div class="queue-stat">
+            <div class="queue-stat-icon queue-stat-icon--waiting">🕐</div>
+            <div>
+              <div class="queue-stat-value" id="stat-waiting">-</div>
+              <div class="queue-stat-label">Wartend</div>
+            </div>
+          </div>
+          <div class="queue-stat">
+            <div class="queue-stat-icon queue-stat-icon--active">🩺</div>
+            <div>
+              <div class="queue-stat-value" id="stat-active">-</div>
+              <div class="queue-stat-label">In Behandlung</div>
+            </div>
+          </div>
+          <div class="queue-stat">
+            <div class="queue-stat-icon queue-stat-icon--done">✅</div>
+            <div>
+              <div class="queue-stat-value" id="stat-done">-</div>
+              <div class="queue-stat-label">Abgeschlossen</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="queue-progress-bar">
+          <div class="queue-progress-fill" id="queue-progress-fill" style="width: 0%"></div>
+        </div>
+
+        <!-- Queue Cards Container -->
+        <div id="queue-cards-container">
+          <div style="text-align: center; padding: var(--space-8) 0;">
+            <div class="dl-auth-spinner" style="display: inline-block; width: 40px; height: 40px; border-width: 3px;"></div>
+            <p class="text-muted" style="margin-top: var(--space-4); font-size: var(--font-size-sm);">Warteschlange wird geladen...</p>
+          </div>
+        </div>
+
+        <!-- Refresh Indicator -->
+        <div class="queue-refresh-indicator">
+          <span class="queue-refresh-dot"></span>
+          Automatische Aktualisierung alle 5 Sekunden
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderQueueCards(queue) {
+  if (!queue || queue.length === 0) {
+    return `
+      <div class="queue-empty">
+        <div class="queue-empty-icon">📋</div>
+        <div class="queue-empty-text">Keine Termine heute</div>
+        <div class="queue-empty-desc">Es sind heute keine Termine für Ihre Praxis eingetragen.</div>
+      </div>
+    `;
+  }
+
+  // Check if any patient is currently in treatment
+  const hasActivePatient = queue.some(q => q.status === 'in_treatment');
+
+  return queue.map((item, idx) => {
+    const statusClass = `queue-card--${item.status}`;
+    const personClass = `queue-person-icon--${item.status}`;
+
+    // Determine which buttons to show
+    let actionsHtml = '';
+    if (item.status === 'waiting' || item.status === 'delayed') {
+      // Check if this patient's time has not come yet and no one is being treated
+      const now = new Date();
+      const [h, m] = (item.time || '00:00').split(':').map(Number);
+      const appointmentTime = new Date();
+      appointmentTime.setHours(h, m, 0, 0);
+      const isBeforeTime = now < appointmentTime;
+
+      actionsHtml = `
+        <button class="queue-btn queue-btn--arrived" data-code="${item.code}" data-action="status-update" data-target-status="arrived" style="background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: white; border: none; font-weight: 700;">
+          👤 Patient eingetroffen
+        </button>
+        <button class="queue-btn queue-btn--delay" data-code="${item.code}" data-action="delay" data-name="${item.patient_vorname} ${item.patient_nachname}">
+          ⏰ Termin verzögern
+        </button>
+        <button class="queue-btn" data-code="${item.code}" data-action="no-show" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FCA5A5; font-weight: 700;">
+          ❌ Nicht erschienen
+        </button>
+        ${!hasActivePatient && isBeforeTime ? `
+        <button class="queue-btn queue-btn--early" data-code="${item.code}" data-action="early-request">
+          🕐 Frühere Behandlung beantragen
+        </button>
+        ` : ''}
+      `;
+    } else if (item.status === 'arrived') {
+      actionsHtml = `
+        <button class="queue-btn queue-btn--start-treatment" data-code="${item.code}" data-action="status-update" data-target-status="in_treatment" style="background: linear-gradient(135deg, #10B981, #059669); color: white; border: none; font-weight: 700;">
+          🩺 Behandlung begonnen
+        </button>
+      `;
+    } else if (item.status === 'in_treatment') {
+      actionsHtml = `
+        <button class="queue-btn queue-btn--finish-treatment" data-code="${item.code}" data-action="status-update" data-target-status="treatment_finished" style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white; border: none; font-weight: 700;">
+          🩹 Behandlung beendet
+        </button>
+      `;
+    } else if (item.status === 'treatment_finished') {
+      actionsHtml = `
+        <button class="queue-btn queue-btn--left-practice" data-code="${item.code}" data-action="status-update" data-target-status="done" style="background: linear-gradient(135deg, #6B7280, #4B5563); color: white; border: none; font-weight: 700;">
+          🚪 Praxis verlassen
+        </button>
+      `;
+    }
+
+    // Early request badge
+    let earlyBadgeHtml = '';
+    if (item.early_request_status === 'pending') {
+      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--pending">🕐 Frühere Behandlung angefragt</span>`;
+    } else if (item.early_request_status === 'accepted') {
+      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--accepted">✅ Patient hat zugesagt</span>`;
+    } else if (item.early_request_status === 'declined') {
+      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--declined">❌ Patient hat abgelehnt</span>`;
+    }
+
+    // Delay info
+    let delayInfoHtml = '';
+    if (item.status === 'delayed' && item.delay_minutes > 0) {
+      delayInfoHtml = `
+        <div class="queue-delay-info">
+          ⏰ Verzögert um ${item.delay_minutes} Min.${item.delay_reason ? ` – ${item.delay_reason}` : ''}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="queue-card ${statusClass}" style="animation-delay: ${idx * 0.08}s" id="queue-card-${item.code}">
+        <div class="queue-card-inner">
+          <!-- Person Icon -->
+          <div class="queue-person-icon ${personClass}">
+            ${getPersonIcon(item.status)}
+          </div>
+
+          <!-- Patient Info -->
+          <div class="queue-card-info">
+            <div class="queue-card-name">${item.patient_vorname} ${item.patient_nachname}</div>
+            ${item.patient_geburtsdatum ? `<div class="queue-card-birthday">🎂 ${item.patient_geburtsdatum}</div>` : ''}
+            <div class="queue-card-time">
+              🕐 ${item.time} Uhr · ${item.art || 'Termin'} · ${item.duration} Min.
+            </div>
+            ${delayInfoHtml}
+            ${earlyBadgeHtml}
+          </div>
+
+          <!-- Status Badge + Actions -->
+          <div class="queue-card-right">
+            <span class="queue-status-badge queue-status-badge--${item.status}">
+              ${getStatusIcon(item.status)} ${getStatusLabel(item.status)}
+            </span>
+            ${actionsHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadQueue() {
+  const user = auth.getUser();
+  if (!user || !user.praxis_name) return;
+
+  try {
+    const res = await fetch(`/api/queue/${encodeURIComponent(user.praxis_name)}`);
+    const data = await res.json();
+
+    if (!data.success) return;
+
+    const container = document.getElementById('queue-cards-container');
+    if (!container) return;
+
+    container.innerHTML = renderQueueCards(data.queue);
+
+    // Update stats
+    const waiting = data.queue.filter(q => q.status === 'waiting' || q.status === 'delayed').length;
+    const active = data.queue.filter(q => q.status === 'in_treatment').length;
+    const done = data.queue.filter(q => q.status === 'done').length;
+    const total = data.queue.length;
+
+    const statWaiting = document.getElementById('stat-waiting');
+    const statActive = document.getElementById('stat-active');
+    const statDone = document.getElementById('stat-done');
+    const progressFill = document.getElementById('queue-progress-fill');
+
+    if (statWaiting) statWaiting.textContent = waiting;
+    if (statActive) statActive.textContent = active;
+    if (statDone) statDone.textContent = done;
+    if (progressFill) progressFill.style.width = total > 0 ? `${(done / total) * 100}%` : '0%';
+
+    // Attach action listeners
+    attachQueueActions();
+  } catch (err) {
+    console.error('Error loading queue:', err);
+  }
+}
+
+function attachQueueActions() {
+  // Status update buttons (arrived, in_treatment, treatment_finished, done)
+  document.querySelectorAll('[data-action="status-update"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const code = e.currentTarget.dataset.code;
+      const targetStatus = e.currentTarget.dataset.targetStatus;
+      btn.disabled = true;
+      let originalHtml = btn.innerHTML;
+      btn.innerHTML = '<div class="dl-auth-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:4px;"></div> Bitte warten...';
+      try {
+        const res = await fetch(`/api/queue/${code}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: targetStatus })
+        });
+        if (!res.ok) {
+          throw new Error('Fehler beim Aktualisieren des Status.');
+        }
+        await loadQueue();
+      } catch (err) {
+        console.error('Status update failed:', err);
+        alert(err.message || 'Verbindung fehlgeschlagen.');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    });
+  });
+
+  // Delay buttons
+  document.querySelectorAll('[data-action="delay"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const code = e.currentTarget.dataset.code;
+      const name = e.currentTarget.dataset.name;
+      openDelayModal(code, name, async () => {
+        await loadQueue();
+      });
+    });
+  });
+
+  // Early request buttons
+  document.querySelectorAll('[data-action="early-request"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const code = e.currentTarget.dataset.code;
+      const minutesStr = prompt('Wie viele Minuten früher kann der Patient voraussichtlich behandelt werden?', '15');
+      if (minutesStr === null) return;
+      const minutes = parseInt(minutesStr, 10);
+      if (isNaN(minutes) || minutes <= 0) {
+        alert('Bitte geben Sie eine gültige Minutenzahl größer als 0 ein.');
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = '<div class="dl-auth-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:4px;"></div> Wird gesendet...';
+      try {
+        await fetch(`/api/queue/${code}/early-request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ early_minutes: minutes })
+        });
+        await loadQueue();
+      } catch (err) {
+        console.error('Early request failed:', err);
+        btn.disabled = false;
+        btn.textContent = '🕐 Frühere Behandlung beantragen';
+      }
+    });
+  });
+
+  // No-show buttons
+  document.querySelectorAll('[data-action="no-show"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const code = e.currentTarget.dataset.code;
+      if (!confirm('Möchten Sie diesen Patienten als "nicht erschienen" markieren? Der Termin wird aus der Warteschlange entfernt.')) {
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/queue/${code}/no-show`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        if (!res.ok) {
+          let data = {};
+          try { data = await res.json(); } catch(e) {}
+          throw new Error(data.error || 'Fehler beim Markieren des Nicht-Erscheinens.');
+        }
+        await loadQueue();
+      } catch (err) {
+        console.error('No-show failed:', err);
+        alert(err.message || 'Verbindung fehlgeschlagen.');
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+function updateClock() {
+  const el = document.getElementById('queue-clock');
+  if (!el) return;
+  const now = new Date();
+  el.textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+export function initLiveQueueDoctorView() {
+  initDlNav();
+
+  // Back button
+  document.getElementById('queue-back-btn')?.addEventListener('click', () => {
+    navigate('praxis-dashboard');
+  });
+
+  // Start clock
+  updateClock();
+  const clockInterval = setInterval(updateClock, 1000);
+
+  // Initial load
+  loadQueue();
+
+  // Polling every 5 seconds
+  _pollInterval = setInterval(() => {
+    loadQueue();
+  }, 5000);
+
+  // Cleanup on view change
+  const cleanup = () => {
+    clearInterval(clockInterval);
+    if (_pollInterval) clearInterval(_pollInterval);
+    window.removeEventListener('viewChanged', cleanup);
+  };
+  window.addEventListener('viewChanged', cleanup);
+}

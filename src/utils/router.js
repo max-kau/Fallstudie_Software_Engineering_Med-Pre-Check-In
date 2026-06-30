@@ -35,6 +35,10 @@ async function handleRoute() {
   if (hash.startsWith('praxis/')) {
     routeKey = 'praxis';
   }
+  // Handle warteschlange route with query params (e.g. warteschlange?praxis=...)
+  if (hash.startsWith('warteschlange')) {
+    routeKey = 'warteschlange';
+  }
 
   // Check authentication status
   await auth.checkSession();
@@ -53,20 +57,20 @@ async function handleRoute() {
   }
 
   // If praxis user tries to access patient-only routes, redirect to praxis dashboard
-  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'ai-fragen', 'dokumente', 'praxis-dokumente', 'zusammenfassung'];
+  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'ai-fragen', 'dokumente', 'praxis-dokumente', 'zusammenfassung', 'warteschlange'];
   if (loggedIn && auth.isPraxis() && PATIENT_ONLY_ROUTES.includes(routeKey)) {
     navigate('praxis-dashboard');
     return;
   }
 
-  // If patient user tries to access praxis dashboard, redirect to landing
-  if (loggedIn && !auth.isPraxis() && routeKey === 'praxis-dashboard') {
+  // If patient user tries to access praxis-only routes, redirect to landing
+  if (loggedIn && !auth.isPraxis() && (routeKey === 'praxis-dashboard' || routeKey === 'live-queue')) {
     navigate('landing');
     return;
   }
 
-  // For protected patient routes, ensure data is loaded
-  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard') {
+  // For protected patient routes, ensure data is loaded (skip queue views which have their own data loading)
+  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard' && routeKey !== 'live-queue' && routeKey !== 'warteschlange') {
     await store.loadData();
 
     const isSubmitted = store.get('submitted');

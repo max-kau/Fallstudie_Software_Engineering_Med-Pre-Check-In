@@ -298,6 +298,25 @@ async function initDb() {
     `);
     console.log('Table "buffer_times" verified/created.');
 
+    // Create queue_status table for live waiting queue
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS queue_status (
+        id SERIAL PRIMARY KEY,
+        praxis_name VARCHAR(255) NOT NULL,
+        termin_code VARCHAR(50) REFERENCES termine(code) ON DELETE CASCADE,
+        status VARCHAR(30) DEFAULT 'waiting',
+        delay_minutes INTEGER DEFAULT 0,
+        delay_reason TEXT DEFAULT '',
+        early_request_status VARCHAR(20) DEFAULT NULL,
+        early_minutes INTEGER DEFAULT 0,
+        position INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(termin_code)
+      );
+    `);
+    await pool.query('ALTER TABLE queue_status ADD COLUMN IF NOT EXISTS early_minutes INTEGER DEFAULT 0;');
+    console.log('Table "queue_status" verified/created with early_minutes.');
+
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
     console.log('Demo user max@doctolib.de verified removed from database.');
@@ -3783,6 +3802,372 @@ async function sendDelayEmail(email, appointment, delayMinutes, praxisName) {
     </div>
   `;
 
+  await sendEmail({ to: email, subject, html });
+}
+
+// ============================================
+// LIVE QUEUE API ENDPOINTS
+// ============================================
+
+// Helper: Get today's date string in YYYY-MM-DD format
+function getTodayDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper: Check if a termin date string matches today
+function isTerminToday(dateStr) {
+  if (!dateStr) return false;
+  const today = getTodayDateString();
+  // Direct YYYY-MM-DD match
+  if (dateStr === today) return true;
+  // Try parsing German date format
+  const parsed = parseGermanDate(dateStr);
+  if (!parsed) return false;
+  const now = new Date();
+  return parsed.getFullYear() === now.getFullYear() &&
+         parsed.getMonth() === now.getMonth() &&
+         parsed.getDate() === now.getDate();
+}
+
+// API: Get queue status for a praxis (today only)
+app.get('/api/queue/:praxisName', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { praxisName } = req.params;
+  const decodedPraxisName = decodeURIComponent(praxisName);
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, queue: [] });
+  }
+
+  try {
+    // Get all appointments for this praxis
+    const result = await pool.query(
+      `SELECT t.code, t.patient_vorname, t.patient_nachname, t.date, t.time, t.art, t.duration, t.user_id,
+              u.geburtsdatum as patient_geburtsdatum, u.email as patient_email,
+              q.status as queue_status, q.delay_minutes, q.delay_reason, q.early_request_status, q.early_minutes, q.position, q.updated_at as queue_updated_at
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       LEFT JOIN queue_status q ON t.code = q.termin_code
+       WHERE t.praxis = $1 AND (q.status IS NULL OR q.status != 'no_show')
+       ORDER BY t.time ASC`,
+      [decodedPraxisName]
+    );
+
+    // Filter to today's appointments only
+    const todayAppointments = result.rows.filter(row => isTerminToday(row.date));
+
+    // Auto-create queue_status entries for today's appointments that don't have one
+    for (let i = 0; i < todayAppointments.length; i++) {
+      const appt = todayAppointments[i];
+      if (!appt.queue_status) {
+        try {
+          await pool.query(
+            `INSERT INTO queue_status (praxis_name, termin_code, status, position)
+             VALUES ($1, $2, 'waiting', $3)
+             ON CONFLICT (termin_code) DO NOTHING`,
+            [decodedPraxisName, appt.code, i + 1]
+          );
+          appt.queue_status = 'waiting';
+          appt.delay_minutes = 0;
+          appt.delay_reason = '';
+          appt.early_request_status = null;
+          appt.position = i + 1;
+        } catch (insertErr) {
+          console.warn('Queue status auto-insert failed:', insertErr.message);
+        }
+      }
+    }
+
+    // Determine if caller is praxis or patient
+    const isPraxis = req.session.user?.role === 'praxis';
+
+    const queue = todayAppointments.map((appt, idx) => {
+      const isOwnAppointment = appt.user_id === req.session.userId;
+      return {
+        code: appt.code,
+        // For patients: show full name only for own appointment, initials for others
+        patient_vorname: isPraxis || isOwnAppointment ? appt.patient_vorname : appt.patient_vorname.charAt(0) + '.',
+        patient_nachname: isPraxis || isOwnAppointment ? appt.patient_nachname : appt.patient_nachname.charAt(0) + '.',
+        patient_geburtsdatum: isPraxis || isOwnAppointment ? (appt.patient_geburtsdatum || '') : '',
+        time: appt.time,
+        art: appt.art,
+        duration: appt.duration || 30,
+        status: appt.queue_status || 'waiting',
+        delay_minutes: appt.delay_minutes || 0,
+        delay_reason: appt.delay_reason || '',
+        early_request_status: appt.early_request_status || null,
+        early_minutes: appt.early_minutes || 0,
+        position: appt.position || idx + 1,
+        is_own: isOwnAppointment,
+        queue_updated_at: appt.queue_updated_at || null
+      };
+    });
+
+    res.json({ success: true, queue });
+  } catch (err) {
+    console.error('Error fetching queue:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Warteschlange.' });
+  }
+});
+
+// API: Doctor accepts a patient (start treatment)
+app.post('/api/queue/:terminCode/accept', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    // Verify the appointment belongs to this praxis
+    const check = await pool.query(
+      'SELECT code FROM termine WHERE code = $1 AND praxis = $2',
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, 'in_treatment', NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'in_treatment', updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error accepting patient:', err);
+    res.status(500).json({ error: 'Fehler beim Annehmen des Patienten.' });
+  }
+});
+
+// API: Doctor marks treatment as done
+app.post('/api/queue/:terminCode/done', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const check = await pool.query(
+      'SELECT code FROM termine WHERE code = $1 AND praxis = $2',
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, 'done', NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'done', updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking done:', err);
+    res.status(500).json({ error: 'Fehler beim Abschließen der Behandlung.' });
+  }
+});
+
+// API: Doctor delays an appointment
+app.post('/api/queue/:terminCode/delay', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  const { delay_minutes, reason } = req.body;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const terminRes = await pool.query(
+      `SELECT t.*, u.email as patient_email
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const appt = terminRes.rows[0];
+
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, delay_minutes, delay_reason, updated_at)
+       VALUES ($1, $2, 'delayed', $3, $4, NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'delayed', delay_minutes = $3, delay_reason = $4, updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode, delay_minutes || 0, reason || '']
+    );
+
+    // Send delay email to patient
+    if (appt.patient_email) {
+      try {
+        await sendDelayEmail(appt.patient_email, appt, delay_minutes || 0, req.session.user.praxis_name);
+      } catch (emailErr) {
+        console.warn('Failed to send delay email:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error delaying appointment:', err);
+    res.status(500).json({ error: 'Fehler beim Verzögern des Termins.' });
+  }
+});
+
+// API: Doctor requests early treatment for next patient
+app.post('/api/queue/:terminCode/early-request', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  const { early_minutes } = req.body;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const terminRes = await pool.query(
+      `SELECT t.*, u.email as patient_email
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const appt = terminRes.rows[0];
+
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, early_request_status, early_minutes, updated_at)
+       VALUES ($1, $2, 'waiting', 'pending', $3, NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET early_request_status = 'pending', early_minutes = $3, updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode, early_minutes || 0]
+    );
+
+    // Send early request email to patient
+    if (appt.patient_email) {
+      try {
+        await sendEarlyRequestEmail(appt.patient_email, appt, req.session.user.praxis_name, early_minutes || 0);
+      } catch (emailErr) {
+        console.warn('Failed to send early request email:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error requesting early treatment:', err);
+    res.status(500).json({ error: 'Fehler beim Beantragen der früheren Behandlung.' });
+  }
+});
+
+// API: Generic endpoint to update queue status of an appointment
+app.post('/api/queue/:terminCode/status', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  const { status } = req.body;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = $3, updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode, status]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating queue status:', err);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des Status.' });
+  }
+});
+
+// API: Doctor marks patient as no-show (nicht erschienen)
+app.post('/api/queue/:terminCode/no-show', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    console.warn('[POST /api/queue/no-show] Unauthorized attempt or wrong role:', req.session?.user);
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  console.log(`[POST /api/queue/${terminCode}/no-show] called by doctor: ${req.session.user.email}, praxis: ${req.session.user.praxis_name}`);
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, 'no_show', NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'no_show', updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode]
+    );
+    console.log(`[POST /api/queue/${terminCode}/no-show] DB update successful. Rows affected:`, result.rowCount);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking no-show:', err);
+    res.status(500).json({ error: 'Fehler beim Registrieren des Nicht-Erscheinens.' });
+  }
+});
+
+// API: Patient responds to early treatment request (accept/decline)
+app.post('/api/queue/:terminCode/early-response', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { terminCode } = req.params;
+  const { accepted } = req.body; // true or false
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    // Verify this appointment belongs to the current user
+    const check = await pool.query(
+      'SELECT code FROM termine WHERE code = $1 AND user_id = $2',
+      [terminCode, req.session.userId]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const newStatus = accepted ? 'accepted' : 'declined';
+    await pool.query(
+      `UPDATE queue_status SET early_request_status = $1, updated_at = NOW() WHERE termin_code = $2`,
+      [newStatus, terminCode]
+    );
+    res.json({ success: true, status: newStatus });
+  } catch (err) {
+    console.error('Error responding to early request:', err);
+    res.status(500).json({ error: 'Fehler bei der Antwort.' });
+  }
+});
+
+// Email template for early treatment request
+async function sendEarlyRequestEmail(email, appointment, praxisName, earlyMinutes) {
+  const subject = `${praxisName}: Frühere Behandlung möglich!`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #10B981; margin-bottom: 20px;">🕐 Frühere Behandlung möglich!</h2>
+      <p style="font-size: 16px; line-height: 1.5; color: #334155;">
+        Ihre Praxis <strong>${praxisName}</strong> hat Sie informiert, dass Ihr Termin am
+        <strong>${appointment.date}</strong> um <strong>${appointment.time} Uhr</strong>
+        voraussichtlich um ca. <strong>${earlyMinutes} Minuten</strong> früher stattfinden kann.
+      </p>
+      <p style="font-size: 14px; color: #64748B; margin-top: 15px;">
+        Bitte öffnen Sie die Live-Warteschlange in der App, um die Anfrage anzunehmen oder abzulehnen.
+      </p>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 12px; color: #94a3b8; text-align: center;">Doctolib Pre-Check-In – Automatische Benachrichtigung</p>
+    </div>
+  `;
   await sendEmail({ to: email, subject, html });
 }
 

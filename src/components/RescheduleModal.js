@@ -32,7 +32,7 @@ function getAvailableTimeslotsForDate(dateStr) {
 
 async function fetchBlockedSlots(praxisName, date, excludeCode) {
   try {
-    const res = await fetch(`/api/termine/blocked?date=${date}&praxis=${encodeURIComponent(praxisName)}&excludeCode=${excludeCode}`);
+    const res = await fetch(`/api/termine/blocked?date=${date}&praxis=${encodeURIComponent(praxisName)}&excludeCode=${excludeCode}&_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
     blockedSlots = data.blocked || [];
   } catch (err) {

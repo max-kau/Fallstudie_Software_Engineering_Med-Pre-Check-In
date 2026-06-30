@@ -17,6 +17,8 @@ import { renderPraxisDashboardView, initPraxisDashboardView } from './views/Prax
 import { renderZusatzfragenView, initZusatzfragenView } from './views/ZusatzfragenView.js';
 import { renderPraxisDokumenteView, initPraxisDokumenteView } from './views/PraxisDokumenteView.js';
 import { renderFeedbackView, initFeedbackView } from './views/FeedbackView.js';
+import { renderLiveQueueDoctorView, initLiveQueueDoctorView } from './views/LiveQueueDoctorView.js';
+import { renderLiveQueuePatientView, initLiveQueuePatientView } from './views/LiveQueuePatientView.js';
 
 // Register all routes
 registerRoute('home', renderHomeView);
@@ -36,6 +38,8 @@ registerRoute('praxis', renderPraxisView);
 registerRoute('suche', renderSearchView);
 registerRoute('praxis-dashboard', renderPraxisDashboardView);
 registerRoute('feedback', renderFeedbackView);
+registerRoute('live-queue', renderLiveQueueDoctorView);
+registerRoute('warteschlange', renderLiveQueuePatientView);
 
 // View initializers map
 const initializers = {
@@ -56,6 +60,8 @@ const initializers = {
   suche: initSearchView,
   'praxis-dashboard': initPraxisDashboardView,
   feedback: initFeedbackView,
+  'live-queue': initLiveQueueDoctorView,
+  warteschlange: initLiveQueuePatientView,
 };
 
 // Listen for view changes and run initializers
