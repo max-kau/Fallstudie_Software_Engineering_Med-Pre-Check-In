@@ -193,6 +193,16 @@ export function renderLandingView() {
 export async function initLandingView() {
   initDlNav();
 
+  // Clean up global click listener when navigating away
+  const cleanup = () => {
+    if (window._landingClickOutsideHandler) {
+      document.removeEventListener('click', window._landingClickOutsideHandler);
+      window._landingClickOutsideHandler = null;
+    }
+    window.removeEventListener('viewChanged', cleanup);
+  };
+  window.addEventListener('viewChanged', cleanup);
+
   const container = document.getElementById('landing-content-container');
   if (!container) return;
 
@@ -638,11 +648,15 @@ export async function initLandingView() {
     });
 
     // Global click listener to close dropdowns when clicking outside
-    document.addEventListener('click', () => {
+    if (window._landingClickOutsideHandler) {
+      document.removeEventListener('click', window._landingClickOutsideHandler);
+    }
+    window._landingClickOutsideHandler = () => {
       document.querySelectorAll('.dl-menu-dropdown').forEach(d => {
         d.style.display = 'none';
       });
-    });
+    };
+    document.addEventListener('click', window._landingClickOutsideHandler);
 
     // Attach click events for managing AI settings in the dropdown
     container.querySelectorAll('.btn-manage-ai').forEach(btn => {
