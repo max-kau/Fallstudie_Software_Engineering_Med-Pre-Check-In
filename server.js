@@ -155,7 +155,7 @@ async function initDb() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(255) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         vorname VARCHAR(100) NOT NULL,
         nachname VARCHAR(100) NOT NULL,
@@ -175,6 +175,18 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS opening_hours JSONB DEFAULT NULL;
     `);
     console.log('Table "users" verified/created with profile, role, and opening hours columns.');
+
+    // Update unique constraint on users to (email, role)
+    try {
+      await pool.query(`
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_role_key;
+        ALTER TABLE users ADD CONSTRAINT users_email_role_key UNIQUE (email, role);
+      `);
+      console.log('Unique constraint on users updated to (email, role).');
+    } catch (constraintErr) {
+      console.error('Failed to update users constraint to (email, role):', constraintErr);
+    }
 
     // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
@@ -446,10 +458,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    // Check if email already exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    // Check if email already exists for this specific role
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1 AND role = $2', [email.toLowerCase(), userRole]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
+      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist für diese Rolle bereits registriert.' });
     }
 
     // Hash password and insert user
@@ -516,7 +528,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 // API: Login
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
@@ -527,12 +539,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
-       FROM users 
-       WHERE email = $1`,
-      [email.toLowerCase()]
-    );
+    const queryStr = role
+      ? `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
+         FROM users 
+         WHERE email = $1 AND role = $2`
+      : `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
+         FROM users 
+         WHERE email = $1`;
+    const queryParams = role ? [email.toLowerCase(), role] : [email.toLowerCase()];
+
+    const result = await pool.query(queryStr, queryParams);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'E-Mail oder Passwort ist falsch.' });

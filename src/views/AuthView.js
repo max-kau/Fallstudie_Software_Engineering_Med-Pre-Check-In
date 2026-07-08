@@ -265,7 +265,7 @@ export function initAuthView() {
     btn.disabled = true;
 
     try {
-      const user = await auth.login(email, password);
+      const user = await auth.login(email, password, currentRole);
       redirectAfterAuth(user);
     } catch (err) {
       errorEl.textContent = err.message;
