@@ -22,6 +22,23 @@ export function navigate(hash) {
 }
 
 async function handleRoute() {
+  // Clean up any remaining modals/overlays in document.body
+  const modalSelectors = [
+    '#profile-modal',
+    '#delay-modal-overlay',
+    '#reschedule-modal-backdrop',
+    '#create-appt-modal-backdrop',
+    '#doc-viewer-modal',
+    '.dl-modal-backdrop',
+    '.delay-modal-overlay',
+    '.reschedule-modal-backdrop',
+    '.create-appt-modal-backdrop',
+    '.modal-backdrop'
+  ];
+  modalSelectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => el.remove());
+  });
+
   // Load dynamic practices from server
   try {
     await fetchPraxen();

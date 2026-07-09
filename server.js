@@ -155,7 +155,7 @@ async function initDb() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(255) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         vorname VARCHAR(100) NOT NULL,
         nachname VARCHAR(100) NOT NULL,
@@ -175,6 +175,18 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS opening_hours JSONB DEFAULT NULL;
     `);
     console.log('Table "users" verified/created with profile, role, and opening hours columns.');
+
+    // Update unique constraint on users to (email, role)
+    try {
+      await pool.query(`
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_role_key;
+        ALTER TABLE users ADD CONSTRAINT users_email_role_key UNIQUE (email, role);
+      `);
+      console.log('Unique constraint on users updated to (email, role).');
+    } catch (constraintErr) {
+      console.error('Failed to update users constraint to (email, role):', constraintErr);
+    }
 
     // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
@@ -446,10 +458,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    // Check if email already exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    // Check if email already exists for this specific role
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1 AND role = $2', [email.toLowerCase(), userRole]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
+      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist für diese Rolle bereits registriert.' });
     }
 
     // Hash password and insert user
@@ -516,7 +528,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 // API: Login
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
@@ -527,12 +539,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
-       FROM users 
-       WHERE email = $1`,
-      [email.toLowerCase()]
-    );
+    const queryStr = role
+      ? `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
+         FROM users 
+         WHERE email = $1 AND role = $2`
+      : `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
+         FROM users 
+         WHERE email = $1`;
+    const queryParams = role ? [email.toLowerCase(), role] : [email.toLowerCase()];
+
+    const result = await pool.query(queryStr, queryParams);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'E-Mail oder Passwort ist falsch.' });
@@ -1939,9 +1955,14 @@ app.post('/api/precheckin', async (req, res) => {
               console.error('Failed to send praxis submission notification:', err);
             });
           }
+          if (appt.notify_email) {
+            sendPatientSubmissionConfirmation(appt.notify_email, appt).catch(err => {
+              console.error('Failed to send patient submission confirmation:', err);
+            });
+          }
         }
       } catch (notifyErr) {
-        console.error('Failed to trigger praxis notification on pre-check-in submission:', notifyErr);
+        console.error('Failed to trigger notifications on pre-check-in submission:', notifyErr);
       }
     }
 
@@ -2777,6 +2798,62 @@ async function sendPraxisSubmissionNotification(praxisEmail, appointment, patien
     console.log(`📧 Praxis submission notification sent to ${praxisEmail} for patient ${patientName}`);
   } catch (err) {
     console.error('Failed to send praxis submission notification:', err);
+  }
+}
+
+async function sendPatientSubmissionConfirmation(patientEmail, appointment) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const portalLink = `${appUrl}/#landing`;
+
+  const subject = `Ihr Pre-Check-In war erfolgreich: ${appointment.praxis}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <h2 style="color: #0063BE; margin-bottom: 20px; font-weight: 700; font-size: 22px;">Pre-Check-In erfolgreich übermittelt!</h2>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Hallo ${appointment.patient_vorname} ${appointment.patient_nachname},
+      </p>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        vielen Dank! Ihr digitaler Pre-Check-In für Ihren anstehenden Arzttermin wurde erfolgreich ausgefüllt und sicher an die Praxis übermittelt. Die Praxis hat alle notwendigen Daten (Anamnesebogen, Einwilligungen und Dokumente) erhalten, sodass Sie am Termin Zeit sparen.
+      </p>
+      
+      <div style="background-color: #f8fafc; padding: 18px; border-radius: 8px; margin: 24px 0; border: 1px solid #f1f5f9;">
+        <h4 style="margin: 0 0 10px 0; font-size: 15px; color: #0063BE; font-weight: 700;">Details zu Ihrem Termin:</h4>
+        <p style="margin: 0; font-size: 14px; color: #475569;">
+          🏢 <strong>Praxis:</strong> ${appointment.praxis}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          👤 <strong>Behandler:</strong> ${appointment.doctor}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          📅 <strong>Datum & Uhrzeit:</strong> ${appointment.date} um ${appointment.time} Uhr
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          🔑 <strong>Termin-Code:</strong> ${appointment.code}
+        </p>
+      </div>
+
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 24px;">
+        Sie können Ihre Termine und die dazugehörigen Dokumente jederzeit in Ihrem Doctolib Pre-Check-In Patientenportal einsehen.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${portalLink}" style="background-color: #0063BE; color: white; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+          Patientenportal öffnen
+        </a>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Bestätigung Ihres Doctolib Pre-Check-In Services. Bitte antworten Sie nicht direkt auf diese E-Mail.
+      </p>
+    </div>
+  `;
+
+  try {
+    await sendEmail({ to: patientEmail, subject, html });
+    console.log(`📧 Patient submission confirmation sent to ${patientEmail} for appointment ${appointment.code}`);
+  } catch (err) {
+    console.error('Failed to send patient submission confirmation:', err);
   }
 }
 

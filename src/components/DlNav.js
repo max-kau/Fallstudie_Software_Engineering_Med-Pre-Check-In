@@ -60,49 +60,72 @@ export function renderDlNav() {
 
 export function initDlNav() {
   // Logo redirect
-  document.getElementById('dl-nav-logo-btn')?.addEventListener('click', () => {
-    navigate('home');
-  });
-
-  // Login button
-  document.getElementById('btn-nav-login')?.addEventListener('click', () => {
-    navigate('auth');
-  });
-
-  // Dropdown toggle
-  const trigger = document.getElementById('btn-user-dropdown');
-  const menu = document.getElementById('user-dropdown-menu');
-
-  if (trigger && menu) {
-    trigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const show = menu.style.display === 'none';
-      menu.style.display = show ? 'block' : 'none';
-      trigger.classList.toggle('active', show);
-    });
-
-    // Close on click outside
-    document.addEventListener('click', () => {
-      menu.style.display = 'none';
-      trigger.classList.remove('active');
+  const logoBtn = document.getElementById('dl-nav-logo-btn');
+  if (logoBtn) {
+    const newLogoBtn = logoBtn.cloneNode(true);
+    logoBtn.replaceWith(newLogoBtn);
+    newLogoBtn.addEventListener('click', () => {
+      navigate('home');
     });
   }
 
-  // Logout button in dropdown
-  document.getElementById('btn-menu-logout')?.addEventListener('click', async () => {
-    await auth.logout();
-    navigate('home');
-  });
+  // Login button
+  const loginBtn = document.getElementById('btn-nav-login');
+  if (loginBtn) {
+    const newLoginBtn = loginBtn.cloneNode(true);
+    loginBtn.replaceWith(newLoginBtn);
+    newLoginBtn.addEventListener('click', () => {
+      navigate('auth');
+    });
+  }
 
-  // Appointments / Dashboard button in dropdown
-  document.getElementById('btn-menu-appointments')?.addEventListener('click', () => {
-    navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
-  });
+  // Dropdown wrapper (strips duplicate listeners on trigger and menu items!)
+  const wrapper = document.querySelector('.dl-nav-dropdown-wrapper');
+  if (wrapper) {
+    const newWrapper = wrapper.cloneNode(true);
+    wrapper.replaceWith(newWrapper);
 
-  // Profile data button in dropdown
-  document.getElementById('btn-menu-profile')?.addEventListener('click', () => {
-    openProfileModal();
-  });
+    const trigger = newWrapper.querySelector('#btn-user-dropdown');
+    const menu = newWrapper.querySelector('#user-dropdown-menu');
+
+    if (trigger && menu) {
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const show = menu.style.display === 'none';
+        menu.style.display = show ? 'block' : 'none';
+        trigger.classList.toggle('active', show);
+      });
+
+      if (window._dlNavClickOutsideHandler) {
+        document.removeEventListener('click', window._dlNavClickOutsideHandler);
+      }
+      window._dlNavClickOutsideHandler = () => {
+        const activeMenu = document.getElementById('user-dropdown-menu');
+        const activeTrigger = document.getElementById('btn-user-dropdown');
+        if (activeMenu) activeMenu.style.display = 'none';
+        if (activeTrigger) activeTrigger.classList.remove('active');
+      };
+      document.addEventListener('click', window._dlNavClickOutsideHandler);
+    }
+
+    // Logout button in dropdown
+    newWrapper.querySelector('#btn-menu-logout')?.addEventListener('click', async () => {
+      await auth.logout();
+      // Remove profile modal from DOM
+      document.getElementById('profile-modal')?.remove();
+      navigate('home');
+    });
+
+    // Appointments / Dashboard button in dropdown
+    newWrapper.querySelector('#btn-menu-appointments')?.addEventListener('click', () => {
+      navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
+    });
+
+    // Profile data button in dropdown
+    newWrapper.querySelector('#btn-menu-profile')?.addEventListener('click', () => {
+      openProfileModal();
+    });
+  }
 }
 
 function openProfileModal() {

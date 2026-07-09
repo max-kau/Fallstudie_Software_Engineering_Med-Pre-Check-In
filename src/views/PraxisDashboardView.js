@@ -298,6 +298,16 @@ export async function initPraxisDashboardView() {
   };
   window.addEventListener('authChanged', window._dashboardAuthListener);
 
+  // Clean up window event listener when navigating away from dashboard
+  const cleanup = () => {
+    if (window._dashboardAuthListener) {
+      window.removeEventListener('authChanged', window._dashboardAuthListener);
+      window._dashboardAuthListener = null;
+    }
+    window.removeEventListener('viewChanged', cleanup);
+  };
+  window.addEventListener('viewChanged', cleanup);
+
   // Handle manual appointment creation
   document.getElementById('btn-create-appointment')?.addEventListener('click', () => {
     openCreateAppointmentModal(() => {
