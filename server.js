@@ -1844,14 +1844,29 @@ app.post('/api/praxis/termin/:code/upload-patient-doc', async (req, res) => {
   }
 
   try {
-    // 1. Verify appointment exists and belongs to this praxis
-    const apptRes = await pool.query('SELECT * FROM termine WHERE code = $1 AND praxis = $2', [code, req.session.user.praxis_name]);
+    // 1. Verify appointment exists and belongs to this praxis (checking both notify_email and users.email)
+    const apptRes = await pool.query(
+      `SELECT t.*, u.email as patient_email, u.vorname as user_vorname, u.nachname as user_nachname 
+       FROM termine t 
+       LEFT JOIN users u ON t.user_id = u.id 
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [code, req.session.user.praxis_name]
+    );
     if (apptRes.rows.length === 0) {
       return res.status(404).json({ error: 'Termin nicht gefunden.' });
     }
     const appt = apptRes.rows[0];
 
-    // 2. Insert into uploaded_files
+    // 2. Find patient email
+    const patientEmail = appt.notify_email || appt.patient_email;
+    if (appt.user_vorname) appt.patient_vorname = appt.user_vorname;
+    if (appt.user_nachname) appt.patient_nachname = appt.user_nachname;
+
+    if (!patientEmail) {
+      return res.status(400).json({ error: 'Für diesen Termin ist keine E-Mail-Adresse hinterlegt. E-Mail-Benachrichtigung fehlgeschlagen.' });
+    }
+
+    // 3. Insert into uploaded_files
     const buffer = Buffer.from(fileData, 'base64');
     const fileSize = buffer.length;
 
@@ -1864,23 +1879,10 @@ app.post('/api/praxis/termin/:code/upload-patient-doc', async (req, res) => {
 
     const fileRow = result.rows[0];
 
-    // 3. Find patient email
-    let patientEmail = appt.notify_email;
-    if (appt.user_id) {
-      const userRes = await pool.query('SELECT email, vorname, nachname FROM users WHERE id = $1', [appt.user_id]);
-      if (userRes.rows.length > 0) {
-        patientEmail = userRes.rows[0].email;
-        appt.patient_vorname = userRes.rows[0].vorname;
-        appt.patient_nachname = userRes.rows[0].nachname;
-      }
-    }
-
-    if (patientEmail) {
-      // Send notification email in background
-      sendDoctorDocumentSharedNotificationEmail(patientEmail, appt, filename, docCategory).catch(err => {
-        console.error('Failed to send doctor shared document notification email:', err);
-      });
-    }
+    // Send notification email in background
+    sendDoctorDocumentSharedNotificationEmail(patientEmail, appt, filename, docCategory).catch(err => {
+      console.error('Failed to send doctor shared document notification email:', err);
+    });
 
     res.json({
       success: true,
