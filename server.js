@@ -3978,9 +3978,9 @@ app.get('/api/queue/:praxisName', async (req, res) => {
       const isOwnAppointment = appt.user_id === req.session.userId;
       return {
         code: appt.code,
-        // For patients: show full name only for own appointment, initials for others
-        patient_vorname: isPraxis || isOwnAppointment ? appt.patient_vorname : appt.patient_vorname.charAt(0) + '.',
-        patient_nachname: isPraxis || isOwnAppointment ? appt.patient_nachname : appt.patient_nachname.charAt(0) + '.',
+        // For patients: show full name only for own appointment, 'Patient' for others
+        patient_vorname: isPraxis || isOwnAppointment ? appt.patient_vorname : 'Patient',
+        patient_nachname: isPraxis || isOwnAppointment ? appt.patient_nachname : '',
         patient_geburtsdatum: isPraxis || isOwnAppointment ? (appt.patient_geburtsdatum || '') : '',
         time: appt.time,
         art: appt.art,

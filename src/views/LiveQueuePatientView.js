@@ -179,7 +179,7 @@ function renderOwnPosition(queue) {
       <div class="queue-own-position-label">Ihre Position in der Warteschlange</div>
       ${estimatedWait > 0 ? `
         <div class="queue-wait-estimate">
-          ⏱️ Voraussichtliche Wartezeit: ca. ${estimatedWait} Minuten
+          ⏱️ Voraussichtliche Wartezeit: ca. ${estimatedWait} Minuten (noch ${waitingBefore} Patient${waitingBefore > 1 ? 'en' : ''} vor Ihnen)
         </div>
       ` : `
         <div class="queue-wait-estimate" style="color: var(--success);">
@@ -227,10 +227,28 @@ function renderPatientQueueCards(queue) {
     `;
   }
 
+  const own = queue.find(q => q.is_own);
+  const ownIdx = own ? queue.indexOf(own) : -1;
+
   return queue.map((item, idx) => {
     const statusClass = `queue-card--${item.status}`;
     const personClass = `queue-person-icon--${item.status}`;
     const ownClass = item.is_own ? 'queue-card--own' : '';
+
+    let nameHtml = '';
+    if (item.is_own) {
+      nameHtml = `${item.patient_vorname} ${item.patient_nachname} <span style="font-size: var(--font-size-xs); background: var(--primary); color: white; padding: 2px 8px; border-radius: var(--radius-full); font-weight: 700; vertical-align: middle;">SIE</span>`;
+    } else {
+      if (ownIdx !== -1) {
+        if (idx < ownIdx) {
+          nameHtml = `Patient/-in (vor Ihnen)`;
+        } else {
+          nameHtml = `Patient/-in (nach Ihnen)`;
+        }
+      } else {
+        nameHtml = `Patient/-in`;
+      }
+    }
 
     let timeHtml = `${item.time} Uhr`;
     if (item.status === 'delayed' && item.delay_minutes > 0) {
@@ -252,10 +270,9 @@ function renderPatientQueueCards(queue) {
           <!-- Patient Info -->
           <div class="queue-card-info">
             <div class="queue-card-name">
-              ${item.patient_vorname} ${item.patient_nachname}
-              ${item.is_own ? ' <span style="font-size: var(--font-size-xs); background: var(--primary); color: white; padding: 2px 8px; border-radius: var(--radius-full); font-weight: 700; vertical-align: middle;">SIE</span>' : ''}
+              ${nameHtml}
             </div>
-            ${item.patient_geburtsdatum ? `<div class="queue-card-birthday">🎂 ${item.patient_geburtsdatum}</div>` : ''}
+            ${item.is_own && item.patient_geburtsdatum ? `<div class="queue-card-birthday">🎂 ${item.patient_geburtsdatum}</div>` : ''}
             <div class="queue-card-time">
               🕐 ${timeHtml}
             </div>
