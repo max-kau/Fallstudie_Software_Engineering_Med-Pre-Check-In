@@ -48,6 +48,9 @@ if (connectionString) {
         ? false
         : { rejectUnauthorized: false }
     });
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle database client:', err.message);
+    });
     isDbConnected = true;
     console.log('PostgreSQL database pool initialized.');
   } catch (err) {
@@ -127,7 +130,12 @@ async function initDb() {
     await pool.query(`
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_assessments JSONB DEFAULT NULL;
     `);
-    console.log('Columns "current_step", "submitted", "dokumente", "signature_data" and "ai_assessments" verified.');
+    
+    // 4.7. Add the "anamnesis_assessment" column to precheckins for AI diagnostics/assessments
+    await pool.query(`
+      ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS anamnesis_assessment TEXT DEFAULT NULL;
+    `);
+    console.log('Columns "current_step", "submitted", "dokumente", "signature_data", "ai_assessments" and "anamnesis_assessment" verified.');
 
     // 5. Create uploaded files table for binary data storage
     await pool.query(`
@@ -147,7 +155,7 @@ async function initDb() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(255) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         vorname VARCHAR(100) NOT NULL,
         nachname VARCHAR(100) NOT NULL,
@@ -164,8 +172,21 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_fachbereich VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_adresse VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS praxis_telefon VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS opening_hours JSONB DEFAULT NULL;
     `);
-    console.log('Table "users" verified/created with profile and role columns.');
+    console.log('Table "users" verified/created with profile, role, and opening hours columns.');
+
+    // Update unique constraint on users to (email, role)
+    try {
+      await pool.query(`
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_role_key;
+        ALTER TABLE users ADD CONSTRAINT users_email_role_key UNIQUE (email, role);
+      `);
+      console.log('Unique constraint on users updated to (email, role).');
+    } catch (constraintErr) {
+      console.error('Failed to update users constraint to (email, role):', constraintErr);
+    }
 
     // Ensure user_id, notify_email and notify_sent columns exist on termine table
     await pool.query(`
@@ -272,6 +293,41 @@ async function initDb() {
       ALTER TABLE precheckins ADD COLUMN IF NOT EXISTS ai_consent BOOLEAN DEFAULT NULL;
     `);
     console.log('Columns "document_confirmations", "started_at", "ai_questions" and "ai_consent" on precheckins verified.');
+
+    // Create buffer_times table for praxis buffer/break times
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS buffer_times (
+        id SERIAL PRIMARY KEY,
+        praxis_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) DEFAULT 'Pufferzeit',
+        is_recurring BOOLEAN DEFAULT FALSE,
+        day_of_week INTEGER,
+        specific_date VARCHAR(20),
+        start_time VARCHAR(10) NOT NULL,
+        end_time VARCHAR(10) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "buffer_times" verified/created.');
+
+    // Create queue_status table for live waiting queue
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS queue_status (
+        id SERIAL PRIMARY KEY,
+        praxis_name VARCHAR(255) NOT NULL,
+        termin_code VARCHAR(50) REFERENCES termine(code) ON DELETE CASCADE,
+        status VARCHAR(30) DEFAULT 'waiting',
+        delay_minutes INTEGER DEFAULT 0,
+        delay_reason TEXT DEFAULT '',
+        early_request_status VARCHAR(20) DEFAULT NULL,
+        early_minutes INTEGER DEFAULT 0,
+        position INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(termin_code)
+      );
+    `);
+    await pool.query('ALTER TABLE queue_status ADD COLUMN IF NOT EXISTS early_minutes INTEGER DEFAULT 0;');
+    console.log('Table "queue_status" verified/created with early_minutes.');
 
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
@@ -402,10 +458,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    // Check if email already exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    // Check if email already exists for this specific role
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1 AND role = $2', [email.toLowerCase(), userRole]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
+      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist für diese Rolle bereits registriert.' });
     }
 
     // Hash password and insert user
@@ -472,7 +528,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 // API: Login
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
@@ -483,12 +539,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon 
-       FROM users 
-       WHERE email = $1`,
-      [email.toLowerCase()]
-    );
+    const queryStr = role
+      ? `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
+         FROM users 
+         WHERE email = $1 AND role = $2`
+      : `SELECT id, email, password_hash, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours 
+         FROM users 
+         WHERE email = $1`;
+    const queryParams = role ? [email.toLowerCase(), role] : [email.toLowerCase()];
+
+    const result = await pool.query(queryStr, queryParams);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'E-Mail oder Passwort ist falsch.' });
@@ -518,7 +578,8 @@ app.post('/api/auth/login', async (req, res) => {
       praxis_name: user.praxis_name,
       praxis_fachbereich: user.praxis_fachbereich,
       praxis_adresse: user.praxis_adresse,
-      praxis_telefon: user.praxis_telefon
+      praxis_telefon: user.praxis_telefon,
+      opening_hours: user.opening_hours
     };
 
     console.log(`User logged in: ${user.email}`);
@@ -557,7 +618,7 @@ app.get('/api/auth/me', async (req, res) => {
   if (req.session && req.session.userId) {
     try {
       const result = await pool.query(
-        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon FROM users WHERE id = $1',
+        'SELECT id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours FROM users WHERE id = $1',
         [req.session.userId]
       );
       if (result.rows.length > 0) {
@@ -578,7 +639,7 @@ app.put('/api/auth/profile', async (req, res) => {
     return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
 
-  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon } = req.body;
+  const { vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours } = req.body;
 
   if (!vorname || !nachname) {
     return res.status(400).json({ error: 'Vorname und Nachname sind erforderlich.' });
@@ -591,10 +652,10 @@ app.put('/api/auth/profile', async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE users 
-       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12 
-       WHERE id = $13 
-       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
-      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, req.session.userId]
+       SET vorname = $1, nachname = $2, geburtsdatum = $3, telefonnummer = $4, strasse_hnr = $5, plz_ort = $6, krankenversicherung = $7, krankenkasse = $8, praxis_name = $9, praxis_fachbereich = $10, praxis_adresse = $11, praxis_telefon = $12, opening_hours = $13 
+       WHERE id = $14 
+       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon, opening_hours`,
+      [vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, praxis_name || null, praxis_fachbereich || null, praxis_adresse || null, praxis_telefon || null, opening_hours ? (typeof opening_hours === 'string' ? opening_hours : JSON.stringify(opening_hours)) : null, req.session.userId]
     );
 
     const user = result.rows[0];
@@ -604,6 +665,264 @@ app.put('/api/auth/profile', async (req, res) => {
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ error: 'Aktualisierung des Profils fehlgeschlagen.' });
+  }
+});
+
+// Helper to validate slot times against opening hours
+async function validateAppointmentTime(praxisName, dateStr, timeStr, req = null) {
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  let dayIndex;
+  try {
+    dayIndex = new Date(dateStr + 'T00:00:00').getDay();
+  } catch (err) {
+    return { valid: false, error: 'Ungültiges Datum.' };
+  }
+  const dayName = dayNames[dayIndex];
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  let openingHours = defaultHours;
+
+  if (isDbConnected && pool) {
+    try {
+      const result = await pool.query(
+        'SELECT opening_hours FROM users WHERE role = $1 AND praxis_name = $2 ORDER BY opening_hours IS NOT NULL DESC, id DESC',
+        ['praxis', praxisName]
+      );
+      if (result.rows.length > 0 && result.rows[0].opening_hours) {
+        openingHours = result.rows[0].opening_hours;
+      }
+    } catch (err) {
+      console.error('Error in validateAppointmentTime db query:', err);
+    }
+  }
+
+  const hoursToday = openingHours[dayName];
+  if (!hoursToday || hoursToday.closed) {
+    return { valid: false, error: 'Die Praxis ist an diesem Tag geschlossen.' };
+  }
+
+  const { start, end } = hoursToday;
+  if (!start || !end) {
+    return { valid: false, error: 'Keine Öffnungszeiten für diesen Tag definiert.' };
+  }
+
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + 30;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  const endTimeStr = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+
+  if (timeStr < start || endTimeStr > end) {
+    return { valid: false, error: 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' };
+  }
+
+  // Check buffer times
+  let bufferTimesList = [];
+  if (isDbConnected && pool) {
+    try {
+      const btResult = await pool.query(
+        `SELECT * FROM buffer_times bt
+         JOIN users u ON bt.praxis_id = u.id
+         WHERE u.praxis_name = $1 AND (
+           (bt.is_recurring = TRUE AND bt.day_of_week = $2)
+           OR (bt.is_recurring = FALSE AND bt.specific_date = $3)
+         )`,
+        [praxisName, dayIndex, dateStr]
+      );
+      bufferTimesList = btResult.rows;
+    } catch (err) {
+      console.error('Error checking buffer times in validateAppointmentTime:', err);
+    }
+  } else if (req && req.session && req.session.mockBufferTimes) {
+    bufferTimesList = req.session.mockBufferTimes.filter(bt => {
+      if (bt.is_recurring && bt.day_of_week === dayIndex) {
+        return true;
+      }
+      if (!bt.is_recurring && bt.specific_date === dateStr) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  const apptStartMin = h * 60 + m;
+  const apptEndMin = apptStartMin + 30;
+  for (const bt of bufferTimesList) {
+    const [bsh, bsm] = bt.start_time.split(':').map(Number);
+    const [beh, bem] = bt.end_time.split(':').map(Number);
+    const bufStart = bsh * 60 + bsm;
+    const bufEnd = beh * 60 + bem;
+    if (apptStartMin < bufEnd && apptEndMin > bufStart) {
+      return { valid: false, error: `Der gewählte Termin liegt in einer Pufferzeit (${bt.title}: ${bt.start_time}–${bt.end_time}).` };
+    }
+  }
+
+  return { valid: true };
+}
+
+// API: Get opening hours of a praxis
+app.get('/api/praxis/opening-hours', async (req, res) => {
+  const praxisName = req.query.praxis;
+  if (!praxisName) {
+    return res.status(400).json({ error: 'praxis-Parameter ist erforderlich.' });
+  }
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  if (!isDbConnected || !pool) {
+    if (req.session.user && req.session.user.role === 'praxis' && req.session.user.praxis_name === praxisName && req.session.user.opening_hours) {
+      return res.json({ success: true, opening_hours: req.session.user.opening_hours });
+    }
+    return res.json({ success: true, opening_hours: defaultHours });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT opening_hours FROM users WHERE role = $1 AND praxis_name = $2 ORDER BY opening_hours IS NOT NULL DESC, id DESC',
+      ['praxis', praxisName]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].opening_hours) {
+      return res.json({ success: true, opening_hours: result.rows[0].opening_hours });
+    }
+
+    return res.json({ success: true, opening_hours: defaultHours });
+  } catch (err) {
+    console.error('Error fetching opening hours:', err);
+    return res.status(500).json({ error: 'Fehler beim Laden der Öffnungszeiten.' });
+  }
+});
+
+// ============================================
+// BUFFER TIMES (PUFFERZEITEN) API ENDPOINTS
+// ============================================
+
+// API: Get all buffer times for the logged-in praxis
+app.get('/api/praxis/buffer-times', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const praxisId = req.session.userId;
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, bufferTimes: req.session.mockBufferTimes || [] });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM buffer_times WHERE praxis_id = $1 ORDER BY is_recurring DESC, day_of_week ASC, specific_date ASC, start_time ASC',
+      [praxisId]
+    );
+    res.json({ success: true, bufferTimes: result.rows });
+  } catch (err) {
+    console.error('Error fetching buffer times:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Pufferzeiten.' });
+  }
+});
+
+// API: Create a new buffer time
+app.post('/api/praxis/buffer-times', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const { title, isRecurring, dayOfWeek, specificDate, startTime, endTime } = req.body;
+  const praxisId = req.session.userId;
+
+  if (!startTime || !endTime) {
+    return res.status(400).json({ error: 'Start- und Endzeit sind erforderlich.' });
+  }
+
+  if (startTime >= endTime) {
+    return res.status(400).json({ error: 'Die Startzeit muss vor der Endzeit liegen.' });
+  }
+
+  if (isRecurring && (dayOfWeek === undefined || dayOfWeek === null)) {
+    return res.status(400).json({ error: 'Für wiederkehrende Pufferzeiten muss ein Wochentag gewählt werden.' });
+  }
+
+  if (!isRecurring && !specificDate) {
+    return res.status(400).json({ error: 'Für einmalige Pufferzeiten muss ein Datum gewählt werden.' });
+  }
+
+  if (!isDbConnected || !pool) {
+    // Mock mode
+    if (!req.session.mockBufferTimes) req.session.mockBufferTimes = [];
+    const mockBt = {
+      id: Date.now(),
+      praxis_id: praxisId,
+      title: title || 'Pufferzeit',
+      is_recurring: !!isRecurring,
+      day_of_week: isRecurring ? parseInt(dayOfWeek) : null,
+      specific_date: !isRecurring ? specificDate : null,
+      start_time: startTime,
+      end_time: endTime,
+      created_at: new Date().toISOString()
+    };
+    req.session.mockBufferTimes.push(mockBt);
+    return res.json({ success: true, bufferTime: mockBt });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO buffer_times (praxis_id, title, is_recurring, day_of_week, specific_date, start_time, end_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        praxisId,
+        title || 'Pufferzeit',
+        !!isRecurring,
+        isRecurring ? parseInt(dayOfWeek) : null,
+        !isRecurring ? specificDate : null,
+        startTime,
+        endTime
+      ]
+    );
+    res.json({ success: true, bufferTime: result.rows[0] });
+  } catch (err) {
+    console.error('Error creating buffer time:', err);
+    res.status(500).json({ error: 'Fehler beim Erstellen der Pufferzeit.' });
+  }
+});
+
+// API: Delete a buffer time
+app.delete('/api/praxis/buffer-times/:id', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const btId = parseInt(req.params.id);
+  const praxisId = req.session.userId;
+
+  if (!isDbConnected || !pool) {
+    if (req.session.mockBufferTimes) {
+      req.session.mockBufferTimes = req.session.mockBufferTimes.filter(bt => bt.id !== btId);
+    }
+    return res.json({ success: true });
+  }
+
+  try {
+    await pool.query('DELETE FROM buffer_times WHERE id = $1 AND praxis_id = $2', [btId, praxisId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting buffer time:', err);
+    res.status(500).json({ error: 'Fehler beim Löschen der Pufferzeit.' });
   }
 });
 
@@ -655,6 +974,12 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
   const praxisName = req.session.user.praxis_name || 'Meine Praxis';
   const fachrichtung = req.session.user.praxis_fachbereich || 'Allgemeinmedizin';
   const adresse = req.session.user.praxis_adresse || 'Musterstraße 1, 12345 Musterstadt';
+
+  // Validate opening hours
+  const timeValidation = await validateAppointmentTime(praxisName, date, time, req);
+  if (!timeValidation.valid) {
+    return res.status(400).json({ error: timeValidation.error || 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
+  }
 
   if (!isDbConnected || !pool) {
     // Offline mode: mock booking
@@ -949,6 +1274,38 @@ app.get('/api/termine/blocked', async (req, res) => {
     const matches = (req.session.mockAppointments || [])
       .filter(appt => appt.date === date && appt.code !== excludeCode && (appt.praxis === praxis || (userId && appt.user_id === userId)))
       .map(appt => appt.time);
+
+    // Also block slots that fall within mock buffer times
+    if (req.session.mockBufferTimes) {
+      try {
+        const dateObj = new Date(date + 'T00:00:00');
+        const dayOfWeek = dateObj.getDay();
+        const relevantBts = req.session.mockBufferTimes.filter(bt => {
+          if (bt.is_recurring && bt.day_of_week === dayOfWeek) return true;
+          if (!bt.is_recurring && bt.specific_date === date) return true;
+          return false;
+        });
+
+        for (const bt of relevantBts) {
+          const [bsh, bsm] = bt.start_time.split(':').map(Number);
+          const [beh, bem] = bt.end_time.split(':').map(Number);
+          const bufStartMin = bsh * 60 + bsm;
+          const bufEndMin = beh * 60 + bem;
+          for (let slotMin = 7 * 60; slotMin < 18 * 60; slotMin += 30) {
+            const slotEnd = slotMin + 30;
+            if (slotMin < bufEndMin && slotEnd > bufStartMin) {
+              const slotStr = `${String(Math.floor(slotMin / 60)).padStart(2, '0')}:${String(slotMin % 60).padStart(2, '0')}`;
+              if (!matches.includes(slotStr)) {
+                matches.push(slotStr);
+              }
+            }
+          }
+        }
+      } catch (btErr) {
+        console.error('Error filtering mock buffer times:', btErr);
+      }
+    }
+
     return res.json({ blocked: matches });
   }
 
@@ -959,6 +1316,40 @@ app.get('/api/termine/blocked', async (req, res) => {
       [date, praxis, userId || -1, excludeCode || '']
     );
     const blockedSlots = result.rows.map(row => row.time);
+
+    // Also block slots that fall within buffer times
+    try {
+      const dateObj = new Date(date + 'T00:00:00');
+      const dayOfWeek = dateObj.getDay();
+      const btResult = await pool.query(
+        `SELECT bt.start_time, bt.end_time FROM buffer_times bt
+         JOIN users u ON bt.praxis_id = u.id
+         WHERE u.praxis_name = $1 AND (
+           (bt.is_recurring = TRUE AND bt.day_of_week = $2)
+           OR (bt.is_recurring = FALSE AND bt.specific_date = $3)
+         )`,
+        [praxis, dayOfWeek, date]
+      );
+      for (const bt of btResult.rows) {
+        const [bsh, bsm] = bt.start_time.split(':').map(Number);
+        const [beh, bem] = bt.end_time.split(':').map(Number);
+        const bufStartMin = bsh * 60 + bsm;
+        const bufEndMin = beh * 60 + bem;
+        // Generate all 30-min slots that overlap
+        for (let slotMin = 7 * 60; slotMin < 18 * 60; slotMin += 30) {
+          const slotEnd = slotMin + 30;
+          if (slotMin < bufEndMin && slotEnd > bufStartMin) {
+            const slotStr = `${String(Math.floor(slotMin / 60)).padStart(2, '0')}:${String(slotMin % 60).padStart(2, '0')}`;
+            if (!blockedSlots.includes(slotStr)) {
+              blockedSlots.push(slotStr);
+            }
+          }
+        }
+      }
+    } catch (btErr) {
+      console.error('Error fetching buffer times for blocked slots:', btErr);
+    }
+
     console.log(`[GET /api/termine/blocked] returning blocked slots:`, blockedSlots);
     res.json({ blocked: blockedSlots });
   } catch (err) {
@@ -978,6 +1369,12 @@ app.post('/api/termine/buchen', async (req, res) => {
 
   if (!doctor || !fachrichtung || !adresse || !date || !time || !art || !praxis) {
     return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
+
+  // Validate opening hours
+  const timeValidation = await validateAppointmentTime(praxis, date, time, req);
+  if (!timeValidation.valid) {
+    return res.status(400).json({ error: timeValidation.error || 'Der gewählte Termin liegt außerhalb der Öffnungszeiten der Praxis.' });
   }
 
   if (!isDbConnected || !pool) {
@@ -1558,9 +1955,14 @@ app.post('/api/precheckin', async (req, res) => {
               console.error('Failed to send praxis submission notification:', err);
             });
           }
+          if (appt.notify_email) {
+            sendPatientSubmissionConfirmation(appt.notify_email, appt).catch(err => {
+              console.error('Failed to send patient submission confirmation:', err);
+            });
+          }
         }
       } catch (notifyErr) {
-        console.error('Failed to trigger praxis notification on pre-check-in submission:', notifyErr);
+        console.error('Failed to trigger notifications on pre-check-in submission:', notifyErr);
       }
     }
 
@@ -2401,6 +2803,62 @@ async function sendPraxisSubmissionNotification(praxisEmail, appointment, patien
   }
 }
 
+async function sendPatientSubmissionConfirmation(patientEmail, appointment) {
+  const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
+  const portalLink = `${appUrl}/#landing`;
+
+  const subject = `Ihr Pre-Check-In war erfolgreich: ${appointment.praxis}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <h2 style="color: #0063BE; margin-bottom: 20px; font-weight: 700; font-size: 22px;">Pre-Check-In erfolgreich übermittelt!</h2>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        Hallo ${appointment.patient_vorname} ${appointment.patient_nachname},
+      </p>
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 20px;">
+        vielen Dank! Ihr digitaler Pre-Check-In für Ihren anstehenden Arzttermin wurde erfolgreich ausgefüllt und sicher an die Praxis übermittelt. Die Praxis hat alle notwendigen Daten (Anamnesebogen, Einwilligungen und Dokumente) erhalten, sodass Sie am Termin Zeit sparen.
+      </p>
+      
+      <div style="background-color: #f8fafc; padding: 18px; border-radius: 8px; margin: 24px 0; border: 1px solid #f1f5f9;">
+        <h4 style="margin: 0 0 10px 0; font-size: 15px; color: #0063BE; font-weight: 700;">Details zu Ihrem Termin:</h4>
+        <p style="margin: 0; font-size: 14px; color: #475569;">
+          🏢 <strong>Praxis:</strong> ${appointment.praxis}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          👤 <strong>Behandler:</strong> ${appointment.doctor}
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          📅 <strong>Datum & Uhrzeit:</strong> ${appointment.date} um ${appointment.time} Uhr
+        </p>
+        <p style="margin: 6px 0 0 0; font-size: 14px; color: #475569;">
+          🔑 <strong>Termin-Code:</strong> ${appointment.code}
+        </p>
+      </div>
+
+      <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 24px;">
+        Sie können Ihre Termine und die dazugehörigen Dokumente jederzeit in Ihrem Doctolib Pre-Check-In Patientenportal einsehen.
+      </p>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${portalLink}" style="background-color: #0063BE; color: white; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 15px; display: inline-block;">
+          Patientenportal öffnen
+        </a>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+        Dies ist eine automatische Bestätigung Ihres Doctolib Pre-Check-In Services. Bitte antworten Sie nicht direkt auf diese E-Mail.
+      </p>
+    </div>
+  `;
+
+  try {
+    await sendEmail({ to: patientEmail, subject, html });
+    console.log(`📧 Patient submission confirmation sent to ${patientEmail} for appointment ${appointment.code}`);
+  } catch (err) {
+    console.error('Failed to send patient submission confirmation:', err);
+  }
+}
+
 async function sendPostVisitNotificationEmail(email, appointment) {
   const appUrl = (process.env.APP_URL || 'https://fallstudiesoftwareengineeringmed-pre-check-in-production.up.railway.app').replace(/\/$/, '');
   const feedbackLink = `${appUrl}/#feedback?code=${appointment.code}`;
@@ -2728,7 +3186,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
 
   try {
     const terminRes = await pool.query(
-      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent, p.anamnesis_assessment
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
        WHERE t.code = $1 AND t.praxis = $2`,
@@ -2750,7 +3208,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     }
 
     if (termin.ai_assessments) {
-      return res.json({ success: true, ai_assessments: termin.ai_assessments });
+      return res.json({ success: true, ai_assessments: termin.ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
     }
 
     // Generate assessments using Gemini or fallback
@@ -2935,10 +3393,10 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
       [JSON.stringify(ai_assessments), code]
     );
 
-    res.json({ success: true, ai_assessments });
+    res.json({ success: true, ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
   } catch (err) {
     console.error('Error generating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Generieren der KI-Einschätzungen.' });
+    res.status(500).json({ error: 'Fehler beim Generieren der Empfehlungen des KI-Assistenten.' });
   }
 });
 
@@ -2969,7 +3427,101 @@ app.put('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Aktualisieren der KI-Einschätzungen.' });
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des KI-Assistenten.' });
+  }
+});
+
+// API: Generate anamnesis assessment using Gemini
+app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { code } = req.params;
+
+  if (!isDbConnected || !pool) {
+    return res.status(500).json({ error: 'Datenbankverbindung nicht verfügbar.' });
+  }
+
+  try {
+    // 1. Fetch appointment & precheckin details
+    const terminRes = await pool.query(
+      `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions
+       FROM termine t
+       LEFT JOIN precheckins p ON t.code = p.termin_code
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [code, req.session.user.praxis_name]
+    );
+
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+
+    const termin = terminRes.rows[0];
+    if (!termin.submitted) {
+      return res.status(400).json({ error: 'Pre-Check-In des Patienten ist noch nicht abgeschlossen.' });
+    }
+
+    const beschwerden = termin.beschwerden || {};
+    const medikamente = termin.medikamente || {};
+    const allergien = termin.allergien || {};
+    const customAnswers = termin.custom_answers || {};
+    const aiQuestions = termin.ai_questions || [];
+
+    let anamnesis_assessment = '';
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not defined');
+      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const prompt = `
+Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
+
+Achtung: Dies dient ausschließlich der Vorbereitung des behandelnden Arztes im internen Dashboard.
+Formuliere die Einschätzung professionell, präzise und übersichtlich in deutscher Sprache (ca. 3-4 Sätze).
+
+Praxis- & Termin-Kontext:
+- Fachrichtung: ${termin.fachrichtung}
+- Termin-Art: ${termin.art}
+- Praxis-Name: ${termin.praxis}
+- Arzt: ${termin.doctor}
+
+Patienten-Angaben (Pre-Check-In):
+- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
+- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
+- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
+- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
+- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
+- Medikamente: ${JSON.stringify(medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.list || [])}
+- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
+- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
+
+Erstelle eine präzise Einschätzung mit möglichen Verdachtsdiagnosen oder Empfehlungen. Antworte direkt als Fließtext ohne Markdown-Formatierungen, HTML-Tags oder Begleittext.
+`;
+
+      const result = await model.generateContent(prompt);
+      anamnesis_assessment = result.response.text().trim();
+    } catch (aiErr) {
+      console.warn('Gemini API call failed for anamnesis-assessment, falling back to rule-based generation:', aiErr.message);
+      // Fallback rule-based generation
+      const chipsStr = (beschwerden.chips || []).join(', ');
+      anamnesis_assessment = `Basierend auf den gemeldeten Symptomen (${chipsStr || 'Keine Angabe'}) und der Freitext-Beschreibung liegt der Verdacht nahe, dass eine symptombezogene Abklärung in der Fachrichtung ${termin.fachrichtung} erforderlich ist. Bitte prüfen Sie mögliche Wechselwirkungen mit der aktuellen Medikation und die Ausschlusskriterien für Allergien.`;
+    }
+
+    // Save to DB
+    await pool.query(
+      'UPDATE precheckins SET anamnesis_assessment = $1 WHERE termin_code = $2',
+      [anamnesis_assessment, code]
+    );
+
+    res.json({ success: true, anamnesis_assessment });
+  } catch (err) {
+    console.error('Error generating anamnesis assessment:', err);
+    res.status(500).json({ error: 'Fehler beim Generieren der Einschätzung aus der Anamnese.' });
   }
 });
 
@@ -2990,9 +3542,12 @@ app.post('/api/praxis/termin/:code/aftercare', async (req, res) => {
   }
 
   try {
-    // 1. Get patient email and doctor info
+    // 1. Get patient email and doctor info (checking both notify_email and users.email)
     const terminRes = await pool.query(
-      'SELECT doctor, praxis, notify_email, patient_vorname FROM termine WHERE code = $1',
+      `SELECT t.doctor, t.praxis, t.notify_email, t.patient_vorname, u.email as patient_email 
+       FROM termine t 
+       LEFT JOIN users u ON t.user_id = u.id 
+       WHERE t.code = $1`,
       [code]
     );
 
@@ -3001,7 +3556,7 @@ app.post('/api/praxis/termin/:code/aftercare', async (req, res) => {
     }
 
     const appt = terminRes.rows[0];
-    const emailTo = appt.notify_email;
+    const emailTo = appt.notify_email || appt.patient_email;
 
     if (!emailTo) {
       return res.status(400).json({ error: 'Für diesen Termin ist keine E-Mail-Adresse hinterlegt.' });
@@ -3082,10 +3637,11 @@ app.post('/api/praxis/termin/:code/hints', async (req, res) => {
       [code, JSON.stringify(hints || []), custom_text || '', false]
     );
 
-    // Send email if patient has an email
-    if (appt.patient_email) {
+    // Send email if patient has an email (checking notify_email first, then fallback to patient_email)
+    const emailTo = appt.notify_email || appt.patient_email;
+    if (emailTo) {
       try {
-        await sendHintEmail(appt.patient_email, appt, hints || [], custom_text || '', req.session.user.praxis_name);
+        await sendHintEmail(emailTo, appt, hints || [], custom_text || '', req.session.user.praxis_name);
         await pool.query('UPDATE patient_hints SET email_sent = TRUE WHERE id = $1', [result.rows[0].id]);
         result.rows[0].email_sent = true;
       } catch (emailErr) {
@@ -3126,12 +3682,16 @@ app.put('/api/praxis/termin/:code/hints/:hintId', async (req, res) => {
          WHERE t.code = $1 AND t.praxis = $2`,
         [code, req.session.user.praxis_name]
       );
-      if (terminRes.rows.length > 0 && terminRes.rows[0].patient_email) {
-        try {
-          await sendHintEmail(terminRes.rows[0].patient_email, terminRes.rows[0], hints || [], custom_text || '', req.session.user.praxis_name);
-          await pool.query('UPDATE patient_hints SET email_sent = TRUE WHERE id = $1', [hintId]);
-        } catch (emailErr) {
-          console.error('Failed to resend hint email:', emailErr);
+      if (terminRes.rows.length > 0) {
+        const appt = terminRes.rows[0];
+        const emailTo = appt.notify_email || appt.patient_email;
+        if (emailTo) {
+          try {
+            await sendHintEmail(emailTo, appt, hints || [], custom_text || '', req.session.user.praxis_name);
+            await pool.query('UPDATE patient_hints SET email_sent = TRUE WHERE id = $1', [hintId]);
+          } catch (emailErr) {
+            console.error('Failed to resend hint email:', emailErr);
+          }
         }
       }
     }
@@ -3329,6 +3889,372 @@ async function sendDelayEmail(email, appointment, delayMinutes, praxisName) {
     </div>
   `;
 
+  await sendEmail({ to: email, subject, html });
+}
+
+// ============================================
+// LIVE QUEUE API ENDPOINTS
+// ============================================
+
+// Helper: Get today's date string in YYYY-MM-DD format
+function getTodayDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper: Check if a termin date string matches today
+function isTerminToday(dateStr) {
+  if (!dateStr) return false;
+  const today = getTodayDateString();
+  // Direct YYYY-MM-DD match
+  if (dateStr === today) return true;
+  // Try parsing German date format
+  const parsed = parseGermanDate(dateStr);
+  if (!parsed) return false;
+  const now = new Date();
+  return parsed.getFullYear() === now.getFullYear() &&
+         parsed.getMonth() === now.getMonth() &&
+         parsed.getDate() === now.getDate();
+}
+
+// API: Get queue status for a praxis (today only)
+app.get('/api/queue/:praxisName', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { praxisName } = req.params;
+  const decodedPraxisName = decodeURIComponent(praxisName);
+
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true, queue: [] });
+  }
+
+  try {
+    // Get all appointments for this praxis
+    const result = await pool.query(
+      `SELECT t.code, t.patient_vorname, t.patient_nachname, t.date, t.time, t.art, t.duration, t.user_id,
+              u.geburtsdatum as patient_geburtsdatum, u.email as patient_email,
+              q.status as queue_status, q.delay_minutes, q.delay_reason, q.early_request_status, q.early_minutes, q.position, q.updated_at as queue_updated_at
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       LEFT JOIN queue_status q ON t.code = q.termin_code
+       WHERE t.praxis = $1 AND (q.status IS NULL OR q.status != 'no_show')
+       ORDER BY t.time ASC`,
+      [decodedPraxisName]
+    );
+
+    // Filter to today's appointments only
+    const todayAppointments = result.rows.filter(row => isTerminToday(row.date));
+
+    // Auto-create queue_status entries for today's appointments that don't have one
+    for (let i = 0; i < todayAppointments.length; i++) {
+      const appt = todayAppointments[i];
+      if (!appt.queue_status) {
+        try {
+          await pool.query(
+            `INSERT INTO queue_status (praxis_name, termin_code, status, position)
+             VALUES ($1, $2, 'waiting', $3)
+             ON CONFLICT (termin_code) DO NOTHING`,
+            [decodedPraxisName, appt.code, i + 1]
+          );
+          appt.queue_status = 'waiting';
+          appt.delay_minutes = 0;
+          appt.delay_reason = '';
+          appt.early_request_status = null;
+          appt.position = i + 1;
+        } catch (insertErr) {
+          console.warn('Queue status auto-insert failed:', insertErr.message);
+        }
+      }
+    }
+
+    // Determine if caller is praxis or patient
+    const isPraxis = req.session.user?.role === 'praxis';
+
+    const queue = todayAppointments.map((appt, idx) => {
+      const isOwnAppointment = appt.user_id === req.session.userId;
+      return {
+        code: appt.code,
+        // For patients: show full name only for own appointment, initials for others
+        patient_vorname: isPraxis || isOwnAppointment ? appt.patient_vorname : appt.patient_vorname.charAt(0) + '.',
+        patient_nachname: isPraxis || isOwnAppointment ? appt.patient_nachname : appt.patient_nachname.charAt(0) + '.',
+        patient_geburtsdatum: isPraxis || isOwnAppointment ? (appt.patient_geburtsdatum || '') : '',
+        time: appt.time,
+        art: appt.art,
+        duration: appt.duration || 30,
+        status: appt.queue_status || 'waiting',
+        delay_minutes: appt.delay_minutes || 0,
+        delay_reason: appt.delay_reason || '',
+        early_request_status: appt.early_request_status || null,
+        early_minutes: appt.early_minutes || 0,
+        position: appt.position || idx + 1,
+        is_own: isOwnAppointment,
+        queue_updated_at: appt.queue_updated_at || null
+      };
+    });
+
+    res.json({ success: true, queue });
+  } catch (err) {
+    console.error('Error fetching queue:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Warteschlange.' });
+  }
+});
+
+// API: Doctor accepts a patient (start treatment)
+app.post('/api/queue/:terminCode/accept', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    // Verify the appointment belongs to this praxis
+    const check = await pool.query(
+      'SELECT code FROM termine WHERE code = $1 AND praxis = $2',
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, 'in_treatment', NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'in_treatment', updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error accepting patient:', err);
+    res.status(500).json({ error: 'Fehler beim Annehmen des Patienten.' });
+  }
+});
+
+// API: Doctor marks treatment as done
+app.post('/api/queue/:terminCode/done', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const check = await pool.query(
+      'SELECT code FROM termine WHERE code = $1 AND praxis = $2',
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, 'done', NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'done', updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking done:', err);
+    res.status(500).json({ error: 'Fehler beim Abschließen der Behandlung.' });
+  }
+});
+
+// API: Doctor delays an appointment
+app.post('/api/queue/:terminCode/delay', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  const { delay_minutes, reason } = req.body;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const terminRes = await pool.query(
+      `SELECT t.*, u.email as patient_email
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const appt = terminRes.rows[0];
+
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, delay_minutes, delay_reason, updated_at)
+       VALUES ($1, $2, 'delayed', $3, $4, NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'delayed', delay_minutes = $3, delay_reason = $4, updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode, delay_minutes || 0, reason || '']
+    );
+
+    // Send delay email to patient
+    if (appt.patient_email) {
+      try {
+        await sendDelayEmail(appt.patient_email, appt, delay_minutes || 0, req.session.user.praxis_name);
+      } catch (emailErr) {
+        console.warn('Failed to send delay email:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error delaying appointment:', err);
+    res.status(500).json({ error: 'Fehler beim Verzögern des Termins.' });
+  }
+});
+
+// API: Doctor requests early treatment for next patient
+app.post('/api/queue/:terminCode/early-request', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  const { early_minutes } = req.body;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const terminRes = await pool.query(
+      `SELECT t.*, u.email as patient_email
+       FROM termine t
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE t.code = $1 AND t.praxis = $2`,
+      [terminCode, req.session.user.praxis_name]
+    );
+    if (terminRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const appt = terminRes.rows[0];
+
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, early_request_status, early_minutes, updated_at)
+       VALUES ($1, $2, 'waiting', 'pending', $3, NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET early_request_status = 'pending', early_minutes = $3, updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode, early_minutes || 0]
+    );
+
+    // Send early request email to patient
+    if (appt.patient_email) {
+      try {
+        await sendEarlyRequestEmail(appt.patient_email, appt, req.session.user.praxis_name, early_minutes || 0);
+      } catch (emailErr) {
+        console.warn('Failed to send early request email:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error requesting early treatment:', err);
+    res.status(500).json({ error: 'Fehler beim Beantragen der früheren Behandlung.' });
+  }
+});
+
+// API: Generic endpoint to update queue status of an appointment
+app.post('/api/queue/:terminCode/status', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  const { status } = req.body;
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = $3, updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode, status]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating queue status:', err);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des Status.' });
+  }
+});
+
+// API: Doctor marks patient as no-show (nicht erschienen)
+app.post('/api/queue/:terminCode/no-show', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    console.warn('[POST /api/queue/no-show] Unauthorized attempt or wrong role:', req.session?.user);
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { terminCode } = req.params;
+  console.log(`[POST /api/queue/${terminCode}/no-show] called by doctor: ${req.session.user.email}, praxis: ${req.session.user.praxis_name}`);
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
+       VALUES ($1, $2, 'no_show', NOW())
+       ON CONFLICT (termin_code) DO UPDATE SET status = 'no_show', updated_at = NOW()`,
+      [req.session.user.praxis_name, terminCode]
+    );
+    console.log(`[POST /api/queue/${terminCode}/no-show] DB update successful. Rows affected:`, result.rowCount);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking no-show:', err);
+    res.status(500).json({ error: 'Fehler beim Registrieren des Nicht-Erscheinens.' });
+  }
+});
+
+// API: Patient responds to early treatment request (accept/decline)
+app.post('/api/queue/:terminCode/early-response', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { terminCode } = req.params;
+  const { accepted } = req.body; // true or false
+  if (!isDbConnected || !pool) {
+    return res.json({ success: true });
+  }
+  try {
+    // Verify this appointment belongs to the current user
+    const check = await pool.query(
+      'SELECT code FROM termine WHERE code = $1 AND user_id = $2',
+      [terminCode, req.session.userId]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    const newStatus = accepted ? 'accepted' : 'declined';
+    await pool.query(
+      `UPDATE queue_status SET early_request_status = $1, updated_at = NOW() WHERE termin_code = $2`,
+      [newStatus, terminCode]
+    );
+    res.json({ success: true, status: newStatus });
+  } catch (err) {
+    console.error('Error responding to early request:', err);
+    res.status(500).json({ error: 'Fehler bei der Antwort.' });
+  }
+});
+
+// Email template for early treatment request
+async function sendEarlyRequestEmail(email, appointment, praxisName, earlyMinutes) {
+  const subject = `${praxisName}: Frühere Behandlung möglich!`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #10B981; margin-bottom: 20px;">🕐 Frühere Behandlung möglich!</h2>
+      <p style="font-size: 16px; line-height: 1.5; color: #334155;">
+        Ihre Praxis <strong>${praxisName}</strong> hat Sie informiert, dass Ihr Termin am
+        <strong>${appointment.date}</strong> um <strong>${appointment.time} Uhr</strong>
+        voraussichtlich um ca. <strong>${earlyMinutes} Minuten</strong> früher stattfinden kann.
+      </p>
+      <p style="font-size: 14px; color: #64748B; margin-top: 15px;">
+        Bitte öffnen Sie die Live-Warteschlange in der App, um die Anfrage anzunehmen oder abzulehnen.
+      </p>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+      <p style="font-size: 12px; color: #94a3b8; text-align: center;">Doctolib Pre-Check-In – Automatische Benachrichtigung</p>
+    </div>
+  `;
   await sendEmail({ to: email, subject, html });
 }
 

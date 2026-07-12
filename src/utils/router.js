@@ -22,6 +22,23 @@ export function navigate(hash) {
 }
 
 async function handleRoute() {
+  // Clean up any remaining modals/overlays in document.body
+  const modalSelectors = [
+    '#profile-modal',
+    '#delay-modal-overlay',
+    '#reschedule-modal-backdrop',
+    '#create-appt-modal-backdrop',
+    '#doc-viewer-modal',
+    '.dl-modal-backdrop',
+    '.delay-modal-overlay',
+    '.reschedule-modal-backdrop',
+    '.create-appt-modal-backdrop',
+    '.modal-backdrop'
+  ];
+  modalSelectors.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => el.remove());
+  });
+
   // Load dynamic practices from server
   try {
     await fetchPraxen();
@@ -34,6 +51,10 @@ async function handleRoute() {
 
   if (hash.startsWith('praxis/')) {
     routeKey = 'praxis';
+  }
+  // Handle warteschlange route with query params (e.g. warteschlange?praxis=...)
+  if (hash.startsWith('warteschlange')) {
+    routeKey = 'warteschlange';
   }
 
   // Check authentication status
@@ -53,20 +74,20 @@ async function handleRoute() {
   }
 
   // If praxis user tries to access patient-only routes, redirect to praxis dashboard
-  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'ai-fragen', 'dokumente', 'praxis-dokumente', 'zusammenfassung'];
+  const PATIENT_ONLY_ROUTES = ['landing', 'confirm', 'intro', 'beschwerden', 'zusatzfragen', 'medikamente', 'allergien', 'ai-fragen', 'dokumente', 'praxis-dokumente', 'zusammenfassung', 'warteschlange'];
   if (loggedIn && auth.isPraxis() && PATIENT_ONLY_ROUTES.includes(routeKey)) {
     navigate('praxis-dashboard');
     return;
   }
 
-  // If patient user tries to access praxis dashboard, redirect to landing
-  if (loggedIn && !auth.isPraxis() && routeKey === 'praxis-dashboard') {
+  // If patient user tries to access praxis-only routes, redirect to landing
+  if (loggedIn && !auth.isPraxis() && (routeKey === 'praxis-dashboard' || routeKey === 'live-queue')) {
     navigate('landing');
     return;
   }
 
-  // For protected patient routes, ensure data is loaded
-  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard') {
+  // For protected patient routes, ensure data is loaded (skip queue views which have their own data loading)
+  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard' && routeKey !== 'live-queue' && routeKey !== 'warteschlange') {
     await store.loadData();
 
     const isSubmitted = store.get('submitted');

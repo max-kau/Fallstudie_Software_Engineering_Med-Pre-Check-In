@@ -8,11 +8,31 @@ let selectedTime = null;
 let bookingSuccess = false;
 let blockedSlots = [];
 let currentMonth = new Date();
+let openingHours = null;
 
 function getNextAvailableDate() {
   const d = new Date();
   d.setDate(d.getDate() + 1); // Tomorrow
-  while (d.getDay() === 0) { // Skip Sundays
+  
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+  
+  const oh = openingHours || defaultHours;
+  
+  for (let i = 0; i < 30; i++) {
+    const dayName = dayNames[d.getDay()];
+    const isDayClosed = oh[dayName] ? oh[dayName].closed : defaultHours[dayName].closed;
+    if (!isDayClosed) {
+      break;
+    }
     d.setDate(d.getDate() + 1);
   }
   return d.toISOString().split('T')[0];
@@ -20,23 +40,58 @@ function getNextAvailableDate() {
 
 function getAvailableTimeslotsForDate(dateStr) {
   if (!dateStr) return [];
-  const d = new Date(dateStr + 'T00:00:00');
-  const isSaturday = d.getDay() === 6;
-  if (isSaturday) {
-    // Saturdays: morning only
-    return ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'];
+  
+  const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  let dayIndex;
+  try {
+    dayIndex = new Date(dateStr + 'T00:00:00').getDay();
+  } catch (err) {
+    return [];
   }
-  // Weekdays: standard slots
-  return [
-    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-    '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-  ];
+  const dayName = dayNames[dayIndex];
+
+  const defaultHours = {
+    "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+    "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+    "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+  };
+
+  const oh = openingHours || defaultHours;
+  const todayHours = oh[dayName] || defaultHours[dayName] || { closed: true };
+
+  if (todayHours.closed) {
+    return [];
+  }
+
+  const { start, end } = todayHours;
+  if (!start || !end) return [];
+
+  const parseTimeToMins = (t) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const startMin = parseTimeToMins(start);
+  const endMin = parseTimeToMins(end);
+
+  const slots = [];
+  for (let min = startMin; min + 30 <= endMin; min += 30) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  }
+
+  return slots;
 }
 
 async function fetchBlockedSlots(praxisName) {
   if (!selectedDate) return;
   try {
-    const res = await fetch(`/api/termine/blocked?date=${selectedDate}&praxis=${encodeURIComponent(praxisName)}`);
+    const res = await fetch(`/api/termine/blocked?date=${selectedDate}&praxis=${encodeURIComponent(praxisName)}&_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
     blockedSlots = data.blocked || [];
   } catch (err) {
@@ -82,19 +137,31 @@ function renderCalendarHtml() {
     
     const isoDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
     
-    // Disable past dates and Sundays (getDay() === 0)
+    // Disable past dates and closed days
     const isPast = currentDayDate < today;
-    const isSunday = currentDayDate.getDay() === 0;
-    const isDisabled = isPast || isSunday;
+    const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+    const dayName = dayNames[currentDayDate.getDay()];
+    const defaultHours = {
+      "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+      "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+      "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+      "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+      "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+      "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+      "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+    };
+    const oh = openingHours || defaultHours;
+    const isDayClosed = oh[dayName] ? oh[dayName].closed : defaultHours[dayName].closed;
+    const isDisabled = isPast || isDayClosed;
     
     const activeClass = selectedDate === isoDate ? 'active' : '';
     const todayClass = (today.getDate() === dayNum && today.getMonth() === month && today.getFullYear() === year) ? 'today' : '';
     const disabledAttr = isDisabled ? 'disabled' : '';
     let titleAttr = '';
-    if (isSunday) {
-      titleAttr = 'title="Sonntags geschlossen"';
-    } else if (isPast) {
+    if (isPast) {
       titleAttr = 'title="In der Vergangenheit"';
+    } else if (isDayClosed) {
+      titleAttr = `title="${dayName}s geschlossen"`;
     }
     
     daysHtml += `
@@ -295,6 +362,33 @@ export function initPraxisView() {
   const loggedIn = auth.isLoggedIn();
   if (!loggedIn) return;
 
+  openingHours = null; // reset
+
+  async function loadData() {
+    try {
+      const ohRes = await fetch(`/api/praxis/opening-hours?praxis=${encodeURIComponent(praxis.name)}&_t=${Date.now()}`, { cache: 'no-store' });
+      const ohData = await ohRes.json();
+      if (ohData.success) {
+        openingHours = ohData.opening_hours;
+        
+        // If the initially selectedDate is closed, find the first open date
+        const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+        const dayName = dayNames[new Date(selectedDate + 'T00:00:00').getDay()];
+        if (openingHours[dayName]?.closed) {
+          selectedDate = getNextAvailableDate();
+          currentMonth = new Date(selectedDate);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching opening hours:', err);
+    }
+    
+    updateCalendar();
+    updateTimeSlots();
+  }
+
+  loadData();
+
   function updateCalendar() {
     const container = document.getElementById('calendar-container');
     if (!container) return;
@@ -339,12 +433,37 @@ export function initPraxisView() {
     await fetchBlockedSlots(praxis.name);
     
     const slots = getAvailableTimeslotsForDate(selectedDate);
+
     if (slots.length === 0) {
-      container.innerHTML = `
-        <div style="grid-column: span 3; text-align: center; font-size: var(--font-size-xs); color: var(--gray-400); padding: var(--space-4) 0;">
-          Keine Termine verfügbar
-        </div>
-      `;
+      const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+      const dayName = dayNames[new Date(selectedDate + 'T00:00:00').getDay()];
+      const defaultHours = {
+        "Montag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Dienstag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Mittwoch": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Donnerstag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Freitag": { "closed": false, "start": "08:00", "end": "16:00" },
+        "Samstag": { "closed": true, "start": "08:00", "end": "16:00" },
+        "Sonntag": { "closed": true, "start": "08:00", "end": "16:00" }
+      };
+      const oh = openingHours || defaultHours;
+      const todayHours = oh[dayName] || defaultHours[dayName] || { closed: true };
+
+      if (todayHours.closed) {
+        container.innerHTML = `
+          <div style="grid-column: span 3; text-align: center; padding: var(--space-4) 0;">
+            <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid var(--danger); color: var(--danger); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); font-weight: 600;">
+              Praxis geschlossen
+            </div>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div style="grid-column: span 3; text-align: center; font-size: var(--font-size-xs); color: var(--gray-400); padding: var(--space-4) 0;">
+            Keine Termine verfügbar
+          </div>
+        `;
+      }
       return;
     }
     
@@ -379,9 +498,7 @@ export function initPraxisView() {
     }
   }
 
-  // Initial load
-  updateCalendar();
-  updateTimeSlots();
+  // Initial load of calendar and time slots is handled asynchronously inside loadData()
 
   // Handle Confirm Click
   const btnConfirm = document.getElementById('btn-booking-confirm');

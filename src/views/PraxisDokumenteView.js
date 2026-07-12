@@ -18,39 +18,48 @@ export function renderPraxisDokumenteView() {
     const isConfirm = doc.doc_type === 'confirm';
 
     const viewerHtml = isPdf
-      ? `<iframe src="${fileUrl}#toolbar=0&navpanes=0&scrollbar=1" style="width: 100%; height: 100%; border: none; border-radius: var(--radius-md);"></iframe>`
+      ? `<div class="pdf-scroll-wrapper" style="height: 900px; width: 100%;"><iframe src="${fileUrl}#toolbar=0&navpanes=0&scrollbar=0" style="width: 100%; height: 100%; border: none;"></iframe></div>`
       : isImage
-        ? `<div style="display: flex; justify-content: center; align-items: center; height: 100%; overflow: auto; background: var(--gray-50); border-radius: var(--radius-md);"><img src="${fileUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${doc.title}" /></div>`
+        ? `<div style="display: flex; justify-content: center; align-items: center; min-height: 100%; overflow: auto; background: var(--gray-50); border-radius: var(--radius-md);"><img src="${fileUrl}" style="max-width: 100%; height: auto; object-fit: contain;" alt="${doc.title}" /></div>`
         : `<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: var(--gray-500); font-size: var(--font-size-sm);">
              <a href="${fileUrl}" target="_blank" style="color: var(--primary); text-decoration: underline;">Dokument in neuem Tab öffnen</a>
            </div>`;
+
+    const isAlreadyScrolled = status !== null;
+    const disabledAttr = isAlreadyScrolled ? '' : 'disabled';
+    const fadedStyle = isAlreadyScrolled ? '' : 'opacity: 0.5; cursor: not-allowed; transition: opacity 0.3s ease;';
 
     let actionHtml = '';
     if (isConfirm) {
       const isChecked = status === 'confirmed';
       actionHtml = `
-        <div class="form-group" style="margin-top: var(--space-4);">
-          <label class="checkbox-group" style="display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer;">
-            <input type="checkbox" class="doc-confirm-checkbox" data-id="${doc.id}" ${isChecked ? 'checked' : ''} style="margin-top: 3px;" />
+        <div class="form-group doc-action-group" data-id="${doc.id}" style="margin-top: var(--space-4); ${fadedStyle}">
+          <label class="checkbox-group" style="display: flex; align-items: flex-start; gap: var(--space-2); cursor: ${isAlreadyScrolled ? 'pointer' : 'not-allowed'};">
+            <input type="checkbox" class="doc-confirm-checkbox" data-id="${doc.id}" ${isChecked ? 'checked' : ''} ${disabledAttr} style="margin-top: 3px;" />
             <span class="checkbox-label" style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 600;">
               Ich habe das Dokument gelesen und bestätige dies.
             </span>
           </label>
+          <div class="scroll-helper-text" id="scroll-helper-${doc.id}" style="font-size: var(--font-size-xs); margin-top: var(--space-2); color: ${isAlreadyScrolled ? 'var(--success)' : 'var(--gray-500)'}; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+            ${isAlreadyScrolled 
+              ? '<span>✓ Dokument vollständig gelesen.</span>' 
+              : '<span>📖 Bitte scrollen Sie das Dokument ganz nach unten, um die Bestätigung freizuschalten.</span>'}
+          </div>
         </div>
       `;
     } else {
       const isAccepted = status === 'accepted';
       const isRejected = status === 'rejected';
       actionHtml = `
-        <div class="form-group doc-choice-group" data-id="${doc.id}" style="margin-top: var(--space-4);">
+        <div class="form-group doc-choice-group doc-action-group" data-id="${doc.id}" style="margin-top: var(--space-4); ${fadedStyle}">
           <p style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-700); margin-bottom: var(--space-2);">Bitte wählen Sie eine Option:</p>
           <div style="display: flex; flex-direction: column; gap: var(--space-2);">
-            <label class="radio-group" style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
-              <input type="radio" name="doc-choice-${doc.id}" value="accepted" ${isAccepted ? 'checked' : ''} />
+            <label class="radio-group" style="display: flex; align-items: center; gap: var(--space-2); cursor: ${isAlreadyScrolled ? 'pointer' : 'not-allowed'};">
+              <input type="radio" name="doc-choice-${doc.id}" class="doc-radio-input" data-id="${doc.id}" value="accepted" ${isAccepted ? 'checked' : ''} ${disabledAttr} />
               <span style="font-size: var(--font-size-sm); color: var(--gray-700);">Ich akzeptiere das Dokument</span>
             </label>
-            <label class="radio-group" style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
-              <input type="radio" name="doc-choice-${doc.id}" value="rejected" ${isRejected ? 'checked' : ''} />
+            <label class="radio-group" style="display: flex; align-items: center; gap: var(--space-2); cursor: ${isAlreadyScrolled ? 'pointer' : 'not-allowed'};">
+              <input type="radio" name="doc-choice-${doc.id}" class="doc-radio-input" data-id="${doc.id}" value="rejected" ${isRejected ? 'checked' : ''} ${disabledAttr} />
               <span style="font-size: var(--font-size-sm); color: var(--gray-700);">Ich akzeptiere das Dokument nicht (Ablehnung)</span>
             </label>
           </div>
@@ -59,7 +68,12 @@ export function renderPraxisDokumenteView() {
               Begründung für die Ablehnung <span style="color: #DC2626;">*</span>
             </label>
             <textarea class="textarea reject-reason-input" data-id="${doc.id}" placeholder="Bitte geben Sie eine Begründung ein..." 
-                      style="width: 100%; min-height: 80px; border: 2px solid #DC2626; border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--font-size-sm); resize: vertical; font-family: var(--font-family); background: #FEF2F2;">${reason}</textarea>
+                      style="width: 100%; min-height: 80px; border: 2px solid #DC2626; border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--font-size-sm); resize: vertical; font-family: var(--font-family); background: #FEF2F2;" ${disabledAttr}>${reason}</textarea>
+          </div>
+          <div class="scroll-helper-text" id="scroll-helper-${doc.id}" style="font-size: var(--font-size-xs); margin-top: var(--space-3); color: ${isAlreadyScrolled ? 'var(--success)' : 'var(--gray-500)'}; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+            ${isAlreadyScrolled 
+              ? '<span>✓ Dokument vollständig gelesen.</span>' 
+              : '<span>📖 Bitte scrollen Sie das Dokument ganz nach unten, um die Bestätigung freizuschalten.</span>'}
           </div>
         </div>
       `;
@@ -70,7 +84,7 @@ export function renderPraxisDokumenteView() {
         <h3 style="font-size: var(--font-size-md); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-3); display: flex; align-items: center; gap: 8px;">
           📄 ${idx + 1}. ${doc.title}
         </h3>
-        <div class="doc-scroll-frame" style="height: 380px; border: 1px solid var(--gray-250); border-radius: var(--radius-md); overflow: hidden; background: var(--gray-50);">
+        <div class="doc-scroll-frame" data-id="${doc.id}" style="height: 380px; border: 1px solid var(--gray-250); border-radius: var(--radius-md); overflow-y: auto; background: var(--gray-50); position: relative;">
           ${viewerHtml}
         </div>
         ${actionHtml}
@@ -122,6 +136,59 @@ export function initPraxisDokumenteView() {
 
     return { valid: true };
   }
+
+  const unlockDoc = (docId) => {
+    const group = container.querySelector(`.doc-action-group[data-id="${docId}"]`);
+    if (!group) return;
+    group.style.opacity = '1';
+    group.style.cursor = 'default';
+    
+    group.querySelectorAll('input, textarea').forEach(input => {
+      input.removeAttribute('disabled');
+    });
+    
+    group.querySelectorAll('label').forEach(lbl => {
+      lbl.style.cursor = 'pointer';
+    });
+
+    const helper = document.getElementById(`scroll-helper-${docId}`);
+    if (helper) {
+      helper.style.color = 'var(--success)';
+      helper.innerHTML = '<span>✓ Dokument vollständig gelesen.</span>';
+    }
+  };
+
+  // Setup scroll event listeners and initial checks
+  container.querySelectorAll('.doc-scroll-frame').forEach(frame => {
+    const docId = frame.dataset.id;
+    const confirmations = store.get('documentConfirmations') || {};
+    
+    // Check if already confirmed
+    if (confirmations[docId] && confirmations[docId].status) {
+      unlockDoc(docId);
+      return;
+    }
+
+    // Scroll listener helper
+    const handleScroll = () => {
+      const isAtBottom = frame.scrollHeight - frame.scrollTop <= frame.clientHeight + 15;
+      if (isAtBottom) {
+        unlockDoc(docId);
+        frame.removeEventListener('scroll', handleScroll);
+      }
+    };
+
+    frame.addEventListener('scroll', handleScroll);
+
+    // Initial check (if content is small enough that it doesn't scroll)
+    // Run after a tiny delay to ensure browser layout is completed
+    setTimeout(() => {
+      const hasScrollbar = frame.scrollHeight > frame.clientHeight;
+      if (!hasScrollbar) {
+        unlockDoc(docId);
+      }
+    }, 100);
+  });
 
   // Handle checkboxes
   container.querySelectorAll('.doc-confirm-checkbox').forEach(cb => {

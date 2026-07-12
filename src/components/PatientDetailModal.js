@@ -258,14 +258,6 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
           </div>
         </div>
         ` : ''}
-        ${termin.signature_data ? `
-        <div>
-          <div class="pdm-subsection-title">Digitale Unterschrift</div>
-          <div style="margin-top: var(--space-2); background: white; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2); display: inline-block; max-width: 250px;">
-            <img src="${termin.signature_data}" style="max-height: 80px; display: block;" alt="Unterschrift" />
-          </div>
-        </div>
-        ` : ''}
       </div>
     </div>
     ` : `
@@ -295,15 +287,32 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     </div>
     ` : ''}
 
-    <!-- Section 2.5: KI-Einschätzungen -->
+    <!-- Section 2.5: KI-Assistent -->
     ${termin.precheck_submitted ? `
     <div class="pdm-section" id="ai-assessments-section" style="margin-bottom: var(--space-5); background: #f8fafc; border: 1px solid #e2e8f0; padding: var(--space-4); border-radius: var(--radius-lg);">
       <h4 class="pdm-section-title" style="color: var(--primary); margin-bottom: var(--space-3); font-weight: 800; display: flex; align-items: center; gap: 6px;">
-        🤖 KI-Einschätzungen
+        🤖 KI-Assistent
       </h4>
       <div id="ai-assessments-container" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
         <div class="dl-auth-spinner" style="width: 24px; height: 24px; border-width: 2.5px; border-color: var(--primary) transparent transparent transparent;"></div>
-        <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">Einschätzungen werden geladen...</p>
+        <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">KI-Assistent wird geladen...</p>
+      </div>
+      
+      <!-- Diagnostic Anamnese Assessment Area -->
+      <div id="anamnesis-assessment-section" style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid #e2e8f0; display: none;">
+        <button id="btn-generate-diagnostics" class="btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: var(--font-size-sm); border: 1px solid var(--primary); color: var(--primary); background: white; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;">
+          🧠 Einschätzung aus Anamnese
+        </button>
+        <div id="diagnostics-loading-container" style="display: none; flex-direction: column; align-items: center; margin-top: var(--space-3); gap: 6px;">
+          <div class="dl-auth-spinner" style="width: 20px; height: 20px; border-width: 2px; border-color: var(--primary) transparent transparent transparent;"></div>
+          <span style="font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600;">Analysiere Anamnese und generiere Einschätzung...</span>
+        </div>
+        <div id="diagnostics-result-box" style="display: none; margin-top: var(--space-3); padding: var(--space-3); background: #eff6ff; border-left: 4px solid var(--primary); border-radius: 0 var(--radius-md) var(--radius-md) 0;">
+          <h5 style="font-size: var(--font-size-xs); font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: var(--space-1); display: flex; align-items: center; gap: 4px;">
+            📋 Medizinische Verdachtseinschätzung
+          </h5>
+          <p id="diagnostics-result-text" style="font-size: var(--font-size-sm); color: #1e3a8a; margin: 0; line-height: 1.4; font-weight: 500;"></p>
+        </div>
       </div>
     </div>
     ` : ''}
@@ -419,6 +428,42 @@ function attachDetailListeners(terminCode, existingNote, existingHints, sharedDo
   // Load AI assessments if the container exists
   if (document.getElementById('ai-assessments-container')) {
     fetchAiAssessments(terminCode);
+  }
+
+  // Diagnostics generator listener
+  const btnGen = document.getElementById('btn-generate-diagnostics');
+  const loaderGen = document.getElementById('diagnostics-loading-container');
+  const resultBox = document.getElementById('diagnostics-result-box');
+  const resultText = document.getElementById('diagnostics-result-text');
+
+  if (btnGen) {
+    btnGen.addEventListener('click', async () => {
+      btnGen.disabled = true;
+      btnGen.style.opacity = '0.6';
+      if (loaderGen) loaderGen.style.display = 'flex';
+      if (resultBox) resultBox.style.display = 'none';
+
+      try {
+        const res = await fetch(`/api/praxis/termin/${terminCode}/anamnesis-assessment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (data.success && data.anamnesis_assessment) {
+          if (resultText) resultText.textContent = data.anamnesis_assessment;
+          if (resultBox) resultBox.style.display = 'block';
+        } else {
+          alert('Fehler beim Generieren der Einschätzung: ' + (data.error || 'Unbekannter Fehler'));
+        }
+      } catch (err) {
+        console.error('Diagnostics generation failed:', err);
+        alert('Fehler beim Generieren der Einschätzung.');
+      } finally {
+        btnGen.disabled = false;
+        btnGen.style.opacity = '1';
+        if (loaderGen) loaderGen.style.display = 'none';
+      }
+    });
   }
 
   // Save note
@@ -859,18 +904,32 @@ async function fetchAiAssessments(terminCode) {
       container.innerHTML = `
         <div style="width: 100%; padding: var(--space-4); background: #f8fafc; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); text-align: center; color: var(--gray-500); font-size: var(--font-size-sm); line-height: 1.4;">
           <span style="font-size: 20px; display: block; margin-bottom: 4px;">📋</span>
-          Der Patient hat der KI-gestützten Auswertung widersprochen. Es wurden keine KI-Einschätzungen generiert.
+          Der Patient hat der KI-gestützten Auswertung widersprochen. Der KI-Assistent steht nicht zur Verfügung.
         </div>
       `;
+      const diagSection = document.getElementById('anamnesis-assessment-section');
+      if (diagSection) diagSection.style.display = 'none';
     } else if (data.success && data.ai_assessments) {
       currentAiAssessments = data.ai_assessments;
       renderAiAssessments(terminCode);
+
+      const diagSection = document.getElementById('anamnesis-assessment-section');
+      if (diagSection) diagSection.style.display = 'block';
+
+      if (data.anamnesis_assessment) {
+        const resultBox = document.getElementById('diagnostics-result-box');
+        const resultText = document.getElementById('diagnostics-result-text');
+        if (resultBox && resultText) {
+          resultText.textContent = data.anamnesis_assessment;
+          resultBox.style.display = 'block';
+        }
+      }
     } else {
-      container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Keine KI-Einschätzungen verfügbar.</p>`;
+      container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Keine Empfehlungen des KI-Assistenten verfügbar.</p>`;
     }
   } catch (err) {
     console.error('Error fetching AI assessments:', err);
-    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Fehler beim Laden der KI-Einschätzungen.</p>`;
+    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Fehler beim Laden des KI-Assistenten.</p>`;
   }
 }
 
@@ -911,7 +970,10 @@ function renderAiAssessments(terminCode) {
         <p style="font-size: var(--font-size-sm); color: var(--gray-800); margin: 0; font-weight: 600; line-height: 1.4;">${item.text}</p>
         ${item.reasoning ? `<p style="font-size: 10px; color: var(--gray-500); margin: var(--space-1) 0 0 0; line-height: 1.3; font-style: italic;">💡 ${item.reasoning}</p>` : ''}
       </div>
-      <div style="display: flex; justify-content: flex-end; margin-top: var(--space-2);">
+      <div style="display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2);">
+        <button class="btn-ai-add" data-id="${item.id}" title="Zu Notizen hinzufügen" style="background: var(--primary); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; font-weight: 600; transition: transform 0.1s ease; outline: none;">
+          ➕ Zu Notizen
+        </button>
         <button class="btn-ai-remove" data-id="${item.id}" title="Entfernen" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
           ❌ Entfernen
         </button>
@@ -930,9 +992,15 @@ function renderAiAssessments(terminCode) {
   container.querySelectorAll('.btn-ai-add').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
-      const item = doctorTodos.find(t => t.id === id);
+      const item = doctorTodos.find(t => t.id === id) || patientTodos.find(t => t.id === id);
       if (item) {
         addTodoToNotes(item.text);
+        // Automatically save notes to DB by triggering click on save button
+        const saveBtn = document.getElementById('btn-save-note');
+        if (saveBtn) {
+          saveBtn.click();
+        }
+        removeAiAssessment(terminCode, id);
       }
     });
   });

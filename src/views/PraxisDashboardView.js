@@ -28,9 +28,14 @@ export function renderPraxisDashboardView() {
             </div>
             <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0;">${user.praxis_fachbereich || ''} ${user.praxis_adresse ? '· ' + user.praxis_adresse : ''}</p>
           </div>
-          <button id="btn-create-appointment" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-            ➕ Telefonischen Termin eintragen
-          </button>
+          <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+            <button id="btn-open-live-queue" class="btn" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #10B981, #059669); color: white; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); border: none;">
+              📺 Live-Warteschlange
+            </button>
+            <button id="btn-create-appointment" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              ➕ Telefonischen Termin eintragen
+            </button>
+          </div>
         </div>
 
         <!-- Navigation Tabs (3 tabs: Kalender, Statistik, Gestaltung) -->
@@ -285,12 +290,35 @@ function renderQuestions(questions) {
 export async function initPraxisDashboardView() {
   initDlNav();
 
+  if (window._dashboardAuthListener) {
+    window.removeEventListener('authChanged', window._dashboardAuthListener);
+  }
+  window._dashboardAuthListener = () => {
+    initPraxisDashboardView();
+  };
+  window.addEventListener('authChanged', window._dashboardAuthListener);
+
+  // Clean up window event listener when navigating away from dashboard
+  const cleanup = () => {
+    if (window._dashboardAuthListener) {
+      window.removeEventListener('authChanged', window._dashboardAuthListener);
+      window._dashboardAuthListener = null;
+    }
+    window.removeEventListener('viewChanged', cleanup);
+  };
+  window.addEventListener('viewChanged', cleanup);
+
   // Handle manual appointment creation
   document.getElementById('btn-create-appointment')?.addEventListener('click', () => {
     openCreateAppointmentModal(() => {
       // Refresh the view data
       initPraxisDashboardView();
     });
+  });
+
+  // Handle live queue navigation
+  document.getElementById('btn-open-live-queue')?.addEventListener('click', () => {
+    navigate('live-queue');
   });
 
   // Tab switching logic for 3 tabs
@@ -334,7 +362,7 @@ export async function initPraxisDashboardView() {
     statsContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Statistiken konnten nicht geladen werden.</p>';
   }
 
-  // Load appointments
+  // Load appointments and buffer times
   try {
     const termineRes = await fetch('/api/praxis/termine');
     const data = await termineRes.json();
@@ -352,10 +380,23 @@ export async function initPraxisDashboardView() {
         });
       });
 
-      // Initialize Calendar with appointment data
+      // Load buffer times
+      let bufferTimes = [];
+      try {
+        const btRes = await fetch('/api/praxis/buffer-times');
+        const btData = await btRes.json();
+        if (btData.success) {
+          bufferTimes = btData.bufferTimes || [];
+        }
+      } catch (btErr) {
+        console.error('Failed to load buffer times:', btErr);
+      }
+
+      // Initialize Calendar with appointment data, opening hours, and buffer times
+      const user = auth.getUser() || {};
       initCalendarView(termineData, (appt) => {
         openPatientDetailModal(appt.code);
-      });
+      }, user.opening_hours, bufferTimes);
     }
   } catch (err) {
     termineContainer.innerHTML = '<p class="text-muted" style="text-align:center;">Termine konnten nicht geladen werden.</p>';
