@@ -139,7 +139,15 @@ export async function fetchPraxen() {
     if (!res.ok) throw new Error('Failed to fetch practices');
     const data = await res.json();
     if (data.success && data.praxen) {
-      praxen = [...staticPraxen, ...data.praxen];
+      // Put database/registered practices first so they take precedence over static placeholders
+      const combined = [...data.praxen, ...staticPraxen];
+      const seen = new Set();
+      praxen = combined.filter(p => {
+        const normName = p.name.toLowerCase().trim();
+        if (seen.has(normName)) return false;
+        seen.add(normName);
+        return true;
+      });
     }
   } catch (err) {
     console.error('Error fetching dynamic practices:', err);
