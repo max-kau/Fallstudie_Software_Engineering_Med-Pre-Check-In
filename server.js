@@ -3540,9 +3540,12 @@ app.post('/api/praxis/termin/:code/aftercare', async (req, res) => {
   }
 
   try {
-    // 1. Get patient email and doctor info
+    // 1. Get patient email and doctor info (checking both notify_email and users.email)
     const terminRes = await pool.query(
-      'SELECT doctor, praxis, notify_email, patient_vorname FROM termine WHERE code = $1',
+      `SELECT t.doctor, t.praxis, t.notify_email, t.patient_vorname, u.email as patient_email 
+       FROM termine t 
+       LEFT JOIN users u ON t.user_id = u.id 
+       WHERE t.code = $1`,
       [code]
     );
 
@@ -3551,7 +3554,7 @@ app.post('/api/praxis/termin/:code/aftercare', async (req, res) => {
     }
 
     const appt = terminRes.rows[0];
-    const emailTo = appt.notify_email;
+    const emailTo = appt.notify_email || appt.patient_email;
 
     if (!emailTo) {
       return res.status(400).json({ error: 'Für diesen Termin ist keine E-Mail-Adresse hinterlegt.' });
@@ -3632,10 +3635,11 @@ app.post('/api/praxis/termin/:code/hints', async (req, res) => {
       [code, JSON.stringify(hints || []), custom_text || '', false]
     );
 
-    // Send email if patient has an email
-    if (appt.patient_email) {
+    // Send email if patient has an email (checking notify_email first, then fallback to patient_email)
+    const emailTo = appt.notify_email || appt.patient_email;
+    if (emailTo) {
       try {
-        await sendHintEmail(appt.patient_email, appt, hints || [], custom_text || '', req.session.user.praxis_name);
+        await sendHintEmail(emailTo, appt, hints || [], custom_text || '', req.session.user.praxis_name);
         await pool.query('UPDATE patient_hints SET email_sent = TRUE WHERE id = $1', [result.rows[0].id]);
         result.rows[0].email_sent = true;
       } catch (emailErr) {
@@ -3676,12 +3680,16 @@ app.put('/api/praxis/termin/:code/hints/:hintId', async (req, res) => {
          WHERE t.code = $1 AND t.praxis = $2`,
         [code, req.session.user.praxis_name]
       );
-      if (terminRes.rows.length > 0 && terminRes.rows[0].patient_email) {
-        try {
-          await sendHintEmail(terminRes.rows[0].patient_email, terminRes.rows[0], hints || [], custom_text || '', req.session.user.praxis_name);
-          await pool.query('UPDATE patient_hints SET email_sent = TRUE WHERE id = $1', [hintId]);
-        } catch (emailErr) {
-          console.error('Failed to resend hint email:', emailErr);
+      if (terminRes.rows.length > 0) {
+        const appt = terminRes.rows[0];
+        const emailTo = appt.notify_email || appt.patient_email;
+        if (emailTo) {
+          try {
+            await sendHintEmail(emailTo, appt, hints || [], custom_text || '', req.session.user.praxis_name);
+            await pool.query('UPDATE patient_hints SET email_sent = TRUE WHERE id = $1', [hintId]);
+          } catch (emailErr) {
+            console.error('Failed to resend hint email:', emailErr);
+          }
         }
       }
     }
