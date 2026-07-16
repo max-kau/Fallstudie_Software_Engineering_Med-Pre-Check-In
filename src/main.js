@@ -101,3 +101,6 @@ window.addEventListener('viewChanged', (e) => {
 
 // Start the app
 initRouter();
+
+// Expose store for E2E testing
+window.__doctolib_store = store;
