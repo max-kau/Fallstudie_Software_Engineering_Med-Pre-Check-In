@@ -184,3 +184,244 @@ describe('Backend Termin API - /api/praxen', () => {
     expect(data.praxen[0].name).toBe('Praxis Müller');
   });
 });
+
+// ============================================
+// Helper: Login as praxis user and return session cookie
+// ============================================
+import bcrypt from 'bcryptjs';
+
+async function loginAsPraxis() {
+  const password = 'testpass123';
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const mockPraxisUser = {
+    id: 99,
+    email: 'praxis@test.de',
+    password_hash: hashedPassword,
+    vorname: 'Dr. Anna',
+    nachname: 'Hartmann',
+    role: 'praxis',
+    praxis_name: 'Testpraxis München',
+    praxis_fachbereich: 'Allgemeinmedizin',
+    praxis_adresse: 'Teststr. 1, 80000 München',
+    praxis_telefon: '089/123456',
+    opening_hours: null
+  };
+
+  // 1. Login query: find user
+  mockQuery.mockResolvedValueOnce({ rows: [mockPraxisUser] });
+  // 2. Auto-link appointments query
+  mockQuery.mockResolvedValueOnce({ rowCount: 0 });
+
+  const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'praxis@test.de', password, role: 'praxis' }),
+    redirect: 'manual'
+  });
+
+  expect(loginRes.status).toBe(200);
+
+  // Extract session cookie
+  const setCookieHeader = loginRes.headers.get('set-cookie') || loginRes.headers.getSetCookie?.()?.join('; ');
+  const cookie = typeof setCookieHeader === 'string'
+    ? setCookieHeader.split(';')[0]
+    : Array.isArray(setCookieHeader)
+      ? setCookieHeader.map(c => c.split(';')[0]).join('; ')
+      : '';
+
+  return cookie;
+}
+
+// ============================================
+// POST /api/praxis/termine/buchen
+// ============================================
+describe('Backend Termin API - POST /api/praxis/termine/buchen (Telefonischer Termin)', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+  });
+
+  it('should return 403 without praxis session', async () => {
+    const response = await fetch(`${baseUrl}/api/praxis/termine/buchen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it('should return 400 when required fields are missing', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    const response = await fetch(`${baseUrl}/api/praxis/termine/buchen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({
+        patientEmail: 'patient@example.com',
+        patientVorname: 'Max'
+        // patientNachname, doctor, date, time, art missing
+      })
+    });
+    const data = await response.json();
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('Alle Felder');
+  });
+
+  it('should successfully create an appointment with Vorname and Nachname', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    // Mocks for validateAppointmentTime: 1) opening hours query, 2) buffer times query
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // opening hours: none found → use defaults
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // buffer times: none
+
+    // 3. Check if patient exists
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // no existing patient
+
+    // 4. Slot check: no duplicate
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // 5. INSERT appointment
+    const mockAppt = {
+      code: 't_TEST1234',
+      doctor: 'Dr. Anna Hartmann',
+      date: '2026-08-20',
+      time: '10:00',
+      art: 'Erstgespräch',
+      praxis: 'Testpraxis München',
+      patient_vorname: 'Max',
+      patient_nachname: 'Mustermann',
+      notify_email: 'max@example.com'
+    };
+    mockQuery.mockResolvedValueOnce({ rows: [mockAppt] });
+
+    const response = await fetch(`${baseUrl}/api/praxis/termine/buchen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({
+        patientEmail: 'max@example.com',
+        patientVorname: 'Max',
+        patientNachname: 'Mustermann',
+        doctor: 'Dr. Anna Hartmann',
+        date: '2026-08-20',
+        time: '10:00',
+        art: 'Erstgespräch'
+      })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.appointment).toBeDefined();
+    expect(data.appointment.patient_vorname).toBe('Max');
+    expect(data.appointment.patient_nachname).toBe('Mustermann');
+  });
+
+  it('should reject booking when slot is already taken', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    // validateAppointmentTime mocks
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // opening hours
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // buffer times
+
+    // Patient lookup
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // Slot check: already booked
+    mockQuery.mockResolvedValueOnce({ rows: [{ code: 'existing_appt' }] });
+
+    const response = await fetch(`${baseUrl}/api/praxis/termine/buchen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({
+        patientEmail: 'other@example.com',
+        patientVorname: 'Hans',
+        patientNachname: 'Schmidt',
+        doctor: 'Dr. Anna Hartmann',
+        date: '2026-08-20',
+        time: '10:00',
+        art: 'Routineuntersuchung'
+      })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('bereits vergeben');
+  });
+});
+
+// ============================================
+// PUT /api/praxis/termin/:code/duration
+// ============================================
+describe('Backend Termin API - PUT /api/praxis/termin/:code/duration', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+  });
+
+  it('should return 403 without praxis session', async () => {
+    const response = await fetch(`${baseUrl}/api/praxis/termin/test_code/duration`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duration: 45 })
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it('should return 400 when duration is less than 15 minutes', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    const response = await fetch(`${baseUrl}/api/praxis/termin/test_code/duration`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({ duration: 10 })
+    });
+    const data = await response.json();
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('Mindestdauer');
+  });
+
+  it('should successfully update appointment duration', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    // 1. Check appointment exists for this praxis
+    mockQuery.mockResolvedValueOnce({ rows: [{ code: 'appt_dur_1' }] });
+    // 2. UPDATE duration
+    mockQuery.mockResolvedValueOnce({ rowCount: 1 });
+    // 3. SELECT updated appointment for conflict check
+    mockQuery.mockResolvedValueOnce({ rows: [{ date: '2026-08-20', time: '10:00', duration: 60 }] });
+    // 4. SELECT other appointments on same day
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const response = await fetch(`${baseUrl}/api/praxis/termin/appt_dur_1/duration`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({ duration: 60 })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.conflicts).toEqual([]);
+  });
+
+  it('should return 404 when appointment does not belong to praxis', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    // Check returns empty – appointment not found for this praxis
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const response = await fetch(`${baseUrl}/api/praxis/termin/unknown_code/duration`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({ duration: 45 })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(data.error).toContain('nicht gefunden');
+  });
+});

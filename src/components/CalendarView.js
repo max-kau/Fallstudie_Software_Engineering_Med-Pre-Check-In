@@ -900,7 +900,18 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
 
   // ── Navigation ────────
 
-  document.getElementById('cal-prev')?.addEventListener('click', () => {
+  const prevBtn = document.getElementById('cal-prev');
+  const nextBtn = document.getElementById('cal-next');
+  const todayBtn = document.getElementById('cal-today');
+
+  const newPrev = prevBtn?.cloneNode(true);
+  if (prevBtn && newPrev) prevBtn.parentNode.replaceChild(newPrev, prevBtn);
+  const newNext = nextBtn?.cloneNode(true);
+  if (nextBtn && newNext) nextBtn.parentNode.replaceChild(newNext, nextBtn);
+  const newToday = todayBtn?.cloneNode(true);
+  if (todayBtn && newToday) todayBtn.parentNode.replaceChild(newToday, todayBtn);
+
+  newPrev?.addEventListener('click', () => {
     if (viewMode === 'day') {
       currentDate.setDate(currentDate.getDate() - 1);
     } else {
@@ -909,7 +920,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     render();
   });
 
-  document.getElementById('cal-next')?.addEventListener('click', () => {
+  newNext?.addEventListener('click', () => {
     if (viewMode === 'day') {
       currentDate.setDate(currentDate.getDate() + 1);
     } else {
@@ -918,13 +929,18 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     render();
   });
 
-  document.getElementById('cal-today')?.addEventListener('click', () => {
+  newToday?.addEventListener('click', () => {
     currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
     render();
   });
 
   // View toggle
+  document.querySelectorAll('.cal-toggle-btn').forEach(btn => {
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+  });
+
   document.querySelectorAll('.cal-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.cal-toggle-btn').forEach(b => b.classList.remove('active'));
