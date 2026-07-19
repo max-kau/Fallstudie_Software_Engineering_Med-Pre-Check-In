@@ -346,6 +346,7 @@ test.describe('Praxis-Dashboard E2E Tests (Arzt-Ansicht)', () => {
       await route.fulfill({
         status: 200, contentType: 'application/json',
         body: JSON.stringify({
+          success: true,
           termine: [
             {
               code: 'termin_test_001',
@@ -454,3 +455,300 @@ test.describe('Praxis-Dashboard E2E Tests (Arzt-Ansicht)', () => {
     await expect(page.locator('#btn-save-questions')).toBeVisible();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test Suite 5: Praxis-Mitarbeiter Workflows (Telefonischer Termin, Pufferzeit)
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe('Praxis-Mitarbeiter Workflows', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
+
+    // Mock eingeloggter Praxis-Nutzer
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          loggedIn: true,
+          user: {
+            id: 99,
+            email: 'praxis@beispiel.de',
+            role: 'praxis',
+            praxis_name: 'Musterpraxis München',
+            praxis_fachbereich: 'Allgemeinmedizin',
+            praxis_adresse: 'Musterstraße 1, 80000 München'
+          }
+        })
+      });
+    });
+
+    await page.route('**/api/praxen', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    });
+
+    await page.route('**/api/praxis/termine*', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          termine: [],
+          stats: { total: 0, submitted: 0, pending: 0 }
+        })
+      });
+    });
+
+    await page.route('**/api/praxis/stats*', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          stats: { totalTermine: 0, prechecksCompleted: 0, prechecksOpen: 0, uniquePatients: 0 }
+        })
+      });
+    });
+
+    await page.route('**/api/praxis/questions*', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ questions: [] })
+      });
+    });
+
+    await page.route('**/api/praxis/documents*', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ documents: [], success: true })
+      });
+    });
+
+    await page.route('**/api/precheckin/documents*', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    });
+
+    await page.route('**/api/praxis/buffer-times*', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ success: true, bufferTimes: [] })
+        });
+      } else if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            bufferTime: {
+              id: 1, title: 'Mittagspause', is_recurring: true, day_of_week: 1,
+              start_time: '12:00', end_time: '13:00'
+            }
+          })
+        });
+      } else if (route.request().method() === 'DELETE') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ success: true })
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+
+    await page.route('**/api/praxis/opening-hours*', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ success: true, opening_hours: null })
+      });
+    });
+  });
+
+  test('Telefonischer Termin: Modal öffnen, Formular ausfüllen und absenden', async ({ page }) => {
+    // Mock the booking API endpoint
+    await page.route('**/api/praxis/termine/buchen', async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          appointment: {
+            code: 't_NEW123',
+            patient_vorname: body.patientVorname,
+            patient_nachname: body.patientNachname,
+            date: body.date,
+            time: body.time,
+            art: body.art
+          }
+        })
+      });
+    });
+
+    await page.goto('/#praxis-dashboard');
+    await expect(page.locator('#cal-title')).not.toBeEmpty();
+    await expect(page).toHaveURL(/.*#praxis-dashboard/);
+
+    // Klicke auf "Telefonischen Termin eintragen"
+    await page.click('#btn-create-appointment');
+    await page.waitForTimeout(500);
+
+    // Modal muss sichtbar sein
+    const modal = page.locator('#create-appt-modal');
+    await expect(modal).toBeVisible();
+
+    // Formular ausfüllen
+    await page.fill('#create-appt-vorname', 'Max');
+    await page.fill('#create-appt-nachname', 'Mustermann');
+    await page.fill('#create-appt-email', 'max@example.com');
+
+    // Absenden
+    await page.click('#btn-submit-create-appt');
+    await page.waitForTimeout(1500);
+
+    // Modal muss nach Erfolg geschlossen sein
+    await expect(modal).not.toBeVisible();
+  });
+
+  test('Telefonischer Termin: Validierung zeigt Fehler bei fehlenden Pflichtfeldern', async ({ page }) => {
+    await page.goto('/#praxis-dashboard');
+    await expect(page.locator('#cal-title')).not.toBeEmpty();
+
+    await page.click('#btn-create-appointment');
+    await page.waitForTimeout(500);
+
+    // Nur Vorname ausfüllen, Rest leer lassen
+    await page.fill('#create-appt-vorname', 'Max');
+
+    // Absenden-Button klicken
+    await page.click('#btn-submit-create-appt');
+    await page.waitForTimeout(500);
+
+    // Fehlermeldung muss sichtbar sein
+    const errorDiv = page.locator('#create-appt-error');
+    await expect(errorDiv).toBeVisible();
+    await expect(errorDiv).toContainText('Pflichtfelder');
+  });
+
+  test('Pufferzeit-Tab: Wechsel zum Pufferzeiten-Panel und zurück', async ({ page }) => {
+    await page.goto('/#praxis-dashboard');
+    await expect(page.locator('#cal-title')).not.toBeEmpty();
+
+    // Klicke auf "Pufferzeiten" Button im Kalender
+    const bufferBtn = page.locator('#cal-view-buffer');
+    await expect(bufferBtn).toBeVisible();
+    await bufferBtn.click();
+    await page.waitForTimeout(500);
+
+    // Pufferzeiten-Panel muss sichtbar sein
+    const bufferPanel = page.locator('#cal-buffer-panel');
+    await expect(bufferPanel).toBeVisible();
+
+    // Titel muss "Pufferzeiten verwalten" zeigen
+    const calTitle = page.locator('#cal-title');
+    await expect(calTitle).toContainText('Pufferzeiten');
+
+    // Zurück zur Tagesansicht wechseln
+    await page.click('#cal-view-day');
+    await page.waitForTimeout(500);
+
+    // Kalender-Body muss wieder sichtbar sein
+    const calBody = page.locator('#cal-body');
+    await expect(calBody).toBeVisible();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test Suite 6: Live-Warteschlange (Praxis-Ansicht)
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe('Live-Warteschlange E2E Tests', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
+
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          loggedIn: true,
+          user: {
+            id: 99,
+            email: 'praxis@beispiel.de',
+            role: 'praxis',
+            praxis_name: 'Musterpraxis München',
+            praxis_fachbereich: 'Allgemeinmedizin',
+            praxis_adresse: 'Musterstraße 1, 80000 München'
+          }
+        })
+      });
+    });
+
+    await page.route('**/api/praxen', async (route) => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    });
+
+    // Mock queue data
+    await page.route('**/api/queue/*', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            queue: [
+              {
+                code: 'q_test_001',
+                patient_vorname: 'Anna',
+                patient_nachname: 'Müller',
+                time: '09:30',
+                art: 'Routineuntersuchung',
+                duration: 30,
+                status: 'waiting',
+                delay_minutes: 0,
+                delay_reason: '',
+                position: 1,
+                is_own: false
+              },
+              {
+                code: 'q_test_002',
+                patient_vorname: 'Hans',
+                patient_nachname: 'Schmidt',
+                time: '10:00',
+                art: 'Beratungsgespräch',
+                duration: 30,
+                status: 'waiting',
+                delay_minutes: 0,
+                delay_reason: '',
+                position: 2,
+                is_own: false
+              }
+            ]
+          })
+        });
+      } else {
+        // Accept, done, delay etc. → always succeed
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ success: true })
+        });
+      }
+    });
+  });
+
+  test('Live-Warteschlange wird geladen und zeigt Patienten', async ({ page }) => {
+    await page.goto('/#live-queue');
+    await page.waitForTimeout(2000);
+
+    // Prüfe, dass wir auf der Warteschlangen-Seite sind
+    const url = page.url();
+    const isOnQueue = url.includes('#live-queue');
+    expect(isOnQueue).toBeTruthy();
+
+    // Prüfe, dass die Seite Patientennamen enthält
+    const body = page.locator('body');
+    await expect(body).toContainText('Anna');
+    await expect(body).toContainText('Müller');
+  });
+});
+

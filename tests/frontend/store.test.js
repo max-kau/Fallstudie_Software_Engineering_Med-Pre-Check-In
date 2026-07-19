@@ -237,4 +237,55 @@ describe('store.js - State Management', () => {
     // Session ID should be different after reset
     expect(freshData.sessionId).not.toBe(oldSessionId);
   });
+
+  // ============================================
+  // File upload and deletion
+  // ============================================
+
+  it('should successfully upload a file and update store state', async () => {
+    const mockFile = new File(['hello'], 'test.png', { type: 'image/png' });
+    const mockUploadedFile = { id: 123, filename: 'test.png', mime_type: 'image/png', file_size: 5 };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, file: mockUploadedFile })
+    });
+
+    const result = await store.uploadFile(mockFile);
+    expect(result).toEqual(mockUploadedFile);
+
+    const docs = store.get('dokumente');
+    expect(docs.liste).toContainEqual(mockUploadedFile);
+  });
+
+  it('should fail upload when server returns error status', async () => {
+    const mockFile = new File(['hello'], 'test.png', { type: 'image/png' });
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false
+    });
+
+    await expect(store.uploadFile(mockFile)).rejects.toThrow();
+  });
+
+  it('should successfully delete a file and update store state', async () => {
+    const mockUploadedFile = { id: 123, filename: 'test.png', mime_type: 'image/png', file_size: 5 };
+    store.set('dokumente', { liste: [mockUploadedFile] });
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true
+    });
+
+    await store.deleteFile(123);
+    const docs = store.get('dokumente');
+    expect(docs.liste).toEqual([]);
+  });
+
+  it('should fail delete when API returns error status', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false
+    });
+
+    await expect(store.deleteFile(123)).rejects.toThrow();
+  });
 });

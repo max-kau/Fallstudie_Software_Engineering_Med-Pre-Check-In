@@ -49,7 +49,8 @@ Die Tests sind unter dem Verzeichnis `tests/` organisiert:
 |---|---|---|
 | `server_auth.test.js` | `/api/auth/register`, `/api/auth/login`, `/api/auth/me` | Registrierung (Patient, Praxis, Duplikat, Passwort zu kurz, fehlende Felder), Login (Erfolg, falsches Passwort, fehlende Felder, User nicht gefunden), Session-Check |
 | `server_precheckin.test.js` | `/api/precheckin` (GET & POST) | Abruf (existiert/nicht vorhanden), Speichern (Validierung, Upsert), Submission-Workflow mit E-Mail-Benachrichtigung, DB-Fehlerbehandlung |
-| `server_termine.test.js` | `/api/termin/:code`, `/api/health`, `/api/praxen` | Terminabruf (gefunden, Auto-Seed bei neuem Code, DB-Fehler), Health-Check (Erfolg, Query-Fehler), Praxen-Listing |
+| `server_termine.test.js` | `/api/termin/:code`, `/api/health`, `/api/praxen`, `/api/praxis/termine/buchen`, `/api/praxis/termin/:code/duration` | Terminabruf, Health-Check, Praxen-Listing, Telefonische Buchung (mit Vorname/Nachname), Termin-Dauer-Änderung (Drag-to-resize) und Konflikterkennung |
+| `server_dashboard.test.js` | `/api/praxis/buffer-times`, `/api/praxis/documents`, `/api/queue/*` | Pufferzeiten verwalten (Laden, Erstellen, Löschen), Praxis-Dokumente (Laden, Upload, Löschen), Live-Warteschlange (Patienten annehmen, Behandlung abschließen, Termin verzögern & Patient benachrichtigen) |
 
 ---
 
@@ -160,10 +161,14 @@ Die Konfiguration legt fest, wie die Browserumgebung aufgebaut wird und welche S
 - **Port-Definition:** Führt die Tests gegen das Frontend auf Port `3000` aus.
 - **Offline-Modus:** Das Backend wird während der Tests mit einer leeren `DATABASE_URL` gestartet, wodurch es automatisch im simulierten In-Memory-Modus (Offline-Modus) läuft.
 
-### Struktur eines E2E-Tests (`tests/e2e/precheckin.spec.js`)
-Der Test fängt kritische API-Aufrufe (wie `/api/auth/me` und `/api/termin/*`) ab, um eine hermetische Testausführung zu garantieren:
-1. **Mocking des Logins:** Simuliert eine erfolgreiche Anmeldung durch Interzepieren von `/api/auth/me`.
-2. **Dynamische Datumsgenerierung:** Generiert ein dynamisches Termindatum in der Zukunft, um automatische Weiterleitungen abgelaufener Termine zu verhindern.
-3. **Automatisierte UI-Interaktion:** Füllt Formulare aus (Beschwerden, Medikamente, Allergien, KI-Folgefragen), navigiert weiter, fügt eine digitale Signatur hinzu und sendet das Formular ab.
-4. **Erfolgsüberprüfung:** Prüft, ob der Erfolgsbildschirm ("Erfolgreich übermittelt!") angezeigt wird.
+### Abgedeckte E2E-Szenarien (`tests/e2e/precheckin.spec.js`)
+Der E2E-Test-Katalog umfasst folgende automatisierte Workflows:
+1. **Kompletter Pre-Check-In Flow:** Begleitung eines Patienten von der Eingabe des Codes, über Beschwerden, Medikamente, Allergien und KI-Folgefragen bis zur Signatur und Übermittlung.
+2. **Validierungen & Sperren:** Prüfung, ob Buttons blockiert bleiben, solange Pflichtfelder leer sind oder Zustimmungen/Signaturen fehlen.
+3. **Fehler-Szenarien:** Korrekte Behandlung von 404/500 API-Antworten und Weiterleitung nicht angemeldeter Nutzer von geschützten Routen.
+4. **Praxis-Dashboard-Grundlagen:** Prüfung des Login-Verhaltens, der Dashboard-Navigation und Tab-Funktionalitäten (Kalender, Statistiken, Gestaltung).
+5. **Praxis-Mitarbeiter-Workflows:**
+   - *Telefonischer Termin:* Öffnen des Buchungs-Modals, Ausfüllen von Vor- und Nachname, E-Mail-Adresse und erfolgreiches Absenden (sowie Validierungsfehler bei fehlenden Feldern).
+   - *Pufferzeiten-Steuerung:* Wechsel zum Pufferzeiten-Verwaltungs-Panel und Zurückkehren zur Tagesansicht.
+6. **Live-Warteschlange:** Abruf der Live-Warteschlange für den aktuellen Tag und korrekte Darstellung der gelisteten Patienten.
 
