@@ -112,7 +112,7 @@ describe('Backend Auth API - /api/auth/register & /api/auth/login', () => {
     expect(data.user.role).toBe('patient');
 
     // Verify first query was check if user exists
-    expect(mockQuery.mock.calls[0][0]).toContain('SELECT id FROM users WHERE email = $1 AND role = $2');
+    expect(mockQuery.mock.calls[0][0]).toContain('SELECT id, password_hash FROM users WHERE email = $1 AND role = $2');
     expect(mockQuery.mock.calls[0][1]).toEqual(['john.doe@example.com', 'patient']);
 
     // Verify second query inserted the user with hashed password
