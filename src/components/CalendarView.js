@@ -5,7 +5,7 @@
  */
 
 const CALENDAR_START_HOUR = 7;
-const CALENDAR_END_HOUR = 17;
+const CALENDAR_END_HOUR = 24;
 const HOUR_HEIGHT_PX = 64; // pixels per hour
 const SLOT_HEIGHT_PX = HOUR_HEIGHT_PX / 2; // 30-minute slots
 const DEFAULT_DURATION = 30;
@@ -248,6 +248,15 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
 
   return `
     <div class="cal-grid cal-grid--day">
+      <div class="cal-time-gutter">
+        <div class="cal-day-header cal-time-gutter-header">
+          <span class="cal-day-name">&nbsp;</span>
+          <span class="cal-day-num">&nbsp;</span>
+        </div>
+        <div class="cal-time-gutter-body">
+          ${renderTimeLabels()}
+        </div>
+      </div>
       <div class="cal-day-col">
         <div class="cal-day-header ${isToday ? 'cal-day-header--today' : ''}">
           <span class="cal-day-name">${WEEKDAY_NAMES[date.getDay()]}</span>
@@ -259,9 +268,6 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
           ${renderTimeGridLines()}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
-      </div>
-      <div class="cal-time-gutter">
-        ${renderTimeLabels()}
       </div>
     </div>
   `;
@@ -292,10 +298,16 @@ function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
   }
   return `
     <div class="cal-grid cal-grid--week">
-      ${cols}
       <div class="cal-time-gutter">
-        ${renderTimeLabels()}
+        <div class="cal-day-header cal-time-gutter-header">
+          <span class="cal-day-name">&nbsp;</span>
+          <span class="cal-day-num">&nbsp;</span>
+        </div>
+        <div class="cal-time-gutter-body">
+          ${renderTimeLabels()}
+        </div>
       </div>
+      ${cols}
     </div>
   `;
 }
