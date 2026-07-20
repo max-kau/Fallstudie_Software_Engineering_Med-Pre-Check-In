@@ -86,8 +86,8 @@ async function handleRoute() {
     return;
   }
 
-  // For protected patient routes, ensure data is loaded (skip queue views which have their own data loading)
-  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'praxis-dashboard' && routeKey !== 'live-queue' && routeKey !== 'warteschlange') {
+  // For protected patient routes, ensure data is loaded (skip queue views and landing view which have their own data loading)
+  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'landing' && routeKey !== 'praxis-dashboard' && routeKey !== 'live-queue' && routeKey !== 'warteschlange') {
     await store.loadData();
 
     const isSubmitted = store.get('submitted');
