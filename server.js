@@ -911,7 +911,32 @@ app.post('/api/praxis/buffer-times', async (req, res) => {
   }
 
   if (!isDbConnected || !pool) {
-    // Mock mode
+    // Mock mode conflict check
+    const mockAppts = req.session.mockAppointments || [];
+    for (const appt of mockAppts) {
+      if (appt.praxis && praxisName && appt.praxis !== praxisName) continue;
+      
+      let matchesDay = false;
+      const apptDateObj = new Date(appt.date);
+      if (isRecurring && !isNaN(apptDateObj.getTime())) {
+        if (apptDateObj.getDay() === parseInt(dayOfWeek)) matchesDay = true;
+      } else if (!isRecurring && appt.date === specificDate) {
+        matchesDay = true;
+      }
+
+      if (!matchesDay) continue;
+
+      const apptStartMin = timeToMin(appt.time);
+      const apptEndMin = apptStartMin + (appt.duration || 30);
+
+      if (apptStartMin < bufEndMin && apptEndMin > bufStartMin) {
+        const name = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
+        return res.status(400).json({
+          error: `Kollision mit bestehendem Patiententermin (${name}) am ${appt.date} um ${appt.time} Uhr.`
+        });
+      }
+    }
+
     if (!req.session.mockBufferTimes) req.session.mockBufferTimes = [];
     const mockBt = {
       id: Date.now(),

@@ -1,17 +1,22 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
-import { praxen } from '../data/praxen.js';
+import { praxen, fetchPraxen } from '../data/praxen.js';
 
 export function renderSearchView() {
-  const val = sessionStorage.getItem('search_query_name') || '';
-  const loc = sessionStorage.getItem('search_query_location') || '';
+  const val = (sessionStorage.getItem('search_query_name') || '').trim().toLowerCase();
+  const loc = (sessionStorage.getItem('search_query_location') || '').trim().toLowerCase();
 
   // Filter matching practices
   const matches = praxen.filter(praxis => {
-    const matchText = val ? (praxis.name + ' ' + praxis.fachbereich + ' ' + praxis.beschreibung).toLowerCase().includes(val.toLowerCase()) : true;
-    const matchLoc = loc ? praxis.adresse.toLowerCase().includes(loc.toLowerCase()) : true;
-    return matchText && matchLoc;
+    const nameMatch = (praxis.name || '').toLowerCase().includes(val);
+    const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
+    const descMatch = (praxis.beschreibung || '').toLowerCase().includes(val);
+    const addrMatch = (praxis.adresse || '').toLowerCase().includes(val);
+
+    const textMatch = val ? (nameMatch || fachbereichMatch || descMatch || addrMatch) : true;
+    const locMatch = loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
+    return textMatch && locMatch;
   });
 
   let resultsHtml = '';
@@ -140,6 +145,10 @@ export function initSearchView() {
 
   if (!searchInput || !locationInput || !autocompleteMenu || !locationMenu) return;
 
+  fetchPraxen().then(() => {
+    performSearch();
+  });
+
   const uniqueLocations = [
     'Düsseldorf', 'Köln', 'Essen', 'Duisburg', 'Dortmund', 
     'Münster', 'Bonn', 'Hamburg', 'Konstanz', 'Heidelberg'
@@ -149,17 +158,17 @@ export function initSearchView() {
     const val = searchInput.value.trim().toLowerCase();
     const loc = locationInput.value.trim().toLowerCase();
 
-    if (val.length === 0) {
-      autocompleteMenu.style.display = 'none';
-      return;
-    }
-
     const matches = praxen.filter(praxis => {
-      const matchText = (praxis.name + ' ' + praxis.fachbereich + ' ' + praxis.beschreibung).toLowerCase();
-      const matchLocation = praxis.adresse.toLowerCase();
-      
-      const textMatch = matchText.includes(val);
-      const locMatch = loc ? matchLocation.includes(loc) : true;
+      if (val.length === 0) {
+        return loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
+      }
+      const nameMatch = (praxis.name || '').toLowerCase().includes(val);
+      const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
+      const descMatch = (praxis.beschreibung || '').toLowerCase().includes(val);
+      const addrMatch = (praxis.adresse || '').toLowerCase().includes(val);
+
+      const textMatch = nameMatch || fachbereichMatch || descMatch || addrMatch;
+      const locMatch = loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
 
       return textMatch && locMatch;
     });
@@ -228,7 +237,7 @@ export function initSearchView() {
   locationInput.addEventListener('input', performLocationSearch);
 
   searchInput.addEventListener('focus', () => {
-    if (searchInput.value.trim().length > 0) performSearch();
+    performSearch();
   });
   locationInput.addEventListener('focus', () => {
     if (locationInput.value.trim().length > 0) performLocationSearch();

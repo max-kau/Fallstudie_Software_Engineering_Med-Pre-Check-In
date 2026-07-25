@@ -22,17 +22,30 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'S
 
 function parseGermanDate(dateStr) {
   if (!dateStr) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Date(dateStr + 'T00:00:00');
+  const str = String(dateStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return new Date(str + 'T00:00:00');
   }
-  const match = dateStr.match(/(\d{1,2})\.\s*(\w{3})/);
-  if (!match) return null;
-  const day = parseInt(match[1], 10);
-  const monthAbbr = match[2].toLowerCase();
-  const month = MONTH_MAP[monthAbbr];
-  if (month === undefined || isNaN(day)) return null;
-  const now = new Date();
-  return new Date(now.getFullYear(), month, day);
+  const ddmmyyyy = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (ddmmyyyy) {
+    const day = parseInt(ddmmyyyy[1], 10);
+    const month = parseInt(ddmmyyyy[2], 10) - 1;
+    const year = parseInt(ddmmyyyy[3], 10);
+    return new Date(year, month, day);
+  }
+  const match = str.match(/(\d{1,2})\.\s*([a-zA-ZäöüÄÖÜ]+)/);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const monthAbbr = match[2].toLowerCase().substring(0, 3);
+    const month = MONTH_MAP[monthAbbr];
+    if (month !== undefined && !isNaN(day)) {
+      const now = new Date();
+      return new Date(now.getFullYear(), month, day);
+    }
+  }
+  const fallback = new Date(str);
+  if (!isNaN(fallback.getTime())) return fallback;
+  return null;
 }
 
 function parseTimeToMinutes(timeStr) {
@@ -190,7 +203,10 @@ function renderShadingBlocks(date, openingHours) {
   }
 
   const openStart = parseTimeToMinutes(todayHours.start);
-  const openEnd = parseTimeToMinutes(todayHours.end);
+  let openEnd = parseTimeToMinutes(todayHours.end);
+  if (todayHours.end === '00:00' || todayHours.end === '0:00' || todayHours.end === '24:00' || openEnd === 0) {
+    openEnd = 24 * 60; // 1440 minutes = midnight
+  }
 
   let html = '';
   if (openStart > calStartMin) {
@@ -681,6 +697,43 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
           statusMsg.style.display = 'inline';
           statusMsg.style.color = '#DC2626';
           statusMsg.textContent = 'Bitte mindestens einen Wochentag auswählen.';
+        }
+        return;
+      }
+
+      // Frontend Conflict Check against allAppointments
+      const apptConflicts = [];
+      const newStartMin = parseTimeToMinutes(startTime);
+      const newEndMin = parseTimeToMinutes(endTime);
+
+      for (const appt of allAppointments) {
+        const apptDateObj = parseGermanDate(appt.date);
+        if (!apptDateObj) continue;
+
+        let matchesDay = false;
+        if (isRecurring) {
+          if (selectedDays.includes(apptDateObj.getDay())) matchesDay = true;
+        } else {
+          const apptDateStr = `${apptDateObj.getFullYear()}-${String(apptDateObj.getMonth() + 1).padStart(2, '0')}-${String(apptDateObj.getDate()).padStart(2, '0')}`;
+          if (apptDateStr === specificDate) matchesDay = true;
+        }
+
+        if (!matchesDay) continue;
+
+        const apptStartMin = parseTimeToMinutes(appt.time);
+        const apptEndMin = apptStartMin + (appt.duration || DEFAULT_DURATION);
+
+        if (apptStartMin < newEndMin && apptEndMin > newStartMin) {
+          const patientName = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
+          apptConflicts.push(`${patientName} (${appt.date} um ${appt.time} Uhr)`);
+        }
+      }
+
+      if (apptConflicts.length > 0) {
+        if (statusMsg) {
+          statusMsg.style.display = 'inline';
+          statusMsg.style.color = '#DC2626';
+          statusMsg.textContent = '❌ Kollision mit bestehendem Patiententermin: ' + apptConflicts.join(', ');
         }
         return;
       }

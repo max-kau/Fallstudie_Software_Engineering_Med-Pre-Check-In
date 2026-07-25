@@ -127,7 +127,7 @@ export function initHomeView() {
   ];
 
   fetchPraxen().then(() => {
-    if (searchInput.value.trim().length > 0) performSearch();
+    performSearch();
   });
 
   // 1. Practice autocomplete search
@@ -135,13 +135,11 @@ export function initHomeView() {
     const val = searchInput.value.trim().toLowerCase();
     const loc = locationInput.value.trim().toLowerCase();
 
-    if (val.length === 0) {
-      autocompleteMenu.style.display = 'none';
-      return;
-    }
-
-    // Filter matching practices from 1st letter
+    // Filter matching practices (show popular if empty)
     const matches = praxen.filter(praxis => {
+      if (val.length === 0) {
+        return loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
+      }
       const nameMatch = (praxis.name || '').toLowerCase().includes(val);
       const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
       const descMatch = (praxis.beschreibung || '').toLowerCase().includes(val);
@@ -160,7 +158,7 @@ export function initHomeView() {
         </div>
       `;
     } else {
-      autocompleteMenu.innerHTML = matches.map(praxis => {
+      autocompleteMenu.innerHTML = matches.slice(0, 10).map(praxis => {
         return `
           <div class="autocomplete-item" data-slug="${praxis.slug}">
             <div class="autocomplete-item-logo" style="background: ${praxis.gradient};">
@@ -218,9 +216,9 @@ export function initHomeView() {
   searchInput.addEventListener('input', performSearch);
   locationInput.addEventListener('input', performLocationSearch);
 
-  // Focus listeners to show suggestions when clicking back inside
+  // Focus listeners to show suggestions when clicking inside
   searchInput.addEventListener('focus', () => {
-    if (searchInput.value.trim().length > 0) performSearch();
+    performSearch();
   });
   locationInput.addEventListener('focus', () => {
     if (locationInput.value.trim().length > 0) performLocationSearch();
