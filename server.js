@@ -3893,32 +3893,144 @@ async function sendDelayEmail(email, appointment, delayMinutes, praxisName) {
 }
 
 // ============================================
-// LIVE QUEUE API ENDPOINTS
+// DATENGESTÜTZTE BEHANDLUNGSDAUER & ANALYSE
 // ============================================
 
-// Helper: Get today's date string in YYYY-MM-DD format
-function getTodayDateString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// Default manual duration standards per appointment type
+const DEFAULT_TERMINART_STANDARDS = {
+  'Routineuntersuchung': { manualDuration: 15, defaultAvg: 14 },
+  'Erstgespräch': { manualDuration: 30, defaultAvg: 28 },
+  'Akutbeschwerden': { manualDuration: 15, defaultAvg: 12 },
+  'Besprechung': { manualDuration: 20, defaultAvg: 22 },
+  'Kontrolltermin': { manualDuration: 15, defaultAvg: 15 }
+};
+
+// In-memory store for completed treatments & active timers
+let treatmentHistoryStore = [
+  { praxisName: 'all', art: 'Routineuntersuchung', durationMinutes: 14, timestamp: new Date(Date.now() - 36000000).toISOString() },
+  { praxisName: 'all', art: 'Routineuntersuchung', durationMinutes: 15, timestamp: new Date(Date.now() - 32000000).toISOString() },
+  { praxisName: 'all', art: 'Routineuntersuchung', durationMinutes: 13, timestamp: new Date(Date.now() - 28000000).toISOString() },
+  { praxisName: 'all', art: 'Erstgespräch', durationMinutes: 28, timestamp: new Date(Date.now() - 24000000).toISOString() },
+  { praxisName: 'all', art: 'Erstgespräch', durationMinutes: 32, timestamp: new Date(Date.now() - 20000000).toISOString() },
+  { praxisName: 'all', art: 'Erstgespräch', durationMinutes: 26, timestamp: new Date(Date.now() - 16000000).toISOString() },
+  { praxisName: 'all', art: 'Akutbeschwerden', durationMinutes: 12, timestamp: new Date(Date.now() - 12000000).toISOString() },
+  { praxisName: 'all', art: 'Akutbeschwerden', durationMinutes: 11, timestamp: new Date(Date.now() - 8000000).toISOString() },
+  { praxisName: 'all', art: 'Besprechung', durationMinutes: 22, timestamp: new Date(Date.now() - 4000000).toISOString() },
+  { praxisName: 'all', art: 'Besprechung', durationMinutes: 24, timestamp: new Date(Date.now() - 2000000).toISOString() }
+];
+
+let activeTreatmentTimers = {}; // { terminCode: startTimeMs }
+let praxisTerminartSettingsStore = {}; // { [praxisName_art]: { manualDuration, useAuto } }
+
+function getPraxisSettings(praxisName, art) {
+  const key = `${praxisName || 'default'}_${art}`;
+  const defaultStd = DEFAULT_TERMINART_STANDARDS[art] || { manualDuration: 15, defaultAvg: 15 };
+  if (!praxisTerminartSettingsStore[key]) {
+    praxisTerminartSettingsStore[key] = {
+      manualDuration: defaultStd.manualDuration,
+      useAuto: true
+    };
+  }
+  return praxisTerminartSettingsStore[key];
 }
 
-// Helper: Check if a termin date string matches today
-function isTerminToday(dateStr) {
-  if (!dateStr) return false;
-  const today = getTodayDateString();
-  // Direct YYYY-MM-DD match
-  if (dateStr === today) return true;
-  // Try parsing German date format
-  const parsed = parseGermanDate(dateStr);
-  if (!parsed) return false;
-  const now = new Date();
-  return parsed.getFullYear() === now.getFullYear() &&
-         parsed.getMonth() === now.getMonth() &&
-         parsed.getDate() === now.getDate();
+function calculateTerminartAnalysis(praxisName) {
+  const result = [];
+  const allArts = Object.keys(DEFAULT_TERMINART_STANDARDS);
+
+  for (const art of allArts) {
+    const settings = getPraxisSettings(praxisName, art);
+    const entries = treatmentHistoryStore.filter(e => 
+      e.art === art && (e.praxisName === 'all' || !praxisName || e.praxisName === praxisName) &&
+      e.durationMinutes >= 2 && e.durationMinutes <= 120
+    );
+
+    const sampleCount = entries.length;
+    let calculatedAvg = DEFAULT_TERMINART_STANDARDS[art]?.defaultAvg || settings.manualDuration;
+    if (sampleCount > 0) {
+      const sum = entries.reduce((acc, curr) => acc + curr.durationMinutes, 0);
+      calculatedAvg = Math.round(sum / sampleCount);
+    }
+
+    const effectiveDuration = settings.useAuto ? calculatedAvg : settings.manualDuration;
+    const diff = calculatedAvg - settings.manualDuration;
+    let statusTrend = 'neutral';
+    if (diff > 2) statusTrend = 'higher';
+    else if (diff < -2) statusTrend = 'lower';
+
+    result.push({
+      art,
+      manualDuration: settings.manualDuration,
+      calculatedAvg,
+      sampleCount,
+      useAuto: settings.useAuto,
+      effectiveDuration,
+      statusTrend,
+      diff
+    });
+  }
+
+  return result;
 }
+
+function getEffectiveDurationForArt(praxisName, art) {
+  const settings = getPraxisSettings(praxisName, art);
+  if (!settings.useAuto) return settings.manualDuration;
+  
+  const entries = treatmentHistoryStore.filter(e => 
+    e.art === art && (e.praxisName === 'all' || !praxisName || e.praxisName === praxisName) &&
+    e.durationMinutes >= 2 && e.durationMinutes <= 120
+  );
+  if (entries.length === 0) {
+    return DEFAULT_TERMINART_STANDARDS[art]?.defaultAvg || settings.manualDuration;
+  }
+  const sum = entries.reduce((acc, curr) => acc + curr.durationMinutes, 0);
+  return Math.round(sum / entries.length);
+}
+
+// API: Get treatment duration analysis for a praxis
+app.get('/api/praxis/terminarten/analyse', (req, res) => {
+  const praxisName = req.session.user?.praxis_name || req.query.praxis || '';
+  const analysis = calculateTerminartAnalysis(praxisName);
+  res.json({ success: true, analysis });
+});
+
+// API: Get recommended duration for a specific appointment type
+app.get('/api/praxis/terminarten/dauer', (req, res) => {
+  const { art, praxis } = req.query;
+  const praxisName = praxis || req.session.user?.praxis_name || '';
+  const effectiveDuration = getEffectiveDurationForArt(praxisName, art || 'Routineuntersuchung');
+  const settings = getPraxisSettings(praxisName, art);
+  res.json({
+    success: true,
+    art,
+    effectiveDuration,
+    manualDuration: settings.manualDuration,
+    useAuto: settings.useAuto
+  });
+});
+
+// API: Update settings for a terminart (manual duration & useAuto toggle)
+app.put('/api/praxis/terminarten/einstellungen', (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+  const { art, manualDuration, useAuto } = req.body;
+  const praxisName = req.session.user.praxis_name || '';
+  const key = `${praxisName}_${art}`;
+
+  if (!praxisTerminartSettingsStore[key]) {
+    praxisTerminartSettingsStore[key] = {
+      manualDuration: Number(manualDuration) || 15,
+      useAuto: Boolean(useAuto)
+    };
+  } else {
+    if (manualDuration !== undefined) praxisTerminartSettingsStore[key].manualDuration = Number(manualDuration);
+    if (useAuto !== undefined) praxisTerminartSettingsStore[key].useAuto = Boolean(useAuto);
+  }
+
+  res.json({ success: true, settings: praxisTerminartSettingsStore[key] });
+});
 
 // API: Get queue status for a praxis (today only)
 app.get('/api/queue/:praxisName', async (req, res) => {
@@ -3974,18 +4086,36 @@ app.get('/api/queue/:praxisName', async (req, res) => {
     // Determine if caller is praxis or patient
     const isPraxis = req.session.user?.role === 'praxis';
 
+    // Calculate dynamic wait times per patient based on effective duration of front queue items
+    let cumulativeWait = 0;
+
     const queue = todayAppointments.map((appt, idx) => {
       const isOwnAppointment = appt.user_id === req.session.userId;
+      const status = appt.queue_status || 'waiting';
+      const effectiveDuration = getEffectiveDurationForArt(decodedPraxisName, appt.art);
+
+      let estimatedWaitMinutes = 0;
+      if (status === 'in_treatment') {
+        const startTime = activeTreatmentTimers[appt.code] || (appt.queue_updated_at ? new Date(appt.queue_updated_at).getTime() : Date.now());
+        const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
+        const remDuration = Math.max(2, effectiveDuration - elapsedMinutes);
+        cumulativeWait += remDuration;
+      } else if (status === 'waiting' || status === 'arrived' || status === 'delayed') {
+        estimatedWaitMinutes = cumulativeWait;
+        cumulativeWait += effectiveDuration;
+      }
+
       return {
         code: appt.code,
-        // For patients: show full name only for own appointment, 'Patient' for others
         patient_vorname: isPraxis || isOwnAppointment ? appt.patient_vorname : 'Patient',
         patient_nachname: isPraxis || isOwnAppointment ? appt.patient_nachname : '',
         patient_geburtsdatum: isPraxis || isOwnAppointment ? (appt.patient_geburtsdatum || '') : '',
         time: appt.time,
         art: appt.art,
-        duration: appt.duration || 30,
-        status: appt.queue_status || 'waiting',
+        duration: appt.duration || effectiveDuration,
+        effective_duration: effectiveDuration,
+        estimated_wait_minutes: estimatedWaitMinutes,
+        status: status,
         delay_minutes: appt.delay_minutes || 0,
         delay_reason: appt.delay_reason || '',
         early_request_status: appt.early_request_status || null,
@@ -3996,7 +4126,7 @@ app.get('/api/queue/:praxisName', async (req, res) => {
       };
     });
 
-    res.json({ success: true, queue });
+    res.json({ success: true, queue, totalRemainingMinutes: cumulativeWait });
   } catch (err) {
     console.error('Error fetching queue:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Warteschlange.' });
@@ -4009,11 +4139,14 @@ app.post('/api/queue/:terminCode/accept', async (req, res) => {
     return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
   }
   const { terminCode } = req.params;
+
+  // Track start time
+  activeTreatmentTimers[terminCode] = Date.now();
+
   if (!isDbConnected || !pool) {
     return res.json({ success: true });
   }
   try {
-    // Verify the appointment belongs to this praxis
     const check = await pool.query(
       'SELECT code FROM termine WHERE code = $1 AND praxis = $2',
       [terminCode, req.session.user.praxis_name]
@@ -4040,22 +4173,52 @@ app.post('/api/queue/:terminCode/done', async (req, res) => {
     return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
   }
   const { terminCode } = req.params;
+  const praxisName = req.session.user.praxis_name;
+
+  // Record treatment duration
+  const startTime = activeTreatmentTimers[terminCode];
+  delete activeTreatmentTimers[terminCode];
+
+  let durationMinutes = 15; // default fallback
+  if (startTime) {
+    durationMinutes = Math.max(2, Math.round((Date.now() - startTime) / 60000));
+  }
+
+  let art = 'Routineuntersuchung';
+
   if (!isDbConnected || !pool) {
+    treatmentHistoryStore.push({
+      praxisName: praxisName || 'all',
+      art,
+      durationMinutes,
+      timestamp: new Date().toISOString()
+    });
     return res.json({ success: true });
   }
   try {
     const check = await pool.query(
-      'SELECT code FROM termine WHERE code = $1 AND praxis = $2',
-      [terminCode, req.session.user.praxis_name]
+      'SELECT code, art FROM termine WHERE code = $1 AND praxis = $2',
+      [terminCode, praxisName]
     );
-    if (check.rows.length === 0) {
+    if (check && check.rows && check.rows.length === 0) {
       return res.status(404).json({ error: 'Termin nicht gefunden.' });
     }
+    if (check && check.rows && check.rows[0] && check.rows[0].art) {
+      art = check.rows[0].art;
+    }
+
+    treatmentHistoryStore.push({
+      praxisName: praxisName || 'all',
+      art,
+      durationMinutes,
+      timestamp: new Date().toISOString()
+    });
+
     await pool.query(
       `INSERT INTO queue_status (praxis_name, termin_code, status, updated_at)
        VALUES ($1, $2, 'done', NOW())
        ON CONFLICT (termin_code) DO UPDATE SET status = 'done', updated_at = NOW()`,
-      [req.session.user.praxis_name, terminCode]
+      [praxisName, terminCode]
     );
     res.json({ success: true });
   } catch (err) {

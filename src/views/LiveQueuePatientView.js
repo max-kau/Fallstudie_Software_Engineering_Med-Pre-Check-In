@@ -160,9 +160,8 @@ function renderOwnPosition(queue) {
 
   const position = waitingBefore + 1;
 
-  // Estimate wait time (assume each person takes ~duration minutes, subtract already treated)
-  const avgDuration = 20; // average duration estimate
-  const estimatedWait = waitingBefore * avgDuration;
+  // Estimate wait time based on backend dynamic calculation per appointment type
+  const estimatedWait = own.estimated_wait_minutes !== undefined ? own.estimated_wait_minutes : (waitingBefore * 20);
 
   let delayNote = '';
   if (own.status === 'delayed' && own.delay_minutes > 0) {
@@ -179,7 +178,7 @@ function renderOwnPosition(queue) {
       <div class="queue-own-position-label">Ihre Position in der Warteschlange</div>
       ${estimatedWait > 0 ? `
         <div class="queue-wait-estimate">
-          ⏱️ Voraussichtliche Wartezeit: ca. ${estimatedWait} Minuten (noch ${waitingBefore} Patient${waitingBefore > 1 ? 'en' : ''} vor Ihnen)
+          ⏱️ Voraussichtliche Wartezeit: ca. <strong>${estimatedWait} Minuten</strong> (berechnet aus den Behandlungsarten der ${waitingBefore} Patient${waitingBefore > 1 ? 'en' : ''} vor Ihnen)
         </div>
       ` : `
         <div class="queue-wait-estimate" style="color: var(--success);">
