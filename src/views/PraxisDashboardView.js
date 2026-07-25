@@ -392,7 +392,6 @@ export async function initPraxisDashboardView() {
                 <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Soll-Dauer (manuell)</th>
                 <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Ist-Schnitt (historisch)</th>
                 <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Messungen</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Effektiver Wert</th>
                 <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Abweichung</th>
                 <th style="padding: var(--space-3) var(--space-4); text-align: center; font-weight: 700; color: var(--gray-700);">Verzugsschutz (Automatik)</th>
               </tr>
@@ -421,7 +420,6 @@ export async function initPraxisDashboardView() {
             </td>
             <td style="padding: var(--space-3) var(--space-4); ${avgTdBg}">${item.calculatedAvg} Min.</td>
             <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">${item.sampleCount} Behandlungen</td>
-            <td style="padding: var(--space-3) var(--space-4); font-weight: 800; color: var(--gray-900);">${item.effectiveDuration} Min.</td>
             <td style="padding: var(--space-3) var(--space-4);">${trendBadge}</td>
             <td style="padding: var(--space-3) var(--space-4); text-align: center;">
               <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-700);">
