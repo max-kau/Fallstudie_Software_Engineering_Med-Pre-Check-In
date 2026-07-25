@@ -87,8 +87,16 @@ function getAvailableTimeslotsForDate(dateStr) {
     endMin = 24 * 60;
   }
 
+  const now = new Date();
+  const todayStr = getTodayStr();
+  const isToday = (dateStr === todayStr);
+  const currentMin = now.getHours() * 60 + now.getMinutes();
+
   const slots = [];
   for (let min = startMin; min + 30 <= endMin; min += 30) {
+    if (isToday && min <= currentMin) {
+      continue; // Skip past slots for today
+    }
     const h = Math.floor(min / 60);
     const m = min % 60;
     slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);

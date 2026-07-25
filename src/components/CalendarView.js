@@ -258,6 +258,32 @@ function renderBufferBlocks(date, bufferTimes) {
   return html;
 }
 
+function renderCurrentTimeIndicator(date) {
+  if (!isSameDay(date, new Date())) return '';
+
+  const now = new Date();
+  const curHours = now.getHours();
+  const curMins = now.getMinutes();
+  const totalMins = curHours * 60 + curMins;
+  const calStartMin = CALENDAR_START_HOUR * 60;
+  const calEndMin = CALENDAR_END_HOUR * 60;
+
+  if (totalMins < calStartMin || totalMins > calEndMin) return '';
+
+  const topPx = ((totalMins - calStartMin) / 60) * HOUR_HEIGHT_PX;
+  const timeStr = `${String(curHours).padStart(2, '0')}:${String(curMins).padStart(2, '0')}`;
+
+  return `
+    <div class="cal-current-time-line"
+         style="position: absolute; left: 0; right: 0; top: ${topPx}px; border-top: 2px solid #EF4444; z-index: 10; pointer-events: none;">
+      <div style="position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: #EF4444; border-radius: 50%; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);"></div>
+      <span style="position: absolute; right: 4px; top: -9px; background: #EF4444; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); letter-spacing: 0.3px;">
+        📍 ${timeStr} Uhr
+      </span>
+    </div>
+  `;
+}
+
 function renderDayView(date, appointments, openingHours, bufferTimes) {
   const dayAppts = filterAppointmentsByDate(appointments, date);
   const isToday = isSameDay(date, new Date());
@@ -273,6 +299,7 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
           ${renderShadingBlocks(date, openingHours)}
           ${renderBufferBlocks(date, bufferTimes)}
           ${renderTimeGridLines()}
+          ${renderCurrentTimeIndicator(date)}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
       </div>
@@ -301,6 +328,7 @@ function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
           ${renderShadingBlocks(d, openingHours)}
           ${renderBufferBlocks(d, bufferTimes)}
           ${renderTimeGridLines()}
+          ${renderCurrentTimeIndicator(d)}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
       </div>
