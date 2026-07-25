@@ -264,7 +264,7 @@ describe('Backend Termin API - POST /api/praxis/termine/buchen (Telefonischer Te
     });
     const data = await response.json();
     expect(response.status).toBe(400);
-    expect(data.error).toContain('Alle Felder');
+    expect(data.error).toContain('Alle Pflichtfelder');
   });
 
   it('should successfully create an appointment with Vorname and Nachname', async () => {
@@ -278,10 +278,16 @@ describe('Backend Termin API - POST /api/praxis/termine/buchen (Telefonischer Te
     // 3. Check if patient exists
     mockQuery.mockResolvedValueOnce({ rows: [] }); // no existing patient
 
-    // 4. Slot check: no duplicate
+    // 3b. Mock user profile creation (INSERT INTO users RETURNING id)
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 101 }] });
+
+    // 4. Patient slot check: no duplicate for patient
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
-    // 5. INSERT appointment
+    // 5. Praxis slot check: no duplicate for praxis
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // 6. INSERT appointment
     const mockAppt = {
       code: 't_TEST1234',
       doctor: 'Dr. Anna Hartmann',
@@ -317,6 +323,42 @@ describe('Backend Termin API - POST /api/praxis/termine/buchen (Telefonischer Te
     expect(data.appointment.patient_nachname).toBe('Mustermann');
   });
 
+  it('should reject booking when patient already has an appointment at that time', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    // validateAppointmentTime mocks
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // opening hours
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // buffer times
+
+    // Patient lookup
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 101 }] });
+
+    // Patient profile update
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // Patient slot check: user already has appointment
+    mockQuery.mockResolvedValueOnce({ rows: [{ code: 'other_praxis_appt' }] });
+
+    const response = await fetch(`${baseUrl}/api/praxis/termine/buchen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({
+        patientEmail: 'max@example.com',
+        patientVorname: 'Max',
+        patientNachname: 'Mustermann',
+        doctor: 'Dr. Anna Hartmann',
+        date: '2026-08-20',
+        time: '10:00',
+        art: 'Routineuntersuchung'
+      })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('bereits einen anderen Termin');
+  });
+
   it('should reject booking when slot is already taken', async () => {
     const cookie = await loginAsPraxis();
     mockQuery.mockReset();
@@ -328,7 +370,13 @@ describe('Backend Termin API - POST /api/praxis/termine/buchen (Telefonischer Te
     // Patient lookup
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
-    // Slot check: already booked
+    // Mock user profile creation (INSERT INTO users RETURNING id)
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 101 }] });
+
+    // Patient slot check: clear
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // Praxis slot check: already booked
     mockQuery.mockResolvedValueOnce({ rows: [{ code: 'existing_appt' }] });
 
     const response = await fetch(`${baseUrl}/api/praxis/termine/buchen`, {
@@ -423,5 +471,125 @@ describe('Backend Termin API - PUT /api/praxis/termin/:code/duration', () => {
 
     expect(response.status).toBe(404);
     expect(data.error).toContain('nicht gefunden');
+  });
+});
+
+describe('Backend Patient Termin API - Metadata & Cancel', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+  });
+
+  async function loginAsPatient() {
+    const password = 'patientpass123';
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    const mockPatientUser = {
+      id: 101,
+      email: 'patient@test.de',
+      password_hash: hashedPassword,
+      vorname: 'Max',
+      nachname: 'Mustermann',
+      role: 'patient'
+    };
+
+    mockQuery.mockResolvedValueOnce({ rows: [mockPatientUser] });
+    mockQuery.mockResolvedValueOnce({ rowCount: 0 });
+
+    const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'patient@test.de', password, role: 'patient' }),
+      redirect: 'manual'
+    });
+
+    expect(loginRes.status).toBe(200);
+    const setCookieHeader = loginRes.headers.get('set-cookie') || loginRes.headers.getSetCookie?.()?.join('; ');
+    return typeof setCookieHeader === 'string' ? setCookieHeader.split(';')[0] : '';
+  }
+
+  it('should get all appointments for the patient', async () => {
+    const cookie = await loginAsPatient();
+    mockQuery.mockReset();
+
+    // 1. UPDATE query (auto-link notify_email to user_id)
+    mockQuery.mockResolvedValueOnce({ rowCount: 0 });
+    // 2. SELECT user's appointments query
+    const mockAppointments = [
+      {
+        code: 'appt_123',
+        doctor: 'Dr. Anna Hartmann',
+        praxis: 'Hausarztpraxis',
+        date: '2026-08-20',
+        time: '10:00',
+        status: 'bestätigt',
+        favorite: true,
+        urgent: false,
+        priority: 1
+      }
+    ];
+    mockQuery.mockResolvedValueOnce({ rows: mockAppointments });
+    // 3. Select shared documents
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // 4. Select aftercare instructions
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    const response = await fetch(`${baseUrl}/api/user/termine`, {
+      headers: { 'Cookie': cookie }
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.appointments.length).toBe(1);
+    expect(data.appointments[0].code).toBe('appt_123');
+    expect(data.appointments[0].favorite).toBe(true);
+    expect(data.appointments[0].priority).toBe(1);
+  });
+
+  it('should update metadata using PATCH /api/termine/:code/metadata', async () => {
+    const cookie = await loginAsPatient();
+    mockQuery.mockReset();
+
+    const mockUpdatedRow = {
+      code: 'appt_123',
+      doctor: 'Dr. Anna Hartmann',
+      praxis: 'Hausarztpraxis',
+      date: '2026-08-20',
+      time: '10:00',
+      status: 'bestätigt',
+      favorite: true,
+      urgent: true,
+      priority: 5
+    };
+
+    mockQuery.mockResolvedValueOnce({ rows: [mockUpdatedRow] });
+
+    const response = await fetch(`${baseUrl}/api/termine/appt_123/metadata`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Cookie': cookie },
+      body: JSON.stringify({ favorite: true, urgent: true, priority: 5 })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.appointment.favorite).toBe(true);
+    expect(data.appointment.urgent).toBe(true);
+    expect(data.appointment.priority).toBe(5);
+  });
+
+  it('should set status to abgesagt on DELETE /api/termine/:code', async () => {
+    const cookie = await loginAsPatient();
+    mockQuery.mockReset();
+
+    mockQuery.mockResolvedValueOnce({ rowCount: 1 });
+
+    const response = await fetch(`${baseUrl}/api/termine/appt_123`, {
+      method: 'DELETE',
+      headers: { 'Cookie': cookie }
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
   });
 });

@@ -3563,8 +3563,11 @@
 }
 
 .cal-body {
+  max-height: 650px;
+  overflow-y: auto;
   overflow-x: auto;
   padding: 0;
+  position: relative;
 }
 
 /* Grid layout */
@@ -3575,7 +3578,7 @@
 }
 
 .cal-grid--day {
-  flex-direction: row-reverse;
+  flex-direction: row;
 }
 
 .cal-grid--week .cal-day-col {
@@ -3601,6 +3604,16 @@
   position: sticky;
   top: 0;
   z-index: 5;
+}
+
+.cal-time-gutter-header {
+  background: var(--bg-gray);
+  border-right: 1px solid var(--gray-200);
+  user-select: none;
+}
+
+.cal-time-gutter-body {
+  position: relative;
 }
 
 .cal-day-header--today {

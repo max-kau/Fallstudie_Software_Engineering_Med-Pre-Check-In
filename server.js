@@ -196,6 +196,10 @@ async function initDb() {
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS rating INTEGER;
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS feedback_text TEXT;
       ALTER TABLE termine ADD COLUMN IF NOT EXISTS post_visit_notified BOOLEAN DEFAULT FALSE;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'bestätigt';
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS urgent BOOLEAN DEFAULT FALSE;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS favorite BOOLEAN DEFAULT FALSE;
+      ALTER TABLE termine ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 0;
     `);
 
     // Ensure custom_answers exists in precheckins
@@ -459,33 +463,59 @@ app.post('/api/auth/register', async (req, res) => {
 
   try {
     // Check if email already exists for this specific role
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1 AND role = $2', [email.toLowerCase(), userRole]);
+    const existing = await pool.query('SELECT id, password_hash FROM users WHERE email = $1 AND role = $2', [email.toLowerCase(), userRole]);
+    let user;
+
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Diese E-Mail-Adresse ist für diese Rolle bereits registriert.' });
+      const isPlaceholder = existing.rows[0].password_hash && existing.rows[0].password_hash.startsWith('PLACEHOLDER');
+      if (!isPlaceholder) {
+        return res.status(409).json({ error: 'Diese E-Mail-Adresse ist für diese Rolle bereits registriert.' });
+      }
+
+      // If placeholder, update the password hash and merge other data!
+      const passwordHash = await bcrypt.hash(password, 10);
+      const result = await pool.query(
+        `UPDATE users SET 
+           password_hash = $1, 
+           vorname = $2, 
+           nachname = $3, 
+           geburtsdatum = $4, 
+           krankenversicherung = $5 
+         WHERE id = $6
+         RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
+        [
+          passwordHash,
+          vorname,
+          nachname,
+          geburtsdatum || null,
+          krankenversicherung || null,
+          existing.rows[0].id
+        ]
+      );
+      user = result.rows[0];
+    } else {
+      // Hash password and insert user
+      const passwordHash = await bcrypt.hash(password, 10);
+      const result = await pool.query(
+        `INSERT INTO users (email, password_hash, vorname, nachname, role, geburtsdatum, krankenversicherung, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+         RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
+        [
+          email.toLowerCase(),
+          passwordHash,
+          vorname,
+          nachname,
+          userRole,
+          geburtsdatum || null,
+          krankenversicherung || null,
+          praxis_name || null,
+          praxis_fachbereich || null,
+          praxis_adresse || null,
+          praxis_telefon || null
+        ]
+      );
+      user = result.rows[0];
     }
-
-    // Hash password and insert user
-    const passwordHash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      `INSERT INTO users (email, password_hash, vorname, nachname, role, geburtsdatum, krankenversicherung, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-       RETURNING id, email, vorname, nachname, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse, role, praxis_name, praxis_fachbereich, praxis_adresse, praxis_telefon`,
-      [
-        email.toLowerCase(),
-        passwordHash,
-        vorname,
-        nachname,
-        userRole,
-        geburtsdatum || null,
-        krankenversicherung || null,
-        praxis_name || null,
-        praxis_fachbereich || null,
-        praxis_adresse || null,
-        praxis_telefon || null
-      ]
-    );
-
-    const user = result.rows[0];
 
     // Auto-login after registration
     req.session.userId = user.id;
@@ -507,7 +537,7 @@ app.post('/api/auth/register', async (req, res) => {
       praxis_telefon: user.praxis_telefon
     };
 
-    console.log(`New user registered: ${user.email}`);
+    console.log(`User registered/claimed: ${user.email}`);
 
     // Auto-link manually created appointments
     try {
@@ -1051,15 +1081,87 @@ app.get('/api/praxis/termine', async (req, res) => {
 });
 
 // API: Manually book/create an appointment for a patient (by praxis staff)
+// API: Search patient profile data by query
+app.get('/api/praxis/patients/search', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  }
+
+  const query = (req.query.q || '').trim().toLowerCase();
+  if (!query) {
+    return res.json({ success: true, patients: [] });
+  }
+
+  const praxisName = req.session.user.praxis_name || 'Meine Praxis';
+
+  if (!isDbConnected || !pool) {
+    // Offline mode patient search
+    if (!req.session.mockPatients) {
+      req.session.mockPatients = [
+        {
+          email: 'patient@example.com',
+          vorname: 'Max',
+          nachname: 'Mustermann',
+          geburtsdatum: '1990-01-01',
+          telefonnummer: '017612345678',
+          strasse_hnr: 'Leopoldstraße 12',
+          plz_ort: '80802 München',
+          krankenversicherung: 'gesetzlich',
+          krankenkasse: 'AOK Bayern'
+        }
+      ];
+    }
+    const filtered = req.session.mockPatients.filter(p => 
+      p.email.toLowerCase().includes(query) ||
+      p.vorname.toLowerCase().includes(query) ||
+      p.nachname.toLowerCase().includes(query) ||
+      `${p.vorname} ${p.nachname}`.toLowerCase().includes(query)
+    );
+    return res.json({ success: true, patients: filtered });
+  }
+
+  try {
+    const queryStr = `%${query}%`;
+    const searchResult = await pool.query(
+      `SELECT DISTINCT u.id, u.email, u.vorname, u.nachname, u.geburtsdatum, u.telefonnummer, u.strasse_hnr, u.plz_ort, u.krankenversicherung, u.krankenkasse
+       FROM users u
+       JOIN termine t ON (t.user_id = u.id OR LOWER(t.notify_email) = LOWER(u.email))
+       WHERE u.role = 'patient' 
+         AND t.praxis = $1
+         AND (u.email ILIKE $2 OR u.vorname ILIKE $2 OR u.nachname ILIKE $2 OR (u.vorname || ' ' || u.nachname) ILIKE $2)`,
+      [praxisName, queryStr]
+    );
+    res.json({ success: true, patients: searchResult.rows });
+  } catch (err) {
+    console.error('Error searching patients:', err);
+    res.status(500).json({ error: 'Fehler bei der Patientensuche.' });
+  }
+});
+
+// API: Manually book/create an appointment for a patient (by praxis staff)
 app.post('/api/praxis/termine/buchen', async (req, res) => {
   if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
     return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
   }
 
-  const { patientEmail, patientVorname, patientNachname, doctor, date, time, art } = req.body;
+  const { 
+    patientEmail, 
+    patientVorname, 
+    patientNachname, 
+    doctor, 
+    date, 
+    time, 
+    art,
+    geburtsdatum,
+    telefonnummer,
+    strasse_hnr,
+    plz_ort,
+    krankenversicherung,
+    krankenkasse
+  } = req.body;
 
   if (!patientEmail || !patientVorname || !patientNachname || !doctor || !date || !time || !art) {
-    return res.status(400).json({ error: 'Alle Felder müssen ausgefüllt werden.' });
+    return res.status(400).json({ error: 'Alle Pflichtfelder müssen ausgefüllt werden.' });
   }
 
   // Validate appointment is not in the past
@@ -1081,6 +1183,53 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
 
   if (!isDbConnected || !pool) {
     // Offline mode: mock booking
+    if (!req.session.mockPatients) {
+      req.session.mockPatients = [
+        {
+          email: 'patient@example.com',
+          vorname: 'Max',
+          nachname: 'Mustermann',
+          geburtsdatum: '1990-01-01',
+          telefonnummer: '017612345678',
+          strasse_hnr: 'Leopoldstraße 12',
+          plz_ort: '80802 München',
+          krankenversicherung: 'gesetzlich',
+          krankenkasse: 'AOK Bayern'
+        }
+      ];
+    }
+
+    const patientExists = req.session.mockPatients.some(p => p.email.toLowerCase() === patientEmail.toLowerCase());
+    if (!patientExists) {
+      req.session.mockPatients.push({
+        email: patientEmail,
+        vorname: patientVorname,
+        nachname: patientNachname,
+        geburtsdatum: geburtsdatum || '',
+        telefonnummer: telefonnummer || '',
+        strasse_hnr: strasse_hnr || '',
+        plz_ort: plz_ort || '',
+        krankenversicherung: krankenversicherung || 'gesetzlich',
+        krankenkasse: krankenkasse || ''
+      });
+    }
+
+    // Check if slot already booked for this praxis
+    const existingSlot = (req.session.mockAppointments || []).find(
+      a => a.date === date && a.time === time && a.praxis === praxisName && a.status !== 'abgesagt'
+    );
+    if (existingSlot) {
+      return res.status(400).json({ error: 'Dieser Termin-Slot ist in Ihrer Praxis bereits vergeben.' });
+    }
+
+    // Check if patient already has an appointment at this time
+    const existingPatientAppt = (req.session.mockAppointments || []).find(
+      a => a.date === date && a.time === time && a.notify_email && a.notify_email.toLowerCase() === patientEmail.toLowerCase() && a.status !== 'abgesagt'
+    );
+    if (existingPatientAppt) {
+      return res.status(400).json({ error: 'Der Patient hat zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+    }
+
     const code = 't_MOCK' + Math.random().toString(36).substring(2, 6).toUpperCase();
     const mockAppt = {
       code,
@@ -1112,11 +1261,68 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
       'SELECT id FROM users WHERE email = $1 AND role = $2',
       [patientEmail.toLowerCase(), 'patient']
     );
-    const userId = userCheck.rows.length > 0 ? userCheck.rows[0].id : null;
+    let userId = null;
 
-    // 2. Check if slot already booked for this praxis
+    if (userCheck.rows.length > 0) {
+      userId = userCheck.rows[0].id;
+      // Auto-fill or update blank profile fields of existing patient
+      await pool.query(
+        `UPDATE users SET 
+           geburtsdatum = COALESCE(geburtsdatum, $1),
+           telefonnummer = COALESCE(telefonnummer, $2),
+           strasse_hnr = COALESCE(strasse_hnr, $3),
+           plz_ort = COALESCE(plz_ort, $4),
+           krankenversicherung = COALESCE(krankenversicherung, $5),
+           krankenkasse = COALESCE(krankenkasse, $6)
+         WHERE id = $7`,
+        [
+          geburtsdatum || null,
+          telefonnummer || null,
+          strasse_hnr || null,
+          plz_ort || null,
+          krankenversicherung || null,
+          krankenkasse || null,
+          userId
+        ]
+      );
+    } else {
+      // Create a manual patient user profile (Akte)
+      const placeholderHash = 'PLACEHOLDER_MANUAL';
+      const userInsert = await pool.query(
+        `INSERT INTO users (email, password_hash, vorname, nachname, role, geburtsdatum, telefonnummer, strasse_hnr, plz_ort, krankenversicherung, krankenkasse)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING id`,
+        [
+          patientEmail.toLowerCase(),
+          placeholderHash,
+          patientVorname,
+          patientNachname,
+          'patient',
+          geburtsdatum || null,
+          telefonnummer || null,
+          strasse_hnr || null,
+          plz_ort || null,
+          krankenversicherung || 'gesetzlich',
+          krankenkasse || null
+        ]
+      );
+      userId = userInsert.rows[0].id;
+    }
+
+    // 2. Check if patient already has an appointment at this time
+    if (userId || patientEmail) {
+      const userBlockCheck = await pool.query(
+        `SELECT code FROM termine WHERE date = $1 AND time = $2 AND (user_id = $3 OR LOWER(notify_email) = $4) AND (status IS NULL OR status != 'abgesagt')`,
+        [date, time, userId, patientEmail.toLowerCase()]
+      );
+      if (userBlockCheck.rows.length > 0) {
+        return res.status(400).json({ error: 'Der Patient hat zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
+      }
+    }
+
+    // 3. Check if slot already booked for this praxis
     const slotCheck = await pool.query(
-      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3',
+      `SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3 AND (status IS NULL OR status != 'abgesagt')`,
       [date, time, praxisName]
     );
     if (slotCheck.rows.length > 0) {
@@ -1368,9 +1574,9 @@ app.get('/api/termine/blocked', async (req, res) => {
   const userId = req.session ? req.session.userId : null;
 
   if (!isDbConnected || !pool) {
-    // Block if same praxis OR same user (excluding excludeCode)
+    // Block if same praxis OR same user (excluding excludeCode) and not cancelled
     const matches = (req.session.mockAppointments || [])
-      .filter(appt => appt.date === date && appt.code !== excludeCode && (appt.praxis === praxis || (userId && appt.user_id === userId)))
+      .filter(appt => appt.date === date && appt.code !== excludeCode && appt.status !== 'abgesagt' && (appt.praxis === praxis || (userId && appt.user_id === userId)))
       .map(appt => appt.time);
 
     // Also block slots that fall within mock buffer times
@@ -1410,7 +1616,7 @@ app.get('/api/termine/blocked', async (req, res) => {
   try {
     // Get slots where praxis is same (booked by anyone) OR user_id is current user (booked by this user), excluding current appointment
     const result = await pool.query(
-      'SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3) AND code != $4',
+      "SELECT time FROM termine WHERE date = $1 AND (praxis = $2 OR user_id = $3) AND code != $4 AND (status IS NULL OR status != 'abgesagt')",
       [date, praxis, userId || -1, excludeCode || '']
     );
     const blockedSlots = result.rows.map(row => row.time);
@@ -1478,7 +1684,7 @@ app.post('/api/termine/buchen', async (req, res) => {
   if (!isDbConnected || !pool) {
     // Check if slot already booked in mockAppointments for this praxis
     const existing = (req.session.mockAppointments || []).find(
-      appt => appt.date === date && appt.time === time && appt.praxis === praxis
+      appt => appt.date === date && appt.time === time && appt.praxis === praxis && appt.status !== 'abgesagt'
     );
     if (existing) {
       return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
@@ -1486,7 +1692,7 @@ app.post('/api/termine/buchen', async (req, res) => {
 
     // Check if user already has an appointment at this time
     const userExisting = (req.session.mockAppointments || []).find(
-      appt => appt.date === date && appt.time === time && appt.user_id === req.session.userId
+      appt => appt.date === date && appt.time === time && appt.user_id === req.session.userId && appt.status !== 'abgesagt'
     );
     if (userExisting) {
       return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
@@ -1520,7 +1726,7 @@ app.post('/api/termine/buchen', async (req, res) => {
   try {
     // Check if slot already booked in DB for this praxis
     const blockCheck = await pool.query(
-      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3',
+      "SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3 AND (status IS NULL OR status != 'abgesagt')",
       [date, time, praxis]
     );
     if (blockCheck.rows.length > 0) {
@@ -1529,7 +1735,7 @@ app.post('/api/termine/buchen', async (req, res) => {
 
     // Check if user already has an appointment at this time
     const userBlockCheck = await pool.query(
-      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3',
+      "SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3 AND (status IS NULL OR status != 'abgesagt')",
       [date, time, req.session.userId]
     );
     if (userBlockCheck.rows.length > 0) {
@@ -1671,7 +1877,7 @@ app.post('/api/termine/:code/reschedule', async (req, res) => {
 
     // Check if slot already booked by another appointment in mockAppointments for this praxis
     const existing = req.session.mockAppointments.find(
-      a => a.date === date && a.time === time && a.praxis === appt.praxis && a.code !== code
+      a => a.date === date && a.time === time && a.praxis === appt.praxis && a.code !== code && a.status !== 'abgesagt'
     );
     if (existing) {
       return res.status(400).json({ error: 'Dieser Termin-Slot ist bereits vergeben.' });
@@ -1679,7 +1885,7 @@ app.post('/api/termine/:code/reschedule', async (req, res) => {
 
     // Check if user already has another appointment at this time
     const userExisting = req.session.mockAppointments.find(
-      a => a.date === date && a.time === time && a.user_id === req.session.userId && a.code !== code
+      a => a.date === date && a.time === time && a.user_id === req.session.userId && a.code !== code && a.status !== 'abgesagt'
     );
     if (userExisting) {
       return res.status(400).json({ error: 'Sie haben zu dieser Uhrzeit bereits einen anderen Termin gebucht.' });
@@ -1700,7 +1906,7 @@ app.post('/api/termine/:code/reschedule', async (req, res) => {
 
     // Check if slot already booked in DB for this praxis by another appointment
     const blockCheck = await pool.query(
-      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3 AND code != $4',
+      "SELECT code FROM termine WHERE date = $1 AND time = $2 AND praxis = $3 AND code != $4 AND (status IS NULL OR status != 'abgesagt')",
       [date, time, praxisName, code]
     );
     if (blockCheck.rows.length > 0) {
@@ -1709,7 +1915,7 @@ app.post('/api/termine/:code/reschedule', async (req, res) => {
 
     // Check if user already has another appointment at this time
     const userBlockCheck = await pool.query(
-      'SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3 AND code != $4',
+      "SELECT code FROM termine WHERE date = $1 AND time = $2 AND user_id = $3 AND code != $4 AND (status IS NULL OR status != 'abgesagt')",
       [date, time, req.session.userId, code]
     );
     if (userBlockCheck.rows.length > 0) {
@@ -1740,13 +1946,13 @@ app.delete('/api/termine/:code', async (req, res) => {
     if (idx === -1) {
       return res.status(404).json({ error: 'Termin nicht gefunden.' });
     }
-    req.session.mockAppointments.splice(idx, 1);
+    req.session.mockAppointments[idx].status = 'abgesagt';
     return res.json({ success: true });
   }
 
   try {
     const result = await pool.query(
-      'DELETE FROM termine WHERE code = $1 AND user_id = $2',
+      "UPDATE termine SET status = 'abgesagt' WHERE code = $1 AND user_id = $2",
       [code, req.session.userId]
     );
     if (result.rowCount === 0) {
@@ -1756,6 +1962,72 @@ app.delete('/api/termine/:code', async (req, res) => {
   } catch (err) {
     console.error('Error canceling appointment:', err);
     res.status(500).json({ error: 'Stornierung fehlgeschlagen.' });
+  }
+});
+
+// API: Update appointment metadata (status, urgent, favorite, priority)
+app.patch('/api/termine/:code/metadata', async (req, res) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
+  }
+  const { code } = req.params;
+  const { status, urgent, favorite, priority } = req.body;
+
+  if (!isDbConnected || !pool) {
+    if (!req.session.mockAppointments) req.session.mockAppointments = [];
+    const appt = req.session.mockAppointments.find(a => a.code === code && a.user_id === req.session.userId);
+    if (!appt) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    if (status !== undefined) appt.status = status;
+    if (urgent !== undefined) appt.urgent = !!urgent;
+    if (favorite !== undefined) appt.favorite = !!favorite;
+    if (priority !== undefined) appt.priority = parseInt(priority, 10) || 0;
+    return res.json({ success: true, appointment: appt });
+  }
+
+  try {
+    const fields = [];
+    const values = [];
+    let placeholderIdx = 1;
+
+    if (status !== undefined) {
+      fields.push(`status = $${placeholderIdx++}`);
+      values.push(status);
+    }
+    if (urgent !== undefined) {
+      fields.push(`urgent = $${placeholderIdx++}`);
+      values.push(!!urgent);
+    }
+    if (favorite !== undefined) {
+      fields.push(`favorite = $${placeholderIdx++}`);
+      values.push(!!favorite);
+    }
+    if (priority !== undefined) {
+      fields.push(`priority = $${placeholderIdx++}`);
+      values.push(parseInt(priority, 10) || 0);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'Keine Felder zum Aktualisieren angegeben.' });
+    }
+
+    values.push(code, req.session.userId);
+    const query = `
+      UPDATE termine 
+      SET ${fields.join(', ')} 
+      WHERE code = $${placeholderIdx++} AND user_id = $${placeholderIdx++}
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, values);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    }
+    res.json({ success: true, appointment: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating appointment metadata:', err);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des Termins.' });
   }
 });
 

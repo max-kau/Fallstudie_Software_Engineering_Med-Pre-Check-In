@@ -294,6 +294,8 @@ async function loadData() {
   if (_cachedData && _cachedData.termin && _cachedData.termin.code !== terminCode) {
     _cachedData = null;
     _praxisDocuments = null;
+    _sessionId = Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem('_doctolib_session_id', _sessionId);
   }
 
   if (!_cachedData) {
@@ -338,6 +340,10 @@ async function loadData() {
             aiConsent: result.aiConsent
           };
           saveAll(savedState);
+        } else {
+          // No pre-check-in exists for this appointment yet; reset store state to defaults for this appointment
+          const freshData = getDefaultData();
+          saveAll(freshData);
         }
       }
     } catch (err) {
