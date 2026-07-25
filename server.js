@@ -4534,7 +4534,12 @@ async function sendEarlyRequestEmail(email, appointment, praxisName, earlyMinute
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'dist')));
+
+app.get(['/test-dashboard', '/test-dashboard.html'], (req, res) => {
+  res.sendFile('test-dashboard.html', { root: path.join(__dirname, 'public') });
+});
 
 // SPA route fallback (returns index.html)
 app.get(/.*/, (req, res, next) => {
