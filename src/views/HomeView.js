@@ -1,7 +1,7 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
-import { praxen } from '../data/praxen.js';
+import { praxen, fetchPraxen } from '../data/praxen.js';
 
 export function renderHomeView() {
   return `
@@ -126,6 +126,10 @@ export function initHomeView() {
     'Münster', 'Bonn', 'Hamburg', 'Konstanz', 'Heidelberg'
   ];
 
+  fetchPraxen().then(() => {
+    if (searchInput.value.trim().length > 0) performSearch();
+  });
+
   // 1. Practice autocomplete search
   function performSearch() {
     const val = searchInput.value.trim().toLowerCase();
@@ -136,13 +140,15 @@ export function initHomeView() {
       return;
     }
 
-    // Filter matching practices
+    // Filter matching practices from 1st letter
     const matches = praxen.filter(praxis => {
-      const matchText = (praxis.name + ' ' + praxis.fachbereich + ' ' + praxis.beschreibung).toLowerCase();
-      const matchLocation = praxis.adresse.toLowerCase();
-      
-      const textMatch = matchText.includes(val);
-      const locMatch = loc ? matchLocation.includes(loc) : true;
+      const nameMatch = (praxis.name || '').toLowerCase().includes(val);
+      const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
+      const descMatch = (praxis.beschreibung || '').toLowerCase().includes(val);
+      const addrMatch = (praxis.adresse || '').toLowerCase().includes(val);
+
+      const textMatch = nameMatch || fachbereichMatch || descMatch || addrMatch;
+      const locMatch = loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
 
       return textMatch && locMatch;
     });

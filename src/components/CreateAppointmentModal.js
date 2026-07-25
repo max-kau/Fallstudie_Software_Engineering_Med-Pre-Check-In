@@ -51,7 +51,7 @@ export function openCreateAppointmentModal(callback) {
           <div style="border-top: 1px solid var(--gray-100); padding-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);">
             <div>
               <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Behandelnder Arzt / Behandler *</label>
-              <input type="text" id="create-appt-doctor" value="${defaultDoctor}" placeholder="z.B. Dr. Hartmann" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
+              <input type="text" id="create-appt-doctor" value="${defaultDoctor}" disabled style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: var(--gray-100); color: var(--gray-700); cursor: not-allowed;">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
@@ -166,6 +166,15 @@ export function openCreateAppointmentModal(callback) {
 
     if (!patientVorname || !patientNachname || !patientEmail || !doctor || !date || !time || !art) {
       errorDiv.innerText = 'Bitte füllen Sie alle Pflichtfelder (*) aus.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    // Past date/time validation
+    const selectedDateTime = new Date(`${date}T${time}:00`);
+    const now = new Date();
+    if (selectedDateTime < now) {
+      errorDiv.innerText = 'Termine in der Vergangenheit können nicht gebucht werden.';
       errorDiv.style.display = 'block';
       return;
     }

@@ -554,10 +554,30 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
                 <input type="text" id="buf-title" placeholder="z.B. Mittagspause" class="buffer-form-input">
               </div>
               <div id="buf-dow-container">
-                <label class="buffer-form-label">Wochentag</label>
-                <select id="buf-day-of-week" class="buffer-form-input">
-                  ${dowOptions}
-                </select>
+                <label class="buffer-form-label">Wochentage (Mehrfachauswahl)</label>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="1" checked> Mo
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="2" checked> Di
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="3" checked> Mi
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="4" checked> Do
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="5" checked> Fr
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="6"> Sa
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="0"> So
+                  </label>
+                </div>
               </div>
               <div id="buf-date-container" style="display: none;">
                 <label class="buffer-form-label">Datum</label>
@@ -621,7 +641,6 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     const startSelect = document.getElementById('buf-start-time');
     const endSelect = document.getElementById('buf-end-time');
     if (startSelect && endSelect) {
-      // Default: start=11:30, end=12:00
       startSelect.value = '11:30';
       endSelect.value = '12:00';
       startSelect.addEventListener('change', () => {
@@ -639,7 +658,9 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     // Create buffer time
     document.getElementById('buf-create-btn')?.addEventListener('click', async () => {
       const title = document.getElementById('buf-title')?.value?.trim() || '';
-      const dayOfWeek = parseInt(document.getElementById('buf-day-of-week')?.value || '1');
+      const selectedDays = isRecurring
+        ? [...document.querySelectorAll('.buf-dow-checkbox:checked')].map(c => parseInt(c.value))
+        : [null];
       const specificDate = document.getElementById('buf-specific-date')?.value || '';
       const startTime = document.getElementById('buf-start-time')?.value;
       const endTime = document.getElementById('buf-end-time')?.value;
@@ -655,42 +676,62 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
         return;
       }
 
-      createBtn.disabled = true;
-      createBtn.innerHTML = '<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> Wird erstellt...';
-
-      try {
-        const res = await fetch('/api/praxis/buffer-times', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: title || 'Pufferzeit',
-            isRecurring,
-            dayOfWeek: isRecurring ? dayOfWeek : null,
-            specificDate: !isRecurring ? specificDate : null,
-            startTime,
-            endTime
-          })
-        });
-        const data = await res.json();
-        if (data.success && data.bufferTime) {
-          allBufferTimes.push(data.bufferTime);
-          if (statusMsg) {
-            statusMsg.style.display = 'inline';
-            statusMsg.style.color = '#059669';
-            statusMsg.textContent = '✓ Pufferzeit erstellt!';
-            setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
-          }
-          allAppointments.forEach(a => { a._hasConflict = false; });
-          markConflicts(allAppointments, allBufferTimes);
-          render(); // Re-render panel
-        } else {
-          throw new Error(data.error || 'Fehler');
-        }
-      } catch (err) {
+      if (isRecurring && selectedDays.length === 0) {
         if (statusMsg) {
           statusMsg.style.display = 'inline';
           statusMsg.style.color = '#DC2626';
-          statusMsg.textContent = '❌ ' + (err.message || 'Fehler beim Erstellen.');
+          statusMsg.textContent = 'Bitte mindestens einen Wochentag auswählen.';
+        }
+        return;
+      }
+
+      createBtn.disabled = true;
+      createBtn.innerHTML = '<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> Wird erstellt...';
+
+      let lastError = null;
+      let createdCount = 0;
+
+      for (const dayOfWeek of selectedDays) {
+        try {
+          const res = await fetch('/api/praxis/buffer-times', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title || 'Pufferzeit',
+              isRecurring,
+              dayOfWeek: isRecurring ? dayOfWeek : null,
+              specificDate: !isRecurring ? specificDate : null,
+              startTime,
+              endTime
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.bufferTime) {
+            allBufferTimes.push(data.bufferTime);
+            createdCount++;
+          } else {
+            lastError = data.error || 'Fehler beim Erstellen der Pufferzeit.';
+          }
+        } catch (err) {
+          lastError = err.message || 'Fehler beim Erstellen.';
+        }
+      }
+
+      if (createdCount > 0) {
+        if (statusMsg) {
+          statusMsg.style.display = 'inline';
+          statusMsg.style.color = '#059669';
+          statusMsg.textContent = `✓ ${createdCount} Pufferzeit(en) erstellt!`;
+          setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
+        }
+        allAppointments.forEach(a => { a._hasConflict = false; });
+        markConflicts(allAppointments, allBufferTimes);
+        render(); // Re-render panel
+      } else {
+        if (statusMsg) {
+          statusMsg.style.display = 'inline';
+          statusMsg.style.color = '#DC2626';
+          statusMsg.textContent = '❌ ' + (lastError || 'Fehler beim Erstellen.');
         }
         createBtn.disabled = false;
         createBtn.innerHTML = '⏸️ Pufferzeit einplanen';
@@ -722,10 +763,15 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     });
   }
 
+  // ── Drag-to-resize logic ────────
+  let resizeState = null;
+  let justResized = false;
+
   function attachEventListeners() {
     // Click on appointment
     calBody.querySelectorAll('.cal-event').forEach(el => {
       el.addEventListener('click', (e) => {
+        if (justResized) return;
         if (e.target.closest('.cal-event-resize')) return;
         const code = el.dataset.code;
         const appt = allAppointments.find(a => a.code === code);
@@ -752,9 +798,6 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       handle.addEventListener('touchstart', startResize, { passive: false });
     });
   }
-
-  // ── Drag-to-resize logic ────────
-  let resizeState = null;
 
   function startResize(e) {
     e.preventDefault();
@@ -785,6 +828,8 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       document.removeEventListener('touchend', onUp);
 
       if (!resizeState) return;
+      justResized = true;
+      setTimeout(() => { justResized = false; }, 300);
       const finalHeight = resizeState.eventEl.offsetHeight;
       const newDuration = Math.round((finalHeight / HOUR_HEIGHT_PX) * 60);
       const code = resizeState.code;
