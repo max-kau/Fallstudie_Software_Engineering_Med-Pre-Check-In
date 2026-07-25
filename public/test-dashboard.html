@@ -6,152 +6,232 @@
   <title>Med-Pre-Check-In | Interactive Test Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* ─── Design Tokens (aligned with app index.css) ──────────────── */
     :root {
-      --bg-dark: #0f172a;
-      --bg-card: rgba(30, 41, 59, 0.7);
-      --bg-card-border: rgba(255, 255, 255, 0.08);
-      --accent-primary: #3b82f6;
-      --accent-glow: rgba(59, 130, 246, 0.35);
-      --success: #10b981;
-      --success-glow: rgba(16, 185, 129, 0.25);
-      --danger: #ef4444;
-      --danger-glow: rgba(239, 68, 68, 0.25);
-      --warning: #f59e0b;
-      --warning-glow: rgba(245, 158, 11, 0.25);
-      --idle-color: #64748b;
-      --idle-glow: rgba(100, 116, 139, 0.2);
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --font-main: 'Inter', system-ui, -apple-system, sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
+      --primary: #107ACA;
+      --primary-dark: #0C5FA0;
+      --primary-darker: #134376;
+      --primary-light: #80D1F2;
+      --primary-lightest: #E8F4FD;
+      --primary-gradient: linear-gradient(135deg, #107ACA 0%, #134376 100%);
+      --doctolib-blue: #0063BE;
+      --doctolib-blue-dark: #004E9A;
+
+      --success: #10B981;
+      --success-light: #D1FAE5;
+      --warning: #F59E0B;
+      --warning-light: #FEF3C7;
+      --error: #EF4444;
+      --error-light: #FEE2E2;
+
+      --white: #FFFFFF;
+      --gray-50: #F8FAFC;
+      --gray-100: #F1F5F9;
+      --gray-200: #E2E8F0;
+      --gray-300: #CBD5E1;
+      --gray-400: #94A3B8;
+      --gray-500: #64748B;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1E293B;
+      --gray-900: #0F172A;
+
+      --surface: #F8FAFC;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'Courier New', monospace;
+
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --radius-xl: 1rem;
+      --radius-2xl: 1.5rem;
+      --radius-full: 9999px;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.06);
+      --shadow-glow: 0 0 20px rgba(16, 122, 202, 0.25);
+
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 
     body {
-      background-color: var(--bg-dark);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
-      color: var(--text-main);
-      font-family: var(--font-main);
+      font-family: var(--font-family);
+      font-size: 1rem;
+      line-height: 1.5;
+      color: var(--gray-800);
+      background-color: var(--surface);
+      -webkit-font-smoothing: antialiased;
       min-height: 100vh;
-      padding: 2rem;
+    }
+
+    /* Background blobs (same as app) */
+    body::before {
+      content: ''; position: fixed; top: -200px; right: -200px; width: 600px; height: 600px;
+      border-radius: 50%; background: radial-gradient(circle, rgba(16,122,202,0.06) 0%, transparent 70%);
+      pointer-events: none; z-index: -1;
+    }
+    body::after {
+      content: ''; position: fixed; bottom: -300px; left: -200px; width: 700px; height: 700px;
+      border-radius: 50%; background: radial-gradient(circle, rgba(128,209,242,0.06) 0%, transparent 70%);
+      pointer-events: none; z-index: -1;
     }
 
     .container {
-      max-width: 1200px;
+      max-width: 1100px;
       margin: 0 auto;
+      padding: 0 1.5rem;
     }
 
-    /* Header */
-    header {
+    /* ─── Header ──────────────────────────────────────────────────── */
+    .app-header {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--gray-200);
+      z-index: 200;
+      padding: 0.75rem 0;
+    }
+
+    .header-inner {
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-      padding-bottom: 1.5rem;
-      border-bottom: 1px solid var(--bg-card-border);
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
       flex-wrap: wrap;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
-    .brand {
+    .header-brand {
       display: flex;
       align-items: center;
       gap: 0.75rem;
     }
 
-    .brand-icon {
-      font-size: 2rem;
-      background: linear-gradient(135deg, #60a5fa, #3b82f6);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .brand h1 {
-      font-size: 1.5rem;
+    .header-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      background: var(--primary-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      font-size: 1.125rem;
     }
 
-    .brand p {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .actions {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      font-family: var(--font-main);
+    .header-title {
       font-size: 0.875rem;
       font-weight: 600;
-      padding: 0.65rem 1.25rem;
-      border-radius: 0.5rem;
-      border: 1px solid transparent;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      color: var(--gray-800);
+    }
+
+    .header-subtitle {
+      font-size: 0.75rem;
+      color: var(--gray-500);
+    }
+
+    .header-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-full);
+      background: var(--primary-lightest);
+      color: var(--primary);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* ─── Buttons (app-aligned) ───────────────────────────────────── */
+    .btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius-xl);
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: all var(--transition-base);
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-family);
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      background: var(--primary-gradient);
       color: white;
-      box-shadow: 0 4px 14px var(--accent-glow);
+      box-shadow: var(--shadow-md);
     }
 
     .btn-primary:hover:not(:disabled) {
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px var(--accent-glow);
+      box-shadow: var(--shadow-lg), var(--shadow-glow);
     }
 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-main);
-      border-color: var(--bg-card-border);
+      background: var(--white);
+      color: var(--gray-700);
+      border: 2px solid var(--gray-200);
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--gray-300);
+      background: var(--gray-50);
     }
 
     .btn-danger {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border-color: rgba(239, 68, 68, 0.3);
+      background: var(--error-light);
+      color: var(--error);
+      border: 1px solid rgba(239, 68, 68, 0.2);
     }
 
     .btn-danger:hover:not(:disabled) {
-      background: rgba(239, 68, 68, 0.25);
+      background: #fecaca;
     }
 
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+      transform: none;
     }
 
-    /* Overall Progress Bar Card */
+    .btn-sm {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
+      border-radius: var(--radius-lg);
+    }
+
+    /* ─── Main Content ────────────────────────────────────────────── */
+    .main-content {
+      padding: 1.5rem 0 3rem;
+    }
+
+    /* ─── Progress Card ───────────────────────────────────────────── */
     .progress-card {
-      background: var(--bg-card);
-      backdrop-filter: blur(16px);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 1rem;
+      background: var(--white);
+      border-radius: var(--radius-2xl);
       padding: 1.5rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 1.5rem;
     }
 
     .progress-header {
@@ -163,35 +243,38 @@
 
     .progress-title {
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 0.95rem;
+      color: var(--gray-800);
     }
 
     .progress-status {
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       font-weight: 500;
-      color: var(--text-muted);
+      color: var(--gray-500);
     }
 
     .progress-bar-bg {
       width: 100%;
-      height: 12px;
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 999px;
+      height: 10px;
+      background: var(--gray-100);
+      border-radius: var(--radius-full);
       overflow: hidden;
-      position: relative;
     }
 
     .progress-bar-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #3b82f6, #10b981);
-      border-radius: 999px;
+      background: var(--primary-gradient);
+      border-radius: var(--radius-full);
       transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .progress-bar-fill.complete {
+      background: linear-gradient(90deg, var(--primary), var(--success));
     }
 
     .progress-bar-fill.running {
-      background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
+      background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--primary));
       background-size: 200% 100%;
       animation: pulseGlow 1.5s infinite linear;
     }
@@ -202,157 +285,174 @@
       100% { background-position: 0% 50%; }
     }
 
-    /* Stats Grid */
+    /* ─── Stats Grid ──────────────────────────────────────────────── */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
     }
 
     .stat-card {
-      background: var(--bg-card);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 0.75rem;
-      padding: 1.25rem;
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      padding: 1rem 1.25rem;
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
     .stat-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 0.5rem;
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.25rem;
+      font-size: 1.1rem;
       flex-shrink: 0;
     }
 
-    .stat-icon.total { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .stat-icon.passed { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-    .stat-icon.failed { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-    .stat-icon.idle { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
-    .stat-icon.time { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .stat-icon.total { background: var(--primary-lightest); }
+    .stat-icon.passed { background: var(--success-light); }
+    .stat-icon.failed { background: var(--error-light); }
+    .stat-icon.idle { background: var(--gray-100); }
+    .stat-icon.time { background: var(--warning-light); }
 
     .stat-val {
-      font-size: 1.5rem;
+      font-size: 1.375rem;
       font-weight: 700;
       line-height: 1.2;
+      color: var(--gray-900);
     }
 
     .stat-lbl {
-      font-size: 0.75rem;
-      color: var(--text-muted);
+      font-size: 0.7rem;
+      color: var(--gray-500);
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      font-weight: 500;
     }
 
-    /* View Mode Switcher */
+    /* ─── View Mode Switcher (pill toggle like cal-view-toggle) ──── */
     .view-switcher {
       display: flex;
-      gap: 0.5rem;
+      gap: 0;
       margin-bottom: 1rem;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--gray-300);
+      width: fit-content;
     }
 
     .view-btn {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--bg-card-border);
-      color: var(--text-muted);
-      font-family: var(--font-main);
-      font-size: 0.85rem;
-      font-weight: 600;
       padding: 0.5rem 1.25rem;
-      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--gray-600);
+      background: white;
+      border: none;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all var(--transition-fast);
       display: flex;
       align-items: center;
       gap: 0.4rem;
+      font-family: var(--font-family);
     }
 
-    .view-btn:hover {
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.08);
+    .view-btn + .view-btn {
+      border-left: 1px solid var(--gray-300);
+    }
+
+    .view-btn:hover:not(.active) {
+      background: var(--primary-lightest);
+      color: var(--primary);
     }
 
     .view-btn.active {
+      background: var(--primary);
       color: white;
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.15));
-      border-color: rgba(59, 130, 246, 0.4);
-      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
     }
 
-    /* Category Filter Tabs */
+    /* ─── Filter Tabs (app-style underline tabs) ──────────────────── */
     .tabs {
       display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--bg-card-border);
-      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--gray-100);
+      margin-bottom: 1.25rem;
       flex-wrap: wrap;
+      gap: 0;
     }
 
     .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-family: var(--font-main);
-      font-size: 0.9rem;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      font-size: 0.85rem;
       font-weight: 600;
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
+      color: var(--gray-400);
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all var(--transition-fast);
+      border: none;
+      background: none;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
+      font-family: var(--font-family);
     }
 
     .tab-btn:hover {
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.04);
+      color: var(--gray-600);
     }
 
     .tab-btn.active {
-      color: white;
-      background: rgba(59, 130, 246, 0.2);
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--doctolib-blue);
+      border-bottom-color: var(--doctolib-blue);
     }
 
     .badge {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--gray-100);
       padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
+      border-radius: var(--radius-full);
+      font-size: 0.7rem;
+      color: var(--gray-500);
+      font-weight: 600;
     }
 
-    /* Suite Cards List */
+    .tab-btn.active .badge {
+      background: var(--primary-lightest);
+      color: var(--primary);
+    }
+
+    /* ─── Suite Cards ─────────────────────────────────────────────── */
     .suites-list {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
     .suite-card {
-      background: var(--bg-card);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 0.75rem;
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
       overflow: hidden;
-      transition: border-color 0.2s ease;
+      transition: all var(--transition-base);
+    }
+
+    .suite-card:hover {
+      box-shadow: var(--shadow-card);
     }
 
     .suite-card.passed { border-left: 4px solid var(--success); }
-    .suite-card.failed { border-left: 4px solid var(--danger); }
-    .suite-card.running { border-left: 4px solid var(--accent-primary); }
-    .suite-card.idle { border-left: 4px solid var(--idle-color); }
+    .suite-card.failed { border-left: 4px solid var(--error); }
+    .suite-card.running { border-left: 4px solid var(--primary); }
+    .suite-card.idle { border-left: 4px solid var(--gray-300); }
 
     .suite-header {
-      padding: 1rem 1.25rem;
+      padding: 0.875rem 1.25rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -361,53 +461,54 @@
     }
 
     .suite-header:hover {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--gray-50);
     }
 
     .suite-title-group {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.6rem;
     }
 
     .status-pill {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 700;
-      padding: 0.25rem 0.65rem;
-      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+      border-radius: var(--radius-full);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
     }
 
-    .status-pill.passed { background: var(--success-glow); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-    .status-pill.failed { background: var(--danger-glow); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .status-pill.running { background: var(--accent-glow); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .status-pill.idle { background: var(--idle-glow); color: var(--idle-color); border: 1px solid rgba(100, 116, 139, 0.3); }
-    .status-pill.pending { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
+    .status-pill.passed { background: var(--success-light); color: var(--success); }
+    .status-pill.failed { background: var(--error-light); color: var(--error); }
+    .status-pill.running { background: var(--primary-lightest); color: var(--primary); }
+    .status-pill.idle { background: var(--gray-100); color: var(--gray-500); }
+    .status-pill.pending { background: var(--warning-light); color: var(--warning); }
 
     .suite-name {
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      color: var(--gray-800);
     }
 
     .suite-file {
       font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--text-muted);
+      font-size: 0.7rem;
+      color: var(--gray-400);
     }
 
     .suite-meta {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      font-size: 0.85rem;
-      color: var(--text-muted);
+      gap: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--gray-500);
     }
 
     .suite-details {
       padding: 0 1.25rem 1.25rem 1.25rem;
-      border-top: 1px solid var(--bg-card-border);
-      background: rgba(15, 23, 42, 0.4);
+      border-top: 1px solid var(--gray-100);
+      background: var(--gray-50);
       display: none;
     }
 
@@ -419,8 +520,8 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      padding: 0.6rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--gray-100);
       font-size: 0.85rem;
     }
 
@@ -434,61 +535,63 @@
       gap: 0.5rem;
     }
 
-    .icon-pass { color: var(--success); }
-    .icon-fail { color: var(--danger); }
-    .icon-idle { color: var(--idle-color); }
+    .icon-pass { color: var(--success); font-weight: 700; }
+    .icon-fail { color: var(--error); font-weight: 700; }
+    .icon-idle { color: var(--gray-400); }
 
     .error-log {
       margin-top: 0.5rem;
-      background: #090d16;
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 0.5rem;
+      background: #FFF5F5;
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      border-radius: var(--radius-lg);
       padding: 0.75rem;
       font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: #f87171;
+      font-size: 0.72rem;
+      color: var(--error);
       white-space: pre-wrap;
       overflow-x: auto;
     }
 
-    /* Tag Category Pill */
+    /* ─── Category Tags ───────────────────────────────────────────── */
     .cat-tag {
-      font-size: 0.7rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 0.25rem;
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: var(--radius-sm);
       font-weight: 600;
       text-transform: uppercase;
+      letter-spacing: 0.03em;
     }
-    .cat-tag.unit { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .cat-tag.integration { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
-    .cat-tag.e2e { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+    .cat-tag.unit { background: var(--primary-lightest); color: var(--primary); }
+    .cat-tag.integration { background: #F3E8FF; color: #7C3AED; }
+    .cat-tag.e2e { background: #FCE7F3; color: #DB2777; }
 
-    /* Feature Area Section Header */
+    /* ─── Feature Area Section ────────────────────────────────────── */
     .area-section {
       margin-bottom: 1.5rem;
     }
 
     .area-header {
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 700;
+      color: var(--gray-800);
       margin-bottom: 0.75rem;
       padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--bg-card-border);
+      border-bottom: 1px solid var(--gray-200);
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
 
     .area-badge {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 600;
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--gray-100);
       padding: 0.2rem 0.6rem;
-      border-radius: 999px;
-      color: var(--text-muted);
+      border-radius: var(--radius-full);
+      color: var(--gray-500);
     }
 
-    /* ─── History View ─────────────────────────────────────────────── */
+    /* ─── History View ────────────────────────────────────────────── */
     .history-list {
       display: flex;
       flex-direction: column;
@@ -496,19 +599,23 @@
     }
 
     .history-card {
-      background: var(--bg-card);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--bg-card-border);
-      border-radius: 0.75rem;
+      background: var(--white);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
       overflow: hidden;
-      transition: border-color 0.2s ease;
+      transition: all var(--transition-base);
+    }
+
+    .history-card:hover {
+      box-shadow: var(--shadow-card);
     }
 
     .history-card.passed { border-left: 4px solid var(--success); }
-    .history-card.failed { border-left: 4px solid var(--danger); }
+    .history-card.failed { border-left: 4px solid var(--error); }
 
     .history-header {
-      padding: 1rem 1.25rem;
+      padding: 0.875rem 1.25rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -517,26 +624,27 @@
     }
 
     .history-header:hover {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--gray-50);
     }
 
     .history-info {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
     .history-timestamp {
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      color: var(--gray-800);
     }
 
     .history-mode {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       padding: 0.2rem 0.5rem;
-      border-radius: 0.25rem;
-      background: rgba(59, 130, 246, 0.15);
-      color: #60a5fa;
+      border-radius: var(--radius-sm);
+      background: var(--primary-lightest);
+      color: var(--primary);
       font-weight: 600;
       text-transform: uppercase;
     }
@@ -544,25 +652,25 @@
     .history-stats {
       display: flex;
       align-items: center;
-      gap: 1.5rem;
-      font-size: 0.85rem;
-      color: var(--text-muted);
+      gap: 1.25rem;
+      font-size: 0.8rem;
+      color: var(--gray-500);
     }
 
     .history-pass-rate {
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
 
-    .history-pass-rate.good { color: #34d399; }
-    .history-pass-rate.warn { color: #fbbf24; }
-    .history-pass-rate.bad { color: #f87171; }
+    .history-pass-rate.good { color: var(--success); }
+    .history-pass-rate.warn { color: var(--warning); }
+    .history-pass-rate.bad { color: var(--error); }
 
     .history-details {
       display: none;
       padding: 0 1.25rem 1.25rem 1.25rem;
-      border-top: 1px solid var(--bg-card-border);
-      background: rgba(15, 23, 42, 0.4);
+      border-top: 1px solid var(--gray-100);
+      background: var(--gray-50);
     }
 
     .history-card.open .history-details {
@@ -574,129 +682,142 @@
       justify-content: space-between;
       align-items: center;
       padding: 0.5rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      font-size: 0.85rem;
+      border-bottom: 1px solid var(--gray-100);
+      font-size: 0.8rem;
     }
 
     .history-suite-row:last-child {
       border-bottom: none;
     }
 
+    /* ─── Empty State ─────────────────────────────────────────────── */
     .empty-state {
       text-align: center;
       padding: 3rem 2rem;
-      color: var(--text-muted);
+      color: var(--gray-500);
     }
 
     .empty-state-icon {
-      font-size: 3rem;
-      margin-bottom: 1rem;
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
       opacity: 0.5;
     }
 
     .empty-state p {
-      font-size: 1rem;
-      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+      margin-bottom: 0.25rem;
+      color: var(--gray-600);
     }
 
     .empty-state small {
-      font-size: 0.85rem;
-      opacity: 0.7;
+      font-size: 0.8rem;
+      color: var(--gray-400);
+    }
+
+    /* ─── Responsive ──────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .header-actions { gap: 0.35rem; }
+      .btn { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+      .header-badge { display: none; }
+      .history-stats { gap: 0.75rem; font-size: 0.75rem; }
     }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    <header>
-      <div class="brand">
-        <span class="brand-icon">🧪</span>
+  <!-- Header (app-style) -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <div class="header-logo">🧪</div>
         <div>
-          <h1>Med-Pre-Check-In Test Suite</h1>
-          <p>Interaktives Dashboard für Unit-, Integrations- und Systemtests</p>
+          <div class="header-title">Med-Pre-Check-In Test Suite</div>
+          <div class="header-subtitle">Interaktives Dashboard für Unit-, Integrations- und Systemtests</div>
         </div>
+        <span class="header-badge" id="headerBadge">8 Suiten</span>
       </div>
-      <div class="actions">
-        <button id="btnToggleAll" class="btn btn-secondary" onclick="toggleAllSuites()">↕️ Alle auf/einklappen</button>
-        <button id="btnRunUnit" class="btn btn-secondary" onclick="runTests('unit')">⚡ Unit Tests</button>
-        <button id="btnRunIntegration" class="btn btn-secondary" onclick="runTests('integration')">🔗 Integrationstests</button>
-        <button id="btnRunE2E" class="btn btn-secondary" onclick="runTests('e2e')">🖥️ E2E Tests</button>
+      <div class="header-actions">
+        <button id="btnToggleAll" class="btn btn-secondary btn-sm" onclick="toggleAllSuites()">↕️ Auf/Zuklappen</button>
+        <button id="btnRunUnit" class="btn btn-secondary btn-sm" onclick="runTests('unit')">⚡ Unit</button>
+        <button id="btnRunIntegration" class="btn btn-secondary btn-sm" onclick="runTests('integration')">🔗 Integration</button>
+        <button id="btnRunE2E" class="btn btn-secondary btn-sm" onclick="runTests('e2e')">🖥️ E2E</button>
         <button id="btnRunAll" class="btn btn-primary" onclick="runTests('all')">▶ Alle Tests ausführen</button>
       </div>
-    </header>
-
-    <!-- Progress Card -->
-    <div class="progress-card">
-      <div class="progress-header">
-        <span class="progress-title" id="progressTitle">⏸️ Noch kein Testlauf gestartet</span>
-        <span class="progress-status" id="progressStatus">Klicke auf einen Button um Tests auszuführen</span>
-      </div>
-      <div class="progress-bar-bg">
-        <div class="progress-bar-fill" id="progressBarFill"></div>
-      </div>
     </div>
+  </header>
 
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon total">📊</div>
-        <div>
-          <div class="stat-val" id="statTotalTests">0</div>
-          <div class="stat-lbl" id="statTotalSub">Total Testfälle</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon passed">✅</div>
-        <div>
-          <div class="stat-val" id="statPassed" style="color: #34d399;">0</div>
-          <div class="stat-lbl">Bestanden</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon failed">❌</div>
-        <div>
-          <div class="stat-val" id="statFailed" style="color: #f87171;">0</div>
-          <div class="stat-lbl">Fehlgeschlagen</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon idle">⏳</div>
-        <div>
-          <div class="stat-val" id="statIdle" style="color: #94a3b8;">0</div>
-          <div class="stat-lbl">Ausstehend</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon time">⏱️</div>
-        <div>
-          <div class="stat-val" id="statDuration">--</div>
-          <div class="stat-lbl">Laufzeit</div>
-        </div>
-      </div>
-    </div>
+  <div class="container">
+    <div class="main-content">
 
-    <!-- View Mode Switcher -->
-    <div class="view-switcher">
-      <button class="view-btn active" onclick="setViewMode('type', this)" id="viewBtnType">🏷️ Nach Test-Art</button>
-      <button class="view-btn" onclick="setViewMode('area', this)" id="viewBtnArea">📁 Nach Funktionsbereich</button>
-      <button class="view-btn" onclick="setViewMode('history', this)" id="viewBtnHistory">📜 Historie</button>
-    </div>
+      <!-- Progress Card -->
+      <div class="progress-card">
+        <div class="progress-header">
+          <span class="progress-title" id="progressTitle">⏸️ Noch kein Testlauf gestartet</span>
+          <span class="progress-status" id="progressStatus">Klicke auf einen Button um Tests auszuführen</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+      </div>
 
-    <!-- Category Tabs (for type & area modes) -->
-    <div class="tabs" id="filterTabs">
-      <!-- populated dynamically -->
-    </div>
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon total">📊</div>
+          <div>
+            <div class="stat-val" id="statTotalTests">0</div>
+            <div class="stat-lbl" id="statTotalSub">Total Testfälle</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon passed">✅</div>
+          <div>
+            <div class="stat-val" id="statPassed" style="color: var(--success);">0</div>
+            <div class="stat-lbl">Bestanden</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon failed">❌</div>
+          <div>
+            <div class="stat-val" id="statFailed" style="color: var(--error);">0</div>
+            <div class="stat-lbl">Fehlgeschlagen</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon idle">⏳</div>
+          <div>
+            <div class="stat-val" id="statIdle" style="color: var(--gray-500);">0</div>
+            <div class="stat-lbl">Ausstehend</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon time">⏱️</div>
+          <div>
+            <div class="stat-val" id="statDuration">--</div>
+            <div class="stat-lbl">Laufzeit</div>
+          </div>
+        </div>
+      </div>
 
-    <!-- Suites Container -->
-    <div class="suites-list" id="suitesContainer">
-      <!-- Dynamic content inserted here -->
+      <!-- View Mode Switcher (pill toggle like cal-view-toggle) -->
+      <div class="view-switcher">
+        <button class="view-btn active" onclick="setViewMode('type', this)" id="viewBtnType">🏷️ Nach Test-Art</button>
+        <button class="view-btn" onclick="setViewMode('area', this)" id="viewBtnArea">📁 Nach Bereich</button>
+        <button class="view-btn" onclick="setViewMode('history', this)" id="viewBtnHistory">📜 Historie</button>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="tabs" id="filterTabs"></div>
+
+      <!-- Content Container -->
+      <div class="suites-list" id="suitesContainer"></div>
     </div>
   </div>
 
   <script>
     let allSuitesData = { unit: [], integration: [], e2e: [] };
     let featureAreas = {};
-    let currentViewMode = 'type'; // 'type', 'area', 'history'
+    let currentViewMode = 'type';
     let currentFilter = 'all';
     let isRunning = false;
     let suiteResultsMap = {};
@@ -707,7 +828,7 @@
       return 'http://localhost:3030';
     }
 
-    // ─── Initial Load ─────────────────────────────────────────────────────
+    // ─── Initial Load ─────────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', async () => {
       await Promise.all([fetchSuites(), fetchHistory()]);
       renderTabs();
@@ -727,7 +848,6 @@
         allSuitesData = data.suites || data;
         featureAreas = data.featureAreas || {};
 
-        // Initialize suiteResultsMap with idle status
         const all = [...(allSuitesData.unit || []), ...(allSuitesData.integration || []), ...(allSuitesData.e2e || [])];
         all.forEach(s => {
           const suiteTests = (s.tests || []).map(t => ({ ...t, status: 'idle' }));
@@ -741,6 +861,7 @@
           };
         });
 
+        document.getElementById('headerBadge').textContent = `${all.length} Suiten`;
         updateStats();
       } catch (err) {
         console.error('Fehler beim Laden der Suiten:', err);
@@ -758,7 +879,6 @@
         }
         historyData = await res.json();
       } catch (err) {
-        console.error('Fehler beim Laden der Historie:', err);
         historyData = [];
       }
     }
@@ -766,12 +886,11 @@
     async function clearHistory() {
       if (!confirm('Gesamte Test-Historie löschen?')) return;
       try {
-        let res;
         try {
-          res = await fetch('/api/tests/history/clear', { method: 'DELETE' });
+          const res = await fetch('/api/tests/history/clear', { method: 'DELETE' });
           if (!res.ok) throw new Error('Not ok');
         } catch (e) {
-          res = await fetch(`${getApiBase()}/api/tests/history/clear`, { method: 'DELETE' });
+          await fetch(`${getApiBase()}/api/tests/history/clear`, { method: 'DELETE' });
         }
         historyData = [];
         renderContent();
@@ -780,7 +899,7 @@
       }
     }
 
-    // ─── Stats ─────────────────────────────────────────────────────────────
+    // ─── Stats ────────────────────────────────────────────────────
     function updateStats() {
       const all = Object.values(suiteResultsMap);
       let totalTests = 0, passed = 0, failed = 0, idle = 0;
@@ -796,15 +915,14 @@
         }
       });
 
-      const totalSuites = all.length;
       document.getElementById('statTotalTests').textContent = totalTests;
-      document.getElementById('statTotalSub').textContent = `Total Testfälle (${totalSuites} Suiten)`;
+      document.getElementById('statTotalSub').textContent = `Total Testfälle (${all.length} Suiten)`;
       document.getElementById('statPassed').textContent = passed;
       document.getElementById('statFailed').textContent = failed;
       document.getElementById('statIdle').textContent = idle;
     }
 
-    // ─── View Mode Switcher ────────────────────────────────────────────────
+    // ─── View Mode ────────────────────────────────────────────────
     function setViewMode(mode, btnElem) {
       currentViewMode = mode;
       currentFilter = 'all';
@@ -814,7 +932,7 @@
       renderContent();
     }
 
-    // ─── Filter Tabs ──────────────────────────────────────────────────────
+    // ─── Tabs ─────────────────────────────────────────────────────
     function renderTabs() {
       const tabsContainer = document.getElementById('filterTabs');
       tabsContainer.innerHTML = '';
@@ -831,13 +949,12 @@
         const countUnit = all.filter(s => s.category === 'unit').reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
         const countIntegration = all.filter(s => s.category === 'integration').reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
         const countE2E = all.filter(s => s.category === 'e2e').reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
-        const totalTests = countUnit + countIntegration + countE2E;
 
         const tabs = [
-          { key: 'all', label: `Alle Suiten`, badge: `${all.length} Suiten` },
-          { key: 'unit', label: `Unit Tests`, badge: `${countUnit} Tests` },
-          { key: 'integration', label: `Integrationstests`, badge: `${countIntegration} Tests` },
-          { key: 'e2e', label: `System (E2E)`, badge: `${countE2E} Tests` },
+          { key: 'all', label: 'Alle Suiten', badge: `${all.length} Suiten` },
+          { key: 'unit', label: 'Unit Tests', badge: `${countUnit}` },
+          { key: 'integration', label: 'Integrationstests', badge: `${countIntegration}` },
+          { key: 'e2e', label: 'System (E2E)', badge: `${countE2E}` },
         ];
 
         tabs.forEach(tab => {
@@ -849,15 +966,14 @@
         });
 
       } else if (currentViewMode === 'area') {
-        // Area-based tabs
         const areaKeys = Object.keys(featureAreas).sort((a, b) => (featureAreas[a].order || 0) - (featureAreas[b].order || 0));
-        const tabs = [{ key: 'all', label: 'Alle Bereiche', badge: `${all.length} Suiten` }];
+        const tabs = [{ key: 'all', label: 'Alle Bereiche', badge: `${all.length}` }];
 
         areaKeys.forEach(key => {
           const area = featureAreas[key];
           const suitesInArea = all.filter(s => s.area === key);
           const testCount = suitesInArea.reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
-          tabs.push({ key, label: area.label, badge: `${testCount} Tests` });
+          tabs.push({ key, label: area.label, badge: `${testCount}` });
         });
 
         tabs.forEach(tab => {
@@ -870,89 +986,62 @@
       }
     }
 
-    // ─── Content Renderer ──────────────────────────────────────────────────
+    // ─── Content ──────────────────────────────────────────────────
     function renderContent() {
-      if (currentViewMode === 'history') {
-        renderHistory();
-      } else if (currentViewMode === 'area') {
-        renderByArea();
-      } else {
-        renderByType();
-      }
+      if (currentViewMode === 'history') renderHistory();
+      else if (currentViewMode === 'area') renderByArea();
+      else renderByType();
     }
 
-    // ─── Render: By Test Type ──────────────────────────────────────────────
     function renderByType() {
       const container = document.getElementById('suitesContainer');
       container.innerHTML = '';
-
       const allList = Object.values(suiteResultsMap);
-      const filtered = currentFilter === 'all'
-        ? allList
-        : allList.filter(s => s.category === currentFilter);
-
-      filtered.forEach(suite => {
-        container.appendChild(createSuiteCard(suite));
-      });
-
+      const filtered = currentFilter === 'all' ? allList : allList.filter(s => s.category === currentFilter);
+      filtered.forEach(suite => container.appendChild(createSuiteCard(suite)));
       if (filtered.length === 0) {
         container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Keine Tests in dieser Kategorie gefunden.</p></div>';
       }
     }
 
-    // ─── Render: By Feature Area ───────────────────────────────────────────
     function renderByArea() {
       const container = document.getElementById('suitesContainer');
       container.innerHTML = '';
-
       const allList = Object.values(suiteResultsMap);
       const areaKeys = Object.keys(featureAreas).sort((a, b) => (featureAreas[a].order || 0) - (featureAreas[b].order || 0));
-
       const areasToShow = currentFilter === 'all' ? areaKeys : [currentFilter];
 
       areasToShow.forEach(areaKey => {
         const area = featureAreas[areaKey];
         if (!area) return;
-
         const suitesInArea = allList.filter(s => s.area === areaKey);
         if (suitesInArea.length === 0) return;
 
         const section = document.createElement('div');
         section.className = 'area-section';
-
         const testCount = suitesInArea.reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
         section.innerHTML = `<div class="area-header">${area.label} <span class="area-badge">${suitesInArea.length} Suiten · ${testCount} Tests</span></div>`;
 
         const list = document.createElement('div');
         list.className = 'suites-list';
-        suitesInArea.forEach(suite => {
-          list.appendChild(createSuiteCard(suite));
-        });
-
+        suitesInArea.forEach(suite => list.appendChild(createSuiteCard(suite)));
         section.appendChild(list);
         container.appendChild(section);
       });
     }
 
-    // ─── Render: History ───────────────────────────────────────────────────
     function renderHistory() {
       const container = document.getElementById('suitesContainer');
       container.innerHTML = '';
 
       if (historyData.length === 0) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-state-icon">📜</div>
-            <p>Noch keine Testläufe in der Historie.</p>
-            <small>Starte einen Testlauf, um hier Ergebnisse zu sehen.</small>
-          </div>`;
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📜</div><p>Noch keine Testläufe in der Historie.</p><small>Starte einen Testlauf, um hier Ergebnisse zu sehen.</small></div>';
         return;
       }
 
-      // Clear history button
       const clearBtn = document.createElement('div');
-      clearBtn.style.cssText = 'text-align: right; margin-bottom: 1rem;';
-      clearBtn.innerHTML = `<button class="btn btn-danger" onclick="clearHistory()">🗑️ Historie löschen</button>`;
+      clearBtn.style.cssText = 'text-align: right; margin-bottom: 0.75rem;';
+      clearBtn.innerHTML = '<button class="btn btn-danger btn-sm" onclick="clearHistory()">🗑️ Historie löschen</button>';
       container.appendChild(clearBtn);
 
       const list = document.createElement('div');
@@ -973,17 +1062,17 @@
         card.innerHTML = `
           <div class="history-header" onclick="toggleHistory(${index})">
             <div class="history-info">
-              <span style="font-size:1.25rem">${statusIcon}</span>
+              <span style="font-size:1.1rem">${statusIcon}</span>
               <div>
                 <div class="history-timestamp">${dateStr} · ${timeStr}</div>
                 <span class="history-mode">${modeLabel}</span>
               </div>
             </div>
             <div class="history-stats">
-              <span class="history-pass-rate ${passRateClass}">${run.passRate}% bestanden</span>
-              <span><span style="color:#34d399">✓ ${run.totalTestsPassed}</span> / <span style="color:#f87171">✗ ${run.totalTestsFailed}</span> / ${run.totalTests} Tests</span>
+              <span class="history-pass-rate ${passRateClass}">${run.passRate}%</span>
+              <span><span style="color:var(--success)">✓ ${run.totalTestsPassed}</span> · <span style="color:var(--error)">✗ ${run.totalTestsFailed}</span> · ${run.totalTests}</span>
               <span>⏱️ ${durationStr}</span>
-              <span>▼</span>
+              <span style="color:var(--gray-400)">▼</span>
             </div>
           </div>
           <div class="history-details" id="historyDetail-${index}">
@@ -991,12 +1080,12 @@
               ${(run.suites || []).map(s => `
                 <div class="history-suite-row">
                   <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <span class="status-pill ${s.status}" style="font-size:0.65rem; padding:0.15rem 0.4rem;">${s.status === 'passed' ? '✓' : '✗'}</span>
+                    <span class="status-pill ${s.status}" style="font-size:0.6rem; padding:0.12rem 0.35rem;">${s.status === 'passed' ? '✓' : '✗'}</span>
                     <span class="cat-tag ${s.category}">${s.category}</span>
-                    <span>${s.name}</span>
+                    <span style="color:var(--gray-700)">${s.name}</span>
                   </div>
-                  <div style="display:flex; align-items:center; gap:1rem; color:var(--text-muted); font-size:0.8rem;">
-                    <span><span style="color:#34d399">✓ ${s.numPassed}</span> / <span style="color:#f87171">✗ ${s.numFailed}</span></span>
+                  <div style="display:flex; align-items:center; gap:0.75rem; color:var(--gray-500); font-size:0.75rem;">
+                    <span><span style="color:var(--success)">✓ ${s.numPassed}</span> · <span style="color:var(--error)">✗ ${s.numFailed}</span></span>
                     <span>⏱️ ${(s.durationMs / 1000).toFixed(2)}s</span>
                   </div>
                 </div>
@@ -1004,7 +1093,6 @@
             </div>
           </div>
         `;
-
         list.appendChild(card);
       });
 
@@ -1013,12 +1101,10 @@
 
     function toggleHistory(index) {
       const cards = document.querySelectorAll('.history-card');
-      if (cards[index]) {
-        cards[index].classList.toggle('open');
-      }
+      if (cards[index]) cards[index].classList.toggle('open');
     }
 
-    // ─── Suite Card Creator ────────────────────────────────────────────────
+    // ─── Suite Card ───────────────────────────────────────────────
     function createSuiteCard(suite) {
       const card = document.createElement('div');
       card.className = `suite-card ${suite.status} ${allExpanded ? 'open' : ''}`;
@@ -1039,8 +1125,8 @@
           </div>
           <div class="suite-meta">
             <span>${durationDisplay}</span>
-            <span>${suite.numPassed > 0 ? `<span style="color:#34d399">✓ ${suite.numPassed}</span>` : ''} ${suite.numFailed > 0 ? `<span style="color:#f87171">✗ ${suite.numFailed}</span>` : ''}</span>
-            <span>▼</span>
+            <span>${suite.numPassed > 0 ? `<span style="color:var(--success)">✓ ${suite.numPassed}</span>` : ''} ${suite.numFailed > 0 ? `<span style="color:var(--error)">✗ ${suite.numFailed}</span>` : ''}</span>
+            <span style="color:var(--gray-400)">▼</span>
           </div>
         </div>
         <div class="suite-details">
@@ -1050,12 +1136,12 @@
                 <div style="flex:1;">
                   <div class="test-name">
                     ${t.status === 'passed' ? '<span class="icon-pass">✓</span>' : (t.status === 'failed' ? '<span class="icon-fail">✗</span>' : '<span class="icon-idle">○</span>')}
-                    <span style="${t.status === 'idle' ? 'color:var(--text-muted);' : ''}">${t.name}</span>
+                    <span style="${t.status === 'idle' ? 'color:var(--gray-500);' : 'color:var(--gray-700);'}">${t.name}</span>
                   </div>
                   ${t.errorMessage ? `<div class="error-log">${t.errorMessage}</div>` : ''}
                 </div>
               </div>
-            `).join('') : '<p style="color:var(--text-muted); font-size:0.85rem;">Keine Testfälle erkannt.</p>'}
+            `).join('') : '<p style="color:var(--gray-500); font-size:0.85rem;">Keine Testfälle erkannt.</p>'}
           </div>
         </div>
       `;
@@ -1064,12 +1150,9 @@
 
     function toggleSuite(id) {
       const card = document.getElementById(`card-${id}`);
-      if (card) {
-        card.classList.toggle('open');
-      }
+      if (card) card.classList.toggle('open');
     }
 
-    // ─── Toggle All ────────────────────────────────────────────────────────
     let allExpanded = false;
     function toggleAllSuites() {
       allExpanded = !allExpanded;
@@ -1079,7 +1162,7 @@
       });
     }
 
-    // ─── Run Tests ─────────────────────────────────────────────────────────
+    // ─── Run Tests ────────────────────────────────────────────────
     function setButtonsDisabled(disabled) {
       document.querySelectorAll('.btn').forEach(b => b.disabled = disabled);
     }
@@ -1089,7 +1172,6 @@
       isRunning = true;
       setButtonsDisabled(true);
 
-      // Reset statistics for target suites
       const all = Object.values(suiteResultsMap);
       all.forEach(s => {
         if (category === 'all' || s.category === category) {
@@ -1097,13 +1179,10 @@
           s.durationMs = 0;
           s.numPassed = 0;
           s.numFailed = 0;
-          if (s.tests) {
-            s.tests.forEach(t => { t.status = 'pending'; t.errorMessage = null; });
-          }
+          if (s.tests) s.tests.forEach(t => { t.status = 'pending'; t.errorMessage = null; });
         }
       });
 
-      // Switch to type view if not already on it
       if (currentViewMode === 'history') {
         currentViewMode = 'type';
         document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
@@ -1119,10 +1198,10 @@
       const progressStatus = document.getElementById('progressStatus');
 
       progressBar.style.width = '0%';
+      progressBar.classList.remove('complete');
       progressBar.classList.add('running');
       progressTitle.textContent = `🔄 Führe ${category === 'all' ? 'alle' : category.toUpperCase()} Tests aus...`;
-      progressStatus.textContent = `0% gestartet`;
-
+      progressStatus.textContent = '0% gestartet';
       document.getElementById('statDuration').textContent = '0.0s';
 
       const sseUrl = window.location.port === '3030'
@@ -1131,17 +1210,13 @@
 
       const eventSource = new EventSource(sseUrl);
 
-      eventSource.addEventListener('start', (e) => {
-        const data = JSON.parse(e.data);
-      });
-
       eventSource.addEventListener('suite_start', (e) => {
         const data = JSON.parse(e.data);
         if (suiteResultsMap[data.suiteId]) {
           suiteResultsMap[data.suiteId].status = 'running';
           renderContent();
         }
-        progressStatus.textContent = `Führe aus: ${data.name} (${data.index} / ${data.total} Suiten)`;
+        progressStatus.textContent = `Führe aus: ${data.name} (${data.index} / ${data.total})`;
       });
 
       eventSource.addEventListener('suite_complete', (e) => {
@@ -1154,12 +1229,10 @@
           suiteResultsMap[data.suiteId].tests = data.tests;
           renderContent();
         }
-
         updateStats();
         progressBar.style.width = `${data.progressPercent}%`;
-
         const sumPassed = parseInt(document.getElementById('statPassed').textContent) || 0;
-        progressStatus.textContent = `${data.completedCount} / ${data.totalSuites} Suiten abgeschlossen (${data.progressPercent}%) - ${sumPassed} Tests bestanden`;
+        progressStatus.textContent = `${data.completedCount} / ${data.totalSuites} Suiten (${data.progressPercent}%) — ${sumPassed} bestanden`;
       });
 
       eventSource.addEventListener('finish', (e) => {
@@ -1169,23 +1242,19 @@
         setButtonsDisabled(false);
 
         progressBar.classList.remove('running');
+        progressBar.classList.add('complete');
         progressBar.style.width = '100%';
-
         progressTitle.textContent = data.status === 'passed' ? '🎉 Alle Tests erfolgreich bestanden!' : '⚠️ Testlauf mit Fehlern beendet';
-        progressStatus.textContent = `${data.completedCount} Suiten abgeschlossen in ${(data.totalDurationMs / 1000).toFixed(2)}s`;
-
+        progressStatus.textContent = `${data.completedCount} Suiten in ${(data.totalDurationMs / 1000).toFixed(2)}s`;
         document.getElementById('statDuration').textContent = `${(data.totalDurationMs / 1000).toFixed(2)}s`;
         updateStats();
 
-        // Refresh history after run completes
         fetchHistory().then(() => {
-          // If user is on history tab, re-render
           if (currentViewMode === 'history') renderContent();
         });
       });
 
-      eventSource.onerror = (err) => {
-        console.error('SSE Error:', err);
+      eventSource.onerror = () => {
         eventSource.close();
         isRunning = false;
         setButtonsDisabled(false);
