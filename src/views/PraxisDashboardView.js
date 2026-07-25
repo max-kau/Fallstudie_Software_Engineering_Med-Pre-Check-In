@@ -82,31 +82,9 @@ export function renderPraxisDashboardView() {
         <div id="tab-content-zeiten" class="dashboard-tab-content" style="display: none;">
           <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
             <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">⏱️ Datengestützte Behandlungszeiten & Verzugsschutz</h2>
-            <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-4); line-height: 1.5;">
-              Das System misst automatisch die Realdauer aller abgeschlossenen Behandlungen in Ihrer Praxis und vergleicht diese mit Ihrer manuellen Vorgabe.
+            <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-6); line-height: 1.5;">
+              Aktivieren Sie den <strong>Verzugsschutz (Automatik)</strong>, um neue Kalendertermine und Wartezeiten auf Basis der <strong>historisch berechneten Ist-Dauer</strong> zu planen. Bei Deaktivierung wird Ihre <strong>manuelle Soll-Dauer</strong> genutzt. Die jeweils aktive Spalte ist farblich hervorgehoben.
             </p>
-
-            <!-- Clear Explanation Guide Box -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); background: var(--bg-gray); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
-              <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 20px;">⚡</span>
-                <div>
-                  <strong style="color: var(--primary); font-size: var(--font-size-sm);">Verzugsschutz Aktiviert (Automatik):</strong>
-                  <p style="font-size: 0.78rem; color: var(--gray-600); margin-top: 2px; line-height: 1.4;">
-                    Das System nutzt die <strong>historische Ist-Dauer</strong> für neue Kalenderbuchungen und für die Live-Warteschlangen-Prognose. Dies verhindert Terminverzüge im Praxisalltag.
-                  </p>
-                </div>
-              </div>
-              <div style="display: flex; gap: 10px; align-items: flex-start;">
-                <span style="font-size: 20px;">📌</span>
-                <div>
-                  <strong style="color: #B45309; font-size: var(--font-size-sm);">Verzugsschutz Deaktiviert (Manuell):</strong>
-                  <p style="font-size: 0.78rem; color: var(--gray-600); margin-top: 2px; line-height: 1.4;">
-                    Das System nutzt starr Ihre <strong>manuell festgelegte Soll-Dauer</strong>. Historische Realdaten werden weiterhin im Hintergrund gesammelt.
-                  </p>
-                </div>
-              </div>
-            </div>
 
             <div id="praxis-duration-analysis-container">
               <div style="text-align: center; padding: var(--space-6) 0;">
@@ -429,39 +407,24 @@ export async function initPraxisDashboardView() {
             ? `<span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔵 ${item.diff} Min.</span>`
             : `<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🟢 Im Soll</span>`);
 
-        const manualCellStyle = item.useAuto ? 'opacity: 0.65;' : 'background: #FEF3C7; padding: 6px 10px; border-radius: 8px; border: 1px solid #FCD34D;';
-        const manualBadge = item.useAuto ? '' : '<span style="font-size: 10px; background: #B45309; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; display: inline-block; margin-top: 2px;">📌 AKTIV</span>';
-
-        const avgCellStyle = item.useAuto ? 'background: #EFF6FF; padding: 6px 10px; border-radius: 8px; border: 1px solid #93C5FD;' : 'opacity: 0.65;';
-        const avgBadge = item.useAuto ? '<span style="font-size: 10px; background: #0063BE; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; display: inline-block; margin-top: 2px;">⚡ AKTIV</span>' : '';
-
-        const effectiveBadge = item.useAuto
-          ? `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 12px; display: inline-block;">⚡ ${item.effectiveDuration} Min. (Automatik)</span>`
-          : `<span style="background: #FEF3C7; color: #92400E; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 12px; display: inline-block;">📌 ${item.effectiveDuration} Min. (Manuell)</span>`;
+        const manualTdBg = !item.useAuto ? 'background: #FEF3C7; font-weight: 700;' : '';
+        const avgTdBg = item.useAuto ? 'background: #E8F4FD; font-weight: 700; color: #0063BE;' : '';
 
         html += `
           <tr style="border-bottom: 1px solid var(--gray-100);">
             <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${item.art}</td>
-            <td style="padding: var(--space-3) var(--space-4);">
-              <div style="${manualCellStyle}">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <input type="number" class="manual-duration-input" data-art="${item.art}" value="${item.manualDuration}" min="5" max="180" style="width: 70px; padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
-                  <span style="color: var(--gray-600); font-size: 12px; font-weight: 600;">Min.</span>
-                </div>
-                ${manualBadge}
+            <td style="padding: var(--space-3) var(--space-4); ${manualTdBg}">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <input type="number" class="manual-duration-input" data-art="${item.art}" value="${item.manualDuration}" min="5" max="180" style="width: 65px; padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
+                <span style="color: var(--gray-700); font-size: 12px; font-weight: 600;">Min.</span>
               </div>
             </td>
-            <td style="padding: var(--space-3) var(--space-4);">
-              <div style="${avgCellStyle}">
-                <div style="font-weight: 700; color: var(--primary); font-size: 13px;">${item.calculatedAvg} Min.</div>
-                ${avgBadge}
-              </div>
-            </td>
+            <td style="padding: var(--space-3) var(--space-4); ${avgTdBg}">${item.calculatedAvg} Min.</td>
             <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">${item.sampleCount} Behandlungen</td>
-            <td style="padding: var(--space-3) var(--space-4);">${effectiveBadge}</td>
+            <td style="padding: var(--space-3) var(--space-4); font-weight: 800; color: var(--gray-900);">${item.effectiveDuration} Min.</td>
             <td style="padding: var(--space-3) var(--space-4);">${trendBadge}</td>
             <td style="padding: var(--space-3) var(--space-4); text-align: center;">
-              <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: ${item.useAuto ? 'var(--primary)' : '#B45309'}; background: ${item.useAuto ? '#E8F4FD' : '#FEF3C7'}; padding: 6px 12px; border-radius: 20px;">
+              <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-700);">
                 <input type="checkbox" class="auto-duration-toggle" data-art="${item.art}" ${item.useAuto ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
                 <span>${item.useAuto ? '⚡ Automatik' : '📌 Manuell'}</span>
               </label>
