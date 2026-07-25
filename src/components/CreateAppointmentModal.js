@@ -160,6 +160,17 @@ export function openCreateAppointmentModal(callback) {
                 <option value="Kontrolltermin">Kontrolltermin</option>
               </select>
             </div>
+
+            <div>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Behandlungsdauer (Minuten) *</label>
+              <div style="display: flex; gap: var(--space-2); align-items: center;">
+                <input type="number" id="create-appt-duration" min="5" max="180" value="15" style="width: 100px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
+                <span style="font-size: var(--font-size-xs); color: var(--gray-500);">Min.</span>
+              </div>
+              <div id="create-appt-duration-hint" style="font-size: 0.72rem; color: var(--primary); margin-top: 4px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
+                <span>💡 Empfohlene Dauer wird geladen...</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -176,6 +187,30 @@ export function openCreateAppointmentModal(callback) {
 
   const modal = document.getElementById('create-appt-modal');
   const errorDiv = document.getElementById('create-appt-error');
+  const artSelect = document.getElementById('create-appt-art');
+  const durationInput = document.getElementById('create-appt-duration');
+  const durationHint = document.getElementById('create-appt-duration-hint');
+
+  // Fetch recommended duration based on historical analysis
+  async function updateRecommendedDuration() {
+    const art = artSelect.value;
+    try {
+      const res = await fetch(`/api/praxis/terminarten/dauer?art=${encodeURIComponent(art)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.effectiveDuration) {
+          durationInput.value = data.effectiveDuration;
+          const isAuto = data.useAuto;
+          durationHint.innerHTML = `💡 Empfohlene Dauer: <strong>${data.effectiveDuration} Min.</strong> (${isAuto ? 'analysierter historischer Schnitt' : 'manuelle Vorgabe'})`;
+        }
+      }
+    } catch (e) {
+      durationHint.innerHTML = '💡 Manuelle Anpassung möglich';
+    }
+  }
+
+  artSelect?.addEventListener('change', updateRecommendedDuration);
+  updateRecommendedDuration();
 
   const close = () => modal?.remove();
 
@@ -384,7 +419,8 @@ export function openCreateAppointmentModal(callback) {
     const doctor = document.getElementById('create-appt-doctor').value.trim();
     const date = document.getElementById('create-appt-date').value;
     const time = document.getElementById('create-appt-time').value;
-    const art = document.getElementById('create-appt-art').value;
+    const art = artSelect.value;
+    const duration = Number(durationInput.value) || 15;
 
     if (!patientVorname || !patientNachname || !patientEmail || !doctor || !date || !time || !art) {
       errorDiv.innerText = 'Bitte füllen Sie alle Pflichtfelder (*) aus.';
