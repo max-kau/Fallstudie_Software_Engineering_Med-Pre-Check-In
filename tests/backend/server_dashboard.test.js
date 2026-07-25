@@ -183,7 +183,8 @@ describe('Backend Dashboard API - Pufferzeiten (Buffer Times)', () => {
       is_recurring: true, day_of_week: 1,
       specific_date: null, start_time: '12:00', end_time: '13:00'
     };
-    mockQuery.mockResolvedValueOnce({ rows: [mockBt] });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // Conflict check query (no conflicts)
+    mockQuery.mockResolvedValueOnce({ rows: [mockBt] }); // Insert query
 
     const response = await fetch(`${baseUrl}/api/praxis/buffer-times`, {
       method: 'POST',
@@ -202,6 +203,42 @@ describe('Backend Dashboard API - Pufferzeiten (Buffer Times)', () => {
     expect(data.success).toBe(true);
     expect(data.bufferTime.title).toBe('Mittagspause');
     expect(data.bufferTime.is_recurring).toBe(true);
+  });
+
+  it('should return 400 when creating a buffer time colliding with a patient appointment', async () => {
+    const cookie = await loginAsPraxis();
+    mockQuery.mockReset();
+
+    // Mock query returning a conflicting appointment on a Monday (2026-08-03, dayOfWeek = 1)
+    mockQuery.mockResolvedValueOnce({
+      rows: [{
+        code: 'T123',
+        patient_vorname: 'Max',
+        patient_nachname: 'Mustermann',
+        date: '2026-08-03',
+        time: '12:00',
+        duration: 30
+      }]
+    });
+
+    const response = await fetch(`${baseUrl}/api/praxis/buffer-times`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookie
+      },
+      body: JSON.stringify({
+        title: 'Mittagspause',
+        isRecurring: true,
+        dayOfWeek: 1,
+        startTime: '12:15',
+        endTime: '13:00'
+      })
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain('Kollision');
   });
 
   // DELETE /api/praxis/buffer-times/:id

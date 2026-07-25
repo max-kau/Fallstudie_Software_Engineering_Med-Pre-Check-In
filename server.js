@@ -892,8 +892,99 @@ app.post('/api/praxis/buffer-times', async (req, res) => {
     return res.status(400).json({ error: 'Für einmalige Pufferzeiten muss ein Datum gewählt werden.' });
   }
 
+  // Check for conflicts with existing patient appointments
+  const praxisName = req.session.user?.praxis_name || '';
+  const timeToMin = (tStr) => {
+    if (!tStr) return 0;
+    const [h, m] = tStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const normalizeDateStr = (dStr) => {
+    if (!dStr) return '';
+    const str = String(dStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const ddmmyyyy = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (ddmmyyyy) {
+      return `${ddmmyyyy[3]}-${String(ddmmyyyy[2]).padStart(2, '0')}-${String(ddmmyyyy[1]).padStart(2, '0')}`;
+    }
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    return str;
+  };
+  const getDayOfWeek = (dStr) => {
+    const norm = normalizeDateStr(dStr);
+    if (!norm) return -1;
+    const d = new Date(norm + 'T00:00:00');
+    return isNaN(d.getTime()) ? -1 : d.getDay();
+  };
+
+  const bufStartMin = timeToMin(startTime);
+  const bufEndMin = timeToMin(endTime);
+
+  if (isDbConnected && pool && praxisName) {
+    try {
+      const apptRes = await pool.query(
+        `SELECT code, patient_vorname, patient_nachname, date, time, duration FROM termine WHERE praxis = $1`,
+        [praxisName]
+      );
+      const apptRows = (apptRes && apptRes.rows) ? apptRes.rows : [];
+      for (const appt of apptRows) {
+        const normApptDate = normalizeDateStr(appt.date);
+        const apptDow = getDayOfWeek(appt.date);
+
+        let matches = false;
+        if (isRecurring) {
+          if (apptDow === parseInt(dayOfWeek)) matches = true;
+        } else {
+          if (normApptDate === specificDate || appt.date === specificDate) matches = true;
+        }
+
+        if (!matches) continue;
+
+        const apptStartMin = timeToMin(appt.time);
+        const apptEndMin = apptStartMin + (appt.duration || 30);
+
+        if (apptStartMin < bufEndMin && apptEndMin > bufStartMin) {
+          const name = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
+          return res.status(400).json({
+            error: `Kollision mit bestehendem Patiententermin (${name}) am ${appt.date} um ${appt.time} Uhr.`
+          });
+        }
+      }
+    } catch (confErr) {
+      console.warn('Buffer conflict check query error:', confErr.message);
+    }
+  }
+
   if (!isDbConnected || !pool) {
-    // Mock mode
+    // Mock mode conflict check
+    const mockAppts = req.session.mockAppointments || [];
+    for (const appt of mockAppts) {
+      if (appt.praxis && praxisName && appt.praxis !== praxisName) continue;
+      
+      const normApptDate = normalizeDateStr(appt.date);
+      const apptDow = getDayOfWeek(appt.date);
+
+      let matches = false;
+      if (isRecurring) {
+        if (apptDow === parseInt(dayOfWeek)) matches = true;
+      } else {
+        if (normApptDate === specificDate || appt.date === specificDate) matches = true;
+      }
+
+      if (!matches) continue;
+
+      const apptStartMin = timeToMin(appt.time);
+      const apptEndMin = apptStartMin + (appt.duration || 30);
+
+      if (apptStartMin < bufEndMin && apptEndMin > bufStartMin) {
+        const name = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
+        return res.status(400).json({
+          error: `Kollision mit bestehendem Patiententermin (${name}) am ${appt.date} um ${appt.time} Uhr.`
+        });
+      }
+    }
+
     if (!req.session.mockBufferTimes) req.session.mockBufferTimes = [];
     const mockBt = {
       id: Date.now(),
@@ -1071,6 +1162,13 @@ app.post('/api/praxis/termine/buchen', async (req, res) => {
 
   if (!patientEmail || !patientVorname || !patientNachname || !doctor || !date || !time || !art) {
     return res.status(400).json({ error: 'Alle Pflichtfelder müssen ausgefüllt werden.' });
+  }
+
+  // Validate appointment is not in the past
+  const selectedDateTime = new Date(`${date}T${time}:00`);
+  const now = new Date();
+  if (selectedDateTime.getTime() < now.getTime() - 5 * 60 * 1000) {
+    return res.status(400).json({ error: 'Termine in der Vergangenheit können nicht gebucht werden.' });
   }
 
   const praxisName = req.session.user.praxis_name || 'Meine Praxis';

@@ -22,17 +22,30 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'S
 
 function parseGermanDate(dateStr) {
   if (!dateStr) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Date(dateStr + 'T00:00:00');
+  const str = String(dateStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return new Date(str + 'T00:00:00');
   }
-  const match = dateStr.match(/(\d{1,2})\.\s*(\w{3})/);
-  if (!match) return null;
-  const day = parseInt(match[1], 10);
-  const monthAbbr = match[2].toLowerCase();
-  const month = MONTH_MAP[monthAbbr];
-  if (month === undefined || isNaN(day)) return null;
-  const now = new Date();
-  return new Date(now.getFullYear(), month, day);
+  const ddmmyyyy = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (ddmmyyyy) {
+    const day = parseInt(ddmmyyyy[1], 10);
+    const month = parseInt(ddmmyyyy[2], 10) - 1;
+    const year = parseInt(ddmmyyyy[3], 10);
+    return new Date(year, month, day);
+  }
+  const match = str.match(/(\d{1,2})\.\s*([a-zA-ZäöüÄÖÜ]+)/);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const monthAbbr = match[2].toLowerCase().substring(0, 3);
+    const month = MONTH_MAP[monthAbbr];
+    if (month !== undefined && !isNaN(day)) {
+      const now = new Date();
+      return new Date(now.getFullYear(), month, day);
+    }
+  }
+  const fallback = new Date(str);
+  if (!isNaN(fallback.getTime())) return fallback;
+  return null;
 }
 
 function parseTimeToMinutes(timeStr) {
@@ -190,7 +203,10 @@ function renderShadingBlocks(date, openingHours) {
   }
 
   const openStart = parseTimeToMinutes(todayHours.start);
-  const openEnd = parseTimeToMinutes(todayHours.end);
+  let openEnd = parseTimeToMinutes(todayHours.end);
+  if (todayHours.end === '00:00' || todayHours.end === '0:00' || todayHours.end === '24:00' || openEnd === 0) {
+    openEnd = 24 * 60; // 1440 minutes = midnight
+  }
 
   let html = '';
   if (openStart > calStartMin) {
@@ -242,6 +258,32 @@ function renderBufferBlocks(date, bufferTimes) {
   return html;
 }
 
+function renderCurrentTimeIndicator(date) {
+  if (!isSameDay(date, new Date())) return '';
+
+  const now = new Date();
+  const curHours = now.getHours();
+  const curMins = now.getMinutes();
+  const totalMins = curHours * 60 + curMins;
+  const calStartMin = CALENDAR_START_HOUR * 60;
+  const calEndMin = CALENDAR_END_HOUR * 60;
+
+  if (totalMins < calStartMin || totalMins > calEndMin) return '';
+
+  const topPx = ((totalMins - calStartMin) / 60) * HOUR_HEIGHT_PX;
+  const timeStr = `${String(curHours).padStart(2, '0')}:${String(curMins).padStart(2, '0')}`;
+
+  return `
+    <div class="cal-current-time-line"
+         style="position: absolute; left: 0; right: 0; top: ${topPx}px; border-top: 2px solid #EF4444; z-index: 10; pointer-events: none;">
+      <div style="position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: #EF4444; border-radius: 50%; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);"></div>
+      <span style="position: absolute; right: 4px; top: -9px; background: #EF4444; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); letter-spacing: 0.3px;">
+        📍 ${timeStr} Uhr
+      </span>
+    </div>
+  `;
+}
+
 function renderDayView(date, appointments, openingHours, bufferTimes) {
   const dayAppts = filterAppointmentsByDate(appointments, date);
   const isToday = isSameDay(date, new Date());
@@ -266,6 +308,7 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
           ${renderShadingBlocks(date, openingHours)}
           ${renderBufferBlocks(date, bufferTimes)}
           ${renderTimeGridLines()}
+          ${renderCurrentTimeIndicator(date)}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
       </div>
@@ -291,6 +334,7 @@ function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
           ${renderShadingBlocks(d, openingHours)}
           ${renderBufferBlocks(d, bufferTimes)}
           ${renderTimeGridLines()}
+          ${renderCurrentTimeIndicator(d)}
           ${dayAppts.map(appt => renderAppointmentBlock(appt)).join('')}
         </div>
       </div>
@@ -566,10 +610,30 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
                 <input type="text" id="buf-title" placeholder="z.B. Mittagspause" class="buffer-form-input">
               </div>
               <div id="buf-dow-container">
-                <label class="buffer-form-label">Wochentag</label>
-                <select id="buf-day-of-week" class="buffer-form-input">
-                  ${dowOptions}
-                </select>
+                <label class="buffer-form-label">Wochentage (Mehrfachauswahl)</label>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="1" checked> Mo
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="2" checked> Di
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="3" checked> Mi
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="4" checked> Do
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="5" checked> Fr
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="6"> Sa
+                  </label>
+                  <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" class="buf-dow-checkbox" value="0"> So
+                  </label>
+                </div>
               </div>
               <div id="buf-date-container" style="display: none;">
                 <label class="buffer-form-label">Datum</label>
@@ -633,7 +697,6 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     const startSelect = document.getElementById('buf-start-time');
     const endSelect = document.getElementById('buf-end-time');
     if (startSelect && endSelect) {
-      // Default: start=11:30, end=12:00
       startSelect.value = '11:30';
       endSelect.value = '12:00';
       startSelect.addEventListener('change', () => {
@@ -651,7 +714,9 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     // Create buffer time
     document.getElementById('buf-create-btn')?.addEventListener('click', async () => {
       const title = document.getElementById('buf-title')?.value?.trim() || '';
-      const dayOfWeek = parseInt(document.getElementById('buf-day-of-week')?.value || '1');
+      const selectedDays = isRecurring
+        ? [...document.querySelectorAll('.buf-dow-checkbox:checked')].map(c => parseInt(c.value))
+        : [null];
       const specificDate = document.getElementById('buf-specific-date')?.value || '';
       const startTime = document.getElementById('buf-start-time')?.value;
       const endTime = document.getElementById('buf-end-time')?.value;
@@ -667,43 +732,123 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
         return;
       }
 
+      if (isRecurring && selectedDays.length === 0) {
+        showStatusError('Bitte mindestens einen Wochentag auswählen.');
+        return;
+      }
+
+      if (!isRecurring && !specificDate) {
+        showStatusError('Bitte ein Datum für die einmalige Pufferzeit wählen.');
+        return;
+      }
+
+      // Helper function to format errors nicely
+      function showStatusError(msg) {
+        if (!statusMsg) return;
+        const cleanMsg = String(msg || 'Fehler beim Erstellen.')
+          .replace(/[\{\}\"\[\]]/g, '')
+          .replace(/^error:\s*/i, '')
+          .trim();
+        statusMsg.style.display = 'inline-block';
+        statusMsg.style.color = '#991B1B';
+        statusMsg.style.background = '#FEF2F2';
+        statusMsg.style.border = '1px solid #FCA5A5';
+        statusMsg.style.padding = '6px 12px';
+        statusMsg.style.borderRadius = '8px';
+        statusMsg.style.fontSize = '12px';
+        statusMsg.style.fontWeight = '600';
+        statusMsg.textContent = '⚠️ ' + cleanMsg;
+      }
+
+      // Frontend Conflict Check against allAppointments
+      const apptConflicts = [];
+      const newStartMin = parseTimeToMinutes(startTime);
+      const newEndMin = parseTimeToMinutes(endTime);
+
+      for (const appt of allAppointments) {
+        const apptDateObj = parseGermanDate(appt.date);
+        if (!apptDateObj) continue;
+
+        let matchesDay = false;
+        if (isRecurring) {
+          if (selectedDays.includes(apptDateObj.getDay())) matchesDay = true;
+        } else {
+          const apptYear = apptDateObj.getFullYear();
+          const apptMonth = String(apptDateObj.getMonth() + 1).padStart(2, '0');
+          const apptDay = String(apptDateObj.getDate()).padStart(2, '0');
+          const apptISO = `${apptYear}-${apptMonth}-${apptDay}`;
+
+          if (apptISO === specificDate || appt.date === specificDate) {
+            matchesDay = true;
+          }
+        }
+
+        if (!matchesDay) continue;
+
+        const apptStartMin = parseTimeToMinutes(appt.time);
+        const apptEndMin = apptStartMin + (appt.duration || DEFAULT_DURATION);
+
+        if (apptStartMin < newEndMin && apptEndMin > newStartMin) {
+          const patientName = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
+          apptConflicts.push(`${patientName} (${appt.date} um ${appt.time} Uhr)`);
+        }
+      }
+
+      if (apptConflicts.length > 0) {
+        showStatusError('Kollision mit bestehendem Patiententermin: ' + apptConflicts.join(', '));
+        return;
+      }
+
       createBtn.disabled = true;
       createBtn.innerHTML = '<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> Wird erstellt...';
 
-      try {
-        const res = await fetch('/api/praxis/buffer-times', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: title || 'Pufferzeit',
-            isRecurring,
-            dayOfWeek: isRecurring ? dayOfWeek : null,
-            specificDate: !isRecurring ? specificDate : null,
-            startTime,
-            endTime
-          })
-        });
-        const data = await res.json();
-        if (data.success && data.bufferTime) {
-          allBufferTimes.push(data.bufferTime);
-          if (statusMsg) {
-            statusMsg.style.display = 'inline';
-            statusMsg.style.color = '#059669';
-            statusMsg.textContent = '✓ Pufferzeit erstellt!';
-            setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
+      let lastError = null;
+      let createdCount = 0;
+
+      for (const dayOfWeek of selectedDays) {
+        try {
+          const res = await fetch('/api/praxis/buffer-times', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title || 'Pufferzeit',
+              isRecurring,
+              dayOfWeek: isRecurring ? dayOfWeek : null,
+              specificDate: !isRecurring ? specificDate : null,
+              startTime,
+              endTime
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.bufferTime) {
+            allBufferTimes.push(data.bufferTime);
+            createdCount++;
+          } else {
+            lastError = data.error || 'Fehler beim Erstellen der Pufferzeit.';
           }
-          allAppointments.forEach(a => { a._hasConflict = false; });
-          markConflicts(allAppointments, allBufferTimes);
-          render(); // Re-render panel
-        } else {
-          throw new Error(data.error || 'Fehler');
+        } catch (err) {
+          lastError = err.message || 'Fehler beim Erstellen.';
         }
-      } catch (err) {
+      }
+
+      if (createdCount > 0) {
         if (statusMsg) {
-          statusMsg.style.display = 'inline';
-          statusMsg.style.color = '#DC2626';
-          statusMsg.textContent = '❌ ' + (err.message || 'Fehler beim Erstellen.');
+          statusMsg.style.display = 'inline-block';
+          statusMsg.style.color = '#059669';
+          statusMsg.style.background = '#ECFDF5';
+          statusMsg.style.border = '1px solid #A7F3D0';
+          statusMsg.style.padding = '6px 12px';
+          statusMsg.style.borderRadius = '8px';
+          statusMsg.style.fontSize = '12px';
+          statusMsg.style.fontWeight = '600';
+          statusMsg.textContent = `✓ ${createdCount} Pufferzeit(en) erstellt!`;
+          setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
         }
+        allAppointments.forEach(a => { a._hasConflict = false; });
+        markConflicts(allAppointments, allBufferTimes);
+        render(); // Re-render panel
+      } else {
+        showStatusError(lastError);
         createBtn.disabled = false;
         createBtn.innerHTML = '⏸️ Pufferzeit einplanen';
       }
@@ -734,10 +879,15 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     });
   }
 
+  // ── Drag-to-resize logic ────────
+  let resizeState = null;
+  let justResized = false;
+
   function attachEventListeners() {
     // Click on appointment
     calBody.querySelectorAll('.cal-event').forEach(el => {
       el.addEventListener('click', (e) => {
+        if (justResized) return;
         if (e.target.closest('.cal-event-resize')) return;
         const code = el.dataset.code;
         const appt = allAppointments.find(a => a.code === code);
@@ -764,9 +914,6 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       handle.addEventListener('touchstart', startResize, { passive: false });
     });
   }
-
-  // ── Drag-to-resize logic ────────
-  let resizeState = null;
 
   function startResize(e) {
     e.preventDefault();
@@ -797,6 +944,8 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       document.removeEventListener('touchend', onUp);
 
       if (!resizeState) return;
+      justResized = true;
+      setTimeout(() => { justResized = false; }, 300);
       const finalHeight = resizeState.eventEl.offsetHeight;
       const newDuration = Math.round((finalHeight / HOUR_HEIGHT_PX) * 60);
       const code = resizeState.code;

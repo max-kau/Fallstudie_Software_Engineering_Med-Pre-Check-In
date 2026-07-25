@@ -1,7 +1,7 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
-import { praxen } from '../data/praxen.js';
+import { praxen, fetchPraxen } from '../data/praxen.js';
 
 export function renderHomeView() {
   return `
@@ -126,6 +126,8 @@ export function initHomeView() {
     'Münster', 'Bonn', 'Hamburg', 'Konstanz', 'Heidelberg'
   ];
 
+  fetchPraxen();
+
   // 1. Practice autocomplete search
   function performSearch() {
     const val = searchInput.value.trim().toLowerCase();
@@ -136,20 +138,21 @@ export function initHomeView() {
       return;
     }
 
-    // Filter matching practices
+    // Filter matching practices strictly by name or specialty (not full description text)
     const matches = praxen.filter(praxis => {
-      const matchText = (praxis.name + ' ' + praxis.fachbereich + ' ' + praxis.beschreibung).toLowerCase();
-      const matchLocation = praxis.adresse.toLowerCase();
-      
-      const textMatch = matchText.includes(val);
-      const locMatch = loc ? matchLocation.includes(loc) : true;
+      const nameMatch = (praxis.name || '').toLowerCase().includes(val);
+      const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
+      const doctorsMatch = (praxis.aerzte ? praxis.aerzte.join(' ') : '').toLowerCase().includes(val);
+
+      const textMatch = nameMatch || fachbereichMatch || doctorsMatch;
+      const locMatch = loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
 
       return textMatch && locMatch;
     });
 
     if (matches.length === 0) {
       autocompleteMenu.innerHTML = `
-        <div class="autocomplete-no-results">
+        <div class="autocomplete-no-results" style="padding: var(--space-4); text-align: center; color: var(--gray-500); font-size: var(--font-size-sm);">
           Keine Praxen gefunden
         </div>
       `;
@@ -158,7 +161,7 @@ export function initHomeView() {
         return `
           <div class="autocomplete-item" data-slug="${praxis.slug}">
             <div class="autocomplete-item-logo" style="background: ${praxis.gradient};">
-              ${praxis.logo.includes('.') ? `<img src="${praxis.logo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;" />` : praxis.logo}
+              ${praxis.logo && praxis.logo.includes('.') ? `<img src="${praxis.logo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;" />` : (praxis.logo || '🏥')}
             </div>
             <div class="autocomplete-item-details">
               <strong class="autocomplete-item-name">${praxis.name}</strong>
@@ -212,7 +215,7 @@ export function initHomeView() {
   searchInput.addEventListener('input', performSearch);
   locationInput.addEventListener('input', performLocationSearch);
 
-  // Focus listeners to show suggestions when clicking back inside
+  // Focus listeners - only show suggestions if text is typed
   searchInput.addEventListener('focus', () => {
     if (searchInput.value.trim().length > 0) performSearch();
   });

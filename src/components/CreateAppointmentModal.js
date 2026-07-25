@@ -428,6 +428,15 @@ export function openCreateAppointmentModal(callback) {
       return;
     }
 
+    // Past date/time validation
+    const selectedDateTime = new Date(`${date}T${time}:00`);
+    const now = new Date();
+    if (selectedDateTime < now) {
+      errorDiv.innerText = 'Termine in der Vergangenheit können nicht gebucht werden.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(patientEmail)) {
