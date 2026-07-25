@@ -11,8 +11,7 @@ let currentMonth = new Date();
 let openingHours = null;
 
 function getNextAvailableDate() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1); // Tomorrow
+  const d = new Date(); // Start with TODAY
   
   const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
   const defaultHours = {

@@ -145,9 +145,7 @@ export function initSearchView() {
 
   if (!searchInput || !locationInput || !autocompleteMenu || !locationMenu) return;
 
-  fetchPraxen().then(() => {
-    performSearch();
-  });
+  fetchPraxen();
 
   const uniqueLocations = [
     'Düsseldorf', 'Köln', 'Essen', 'Duisburg', 'Dortmund', 
@@ -158,16 +156,17 @@ export function initSearchView() {
     const val = searchInput.value.trim().toLowerCase();
     const loc = locationInput.value.trim().toLowerCase();
 
+    if (val.length === 0) {
+      autocompleteMenu.style.display = 'none';
+      return;
+    }
+
     const matches = praxen.filter(praxis => {
-      if (val.length === 0) {
-        return loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
-      }
       const nameMatch = (praxis.name || '').toLowerCase().includes(val);
       const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
-      const descMatch = (praxis.beschreibung || '').toLowerCase().includes(val);
-      const addrMatch = (praxis.adresse || '').toLowerCase().includes(val);
+      const doctorsMatch = (praxis.aerzte ? praxis.aerzte.join(' ') : '').toLowerCase().includes(val);
 
-      const textMatch = nameMatch || fachbereichMatch || descMatch || addrMatch;
+      const textMatch = nameMatch || fachbereichMatch || doctorsMatch;
       const locMatch = loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
 
       return textMatch && locMatch;

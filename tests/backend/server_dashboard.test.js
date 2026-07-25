@@ -209,13 +209,13 @@ describe('Backend Dashboard API - Pufferzeiten (Buffer Times)', () => {
     const cookie = await loginAsPraxis();
     mockQuery.mockReset();
 
-    // Mock query returning a conflicting appointment
+    // Mock query returning a conflicting appointment on a Monday (2026-08-03, dayOfWeek = 1)
     mockQuery.mockResolvedValueOnce({
       rows: [{
         code: 'T123',
         patient_vorname: 'Max',
         patient_nachname: 'Mustermann',
-        date: '2026-08-01',
+        date: '2026-08-03',
         time: '12:00',
         duration: 30
       }]

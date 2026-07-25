@@ -126,26 +126,25 @@ export function initHomeView() {
     'Münster', 'Bonn', 'Hamburg', 'Konstanz', 'Heidelberg'
   ];
 
-  fetchPraxen().then(() => {
-    performSearch();
-  });
+  fetchPraxen();
 
   // 1. Practice autocomplete search
   function performSearch() {
     const val = searchInput.value.trim().toLowerCase();
     const loc = locationInput.value.trim().toLowerCase();
 
-    // Filter matching practices (show popular if empty)
+    if (val.length === 0) {
+      autocompleteMenu.style.display = 'none';
+      return;
+    }
+
+    // Filter matching practices strictly by name or specialty (not full description text)
     const matches = praxen.filter(praxis => {
-      if (val.length === 0) {
-        return loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
-      }
       const nameMatch = (praxis.name || '').toLowerCase().includes(val);
       const fachbereichMatch = (praxis.fachbereich || '').toLowerCase().includes(val);
-      const descMatch = (praxis.beschreibung || '').toLowerCase().includes(val);
-      const addrMatch = (praxis.adresse || '').toLowerCase().includes(val);
+      const doctorsMatch = (praxis.aerzte ? praxis.aerzte.join(' ') : '').toLowerCase().includes(val);
 
-      const textMatch = nameMatch || fachbereichMatch || descMatch || addrMatch;
+      const textMatch = nameMatch || fachbereichMatch || doctorsMatch;
       const locMatch = loc ? (praxis.adresse || '').toLowerCase().includes(loc) : true;
 
       return textMatch && locMatch;
@@ -153,16 +152,16 @@ export function initHomeView() {
 
     if (matches.length === 0) {
       autocompleteMenu.innerHTML = `
-        <div class="autocomplete-no-results">
+        <div class="autocomplete-no-results" style="padding: var(--space-4); text-align: center; color: var(--gray-500); font-size: var(--font-size-sm);">
           Keine Praxen gefunden
         </div>
       `;
     } else {
-      autocompleteMenu.innerHTML = matches.slice(0, 10).map(praxis => {
+      autocompleteMenu.innerHTML = matches.map(praxis => {
         return `
           <div class="autocomplete-item" data-slug="${praxis.slug}">
             <div class="autocomplete-item-logo" style="background: ${praxis.gradient};">
-              ${praxis.logo.includes('.') ? `<img src="${praxis.logo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;" />` : praxis.logo}
+              ${praxis.logo && praxis.logo.includes('.') ? `<img src="${praxis.logo}" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;" />` : (praxis.logo || '🏥')}
             </div>
             <div class="autocomplete-item-details">
               <strong class="autocomplete-item-name">${praxis.name}</strong>
@@ -216,9 +215,9 @@ export function initHomeView() {
   searchInput.addEventListener('input', performSearch);
   locationInput.addEventListener('input', performLocationSearch);
 
-  // Focus listeners to show suggestions when clicking inside
+  // Focus listeners - only show suggestions if text is typed
   searchInput.addEventListener('focus', () => {
-    performSearch();
+    if (searchInput.value.trim().length > 0) performSearch();
   });
   locationInput.addEventListener('focus', () => {
     if (locationInput.value.trim().length > 0) performLocationSearch();

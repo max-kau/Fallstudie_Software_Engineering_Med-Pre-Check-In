@@ -869,32 +869,48 @@ app.post('/api/praxis/buffer-times', async (req, res) => {
     const [h, m] = tStr.split(':').map(Number);
     return h * 60 + m;
   };
+  const normalizeDateStr = (dStr) => {
+    if (!dStr) return '';
+    const str = String(dStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const ddmmyyyy = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (ddmmyyyy) {
+      return `${ddmmyyyy[3]}-${String(ddmmyyyy[2]).padStart(2, '0')}-${String(ddmmyyyy[1]).padStart(2, '0')}`;
+    }
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    return str;
+  };
+  const getDayOfWeek = (dStr) => {
+    const norm = normalizeDateStr(dStr);
+    if (!norm) return -1;
+    const d = new Date(norm + 'T00:00:00');
+    return isNaN(d.getTime()) ? -1 : d.getDay();
+  };
+
   const bufStartMin = timeToMin(startTime);
   const bufEndMin = timeToMin(endTime);
 
   if (isDbConnected && pool && praxisName) {
     try {
-      let queryText = '';
-      let params = [];
-      if (isRecurring) {
-        queryText = `
-          SELECT code, patient_vorname, patient_nachname, date, time, duration
-          FROM termine
-          WHERE praxis = $1 AND EXTRACT(DOW FROM date::date) = $2
-        `;
-        params = [praxisName, parseInt(dayOfWeek)];
-      } else {
-        queryText = `
-          SELECT code, patient_vorname, patient_nachname, date, time, duration
-          FROM termine
-          WHERE praxis = $1 AND date = $2
-        `;
-        params = [praxisName, specificDate];
-      }
-
-      const apptRes = await pool.query(queryText, params);
+      const apptRes = await pool.query(
+        `SELECT code, patient_vorname, patient_nachname, date, time, duration FROM termine WHERE praxis = $1`,
+        [praxisName]
+      );
       const apptRows = (apptRes && apptRes.rows) ? apptRes.rows : [];
       for (const appt of apptRows) {
+        const normApptDate = normalizeDateStr(appt.date);
+        const apptDow = getDayOfWeek(appt.date);
+
+        let matches = false;
+        if (isRecurring) {
+          if (apptDow === parseInt(dayOfWeek)) matches = true;
+        } else {
+          if (normApptDate === specificDate || appt.date === specificDate) matches = true;
+        }
+
+        if (!matches) continue;
+
         const apptStartMin = timeToMin(appt.time);
         const apptEndMin = apptStartMin + (appt.duration || 30);
 
@@ -916,15 +932,17 @@ app.post('/api/praxis/buffer-times', async (req, res) => {
     for (const appt of mockAppts) {
       if (appt.praxis && praxisName && appt.praxis !== praxisName) continue;
       
-      let matchesDay = false;
-      const apptDateObj = new Date(appt.date);
-      if (isRecurring && !isNaN(apptDateObj.getTime())) {
-        if (apptDateObj.getDay() === parseInt(dayOfWeek)) matchesDay = true;
-      } else if (!isRecurring && appt.date === specificDate) {
-        matchesDay = true;
+      const normApptDate = normalizeDateStr(appt.date);
+      const apptDow = getDayOfWeek(appt.date);
+
+      let matches = false;
+      if (isRecurring) {
+        if (apptDow === parseInt(dayOfWeek)) matches = true;
+      } else {
+        if (normApptDate === specificDate || appt.date === specificDate) matches = true;
       }
 
-      if (!matchesDay) continue;
+      if (!matches) continue;
 
       const apptStartMin = timeToMin(appt.time);
       const apptEndMin = apptStartMin + (appt.duration || 30);

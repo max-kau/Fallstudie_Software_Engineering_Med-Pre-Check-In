@@ -693,12 +693,31 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       }
 
       if (isRecurring && selectedDays.length === 0) {
-        if (statusMsg) {
-          statusMsg.style.display = 'inline';
-          statusMsg.style.color = '#DC2626';
-          statusMsg.textContent = 'Bitte mindestens einen Wochentag auswählen.';
-        }
+        showStatusError('Bitte mindestens einen Wochentag auswählen.');
         return;
+      }
+
+      if (!isRecurring && !specificDate) {
+        showStatusError('Bitte ein Datum für die einmalige Pufferzeit wählen.');
+        return;
+      }
+
+      // Helper function to format errors nicely
+      function showStatusError(msg) {
+        if (!statusMsg) return;
+        const cleanMsg = String(msg || 'Fehler beim Erstellen.')
+          .replace(/[\{\}\"\[\]]/g, '')
+          .replace(/^error:\s*/i, '')
+          .trim();
+        statusMsg.style.display = 'inline-block';
+        statusMsg.style.color = '#991B1B';
+        statusMsg.style.background = '#FEF2F2';
+        statusMsg.style.border = '1px solid #FCA5A5';
+        statusMsg.style.padding = '6px 12px';
+        statusMsg.style.borderRadius = '8px';
+        statusMsg.style.fontSize = '12px';
+        statusMsg.style.fontWeight = '600';
+        statusMsg.textContent = '⚠️ ' + cleanMsg;
       }
 
       // Frontend Conflict Check against allAppointments
@@ -714,8 +733,14 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
         if (isRecurring) {
           if (selectedDays.includes(apptDateObj.getDay())) matchesDay = true;
         } else {
-          const apptDateStr = `${apptDateObj.getFullYear()}-${String(apptDateObj.getMonth() + 1).padStart(2, '0')}-${String(apptDateObj.getDate()).padStart(2, '0')}`;
-          if (apptDateStr === specificDate) matchesDay = true;
+          const apptYear = apptDateObj.getFullYear();
+          const apptMonth = String(apptDateObj.getMonth() + 1).padStart(2, '0');
+          const apptDay = String(apptDateObj.getDate()).padStart(2, '0');
+          const apptISO = `${apptYear}-${apptMonth}-${apptDay}`;
+
+          if (apptISO === specificDate || appt.date === specificDate) {
+            matchesDay = true;
+          }
         }
 
         if (!matchesDay) continue;
@@ -730,11 +755,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       }
 
       if (apptConflicts.length > 0) {
-        if (statusMsg) {
-          statusMsg.style.display = 'inline';
-          statusMsg.style.color = '#DC2626';
-          statusMsg.textContent = '❌ Kollision mit bestehendem Patiententermin: ' + apptConflicts.join(', ');
-        }
+        showStatusError('Kollision mit bestehendem Patiententermin: ' + apptConflicts.join(', '));
         return;
       }
 
@@ -772,8 +793,14 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
 
       if (createdCount > 0) {
         if (statusMsg) {
-          statusMsg.style.display = 'inline';
+          statusMsg.style.display = 'inline-block';
           statusMsg.style.color = '#059669';
+          statusMsg.style.background = '#ECFDF5';
+          statusMsg.style.border = '1px solid #A7F3D0';
+          statusMsg.style.padding = '6px 12px';
+          statusMsg.style.borderRadius = '8px';
+          statusMsg.style.fontSize = '12px';
+          statusMsg.style.fontWeight = '600';
           statusMsg.textContent = `✓ ${createdCount} Pufferzeit(en) erstellt!`;
           setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
         }
@@ -781,11 +808,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
         markConflicts(allAppointments, allBufferTimes);
         render(); // Re-render panel
       } else {
-        if (statusMsg) {
-          statusMsg.style.display = 'inline';
-          statusMsg.style.color = '#DC2626';
-          statusMsg.textContent = '❌ ' + (lastError || 'Fehler beim Erstellen.');
-        }
+        showStatusError(lastError);
         createBtn.disabled = false;
         createBtn.innerHTML = '⏸️ Pufferzeit einplanen';
       }
