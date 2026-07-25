@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Med-Pre-Check-In | Interactive Test Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-primary: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.25);
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.25);
+      --warning: #f59e0b;
+      --warning-glow: rgba(245, 158, 11, 0.25);
+      --idle-color: #64748b;
+      --idle-glow: rgba(100, 116, 139, 0.2);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--bg-card-border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      font-size: 2rem;
+      background: linear-gradient(135deg, #60a5fa, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: var(--font-main);
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.65rem 1.25rem;
+      border-radius: 0.5rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border-color: var(--bg-card-border);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Overall Progress Bar Card */
+    .progress-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .progress-title {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .progress-status {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3b82f6, #10b981);
+      border-radius: 999px;
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .progress-bar-fill.running {
+      background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
+      background-size: 200% 100%;
+      animation: pulseGlow 1.5s infinite linear;
+    }
+
+    @keyframes pulseGlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .stat-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .stat-icon.total { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .stat-icon.passed { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .stat-icon.failed { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .stat-icon.idle { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+    .stat-icon.time { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+
+    .stat-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .stat-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* View Mode Switcher */
+    .view-switcher {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .view-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-muted);
+      font-family: var(--font-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.5rem 1.25rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .view-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .view-btn.active {
+      color: white;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.15));
+      border-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Category Filter Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--bg-card-border);
+      padding-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-main);
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: white;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+    }
+
+    /* Suite Cards List */
+    .suites-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .suite-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      transition: border-color 0.2s ease;
+    }
+
+    .suite-card.passed { border-left: 4px solid var(--success); }
+    .suite-card.failed { border-left: 4px solid var(--danger); }
+    .suite-card.running { border-left: 4px solid var(--accent-primary); }
+    .suite-card.idle { border-left: 4px solid var(--idle-color); }
+
+    .suite-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .suite-header:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .suite-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-pill {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-pill.passed { background: var(--success-glow); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .status-pill.failed { background: var(--danger-glow); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .status-pill.running { background: var(--accent-glow); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .status-pill.idle { background: var(--idle-glow); color: var(--idle-color); border: 1px solid rgba(100, 116, 139, 0.3); }
+    .status-pill.pending { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
+
+    .suite-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .suite-file {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .suite-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .suite-details {
+      padding: 0 1.25rem 1.25rem 1.25rem;
+      border-top: 1px solid var(--bg-card-border);
+      background: rgba(15, 23, 42, 0.4);
+      display: none;
+    }
+
+    .suite-card.open .suite-details {
+      display: block;
+    }
+
+    .test-case {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.85rem;
+    }
+
+    .test-case:last-child {
+      border-bottom: none;
+    }
+
+    .test-name {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .icon-pass { color: var(--success); }
+    .icon-fail { color: var(--danger); }
+    .icon-idle { color: var(--idle-color); }
+
+    .error-log {
+      margin-top: 0.5rem;
+      background: #090d16;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #f87171;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+
+    /* Tag Category Pill */
+    .cat-tag {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .cat-tag.unit { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .cat-tag.integration { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .cat-tag.e2e { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+
+    /* Feature Area Section Header */
+    .area-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .area-header {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--bg-card-border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .area-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      color: var(--text-muted);
+    }
+
+    /* ─── History View ─────────────────────────────────────────────── */
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .history-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      transition: border-color 0.2s ease;
+    }
+
+    .history-card.passed { border-left: 4px solid var(--success); }
+    .history-card.failed { border-left: 4px solid var(--danger); }
+
+    .history-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .history-header:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .history-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .history-timestamp {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .history-mode {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.25rem;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .history-stats {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .history-pass-rate {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .history-pass-rate.good { color: #34d399; }
+    .history-pass-rate.warn { color: #fbbf24; }
+    .history-pass-rate.bad { color: #f87171; }
+
+    .history-details {
+      display: none;
+      padding: 0 1.25rem 1.25rem 1.25rem;
+      border-top: 1px solid var(--bg-card-border);
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .history-card.open .history-details {
+      display: block;
+    }
+
+    .history-suite-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.85rem;
+    }
+
+    .history-suite-row:last-child {
+      border-bottom: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state small {
+      font-size: 0.85rem;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="brand">
+        <span class="brand-icon">🧪</span>
+        <div>
+          <h1>Med-Pre-Check-In Test Suite</h1>
+          <p>Interaktives Dashboard für Unit-, Integrations- und Systemtests</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btnToggleAll" class="btn btn-secondary" onclick="toggleAllSuites()">↕️ Alle auf/einklappen</button>
+        <button id="btnRunUnit" class="btn btn-secondary" onclick="runTests('unit')">⚡ Unit Tests</button>
+        <button id="btnRunIntegration" class="btn btn-secondary" onclick="runTests('integration')">🔗 Integrationstests</button>
+        <button id="btnRunE2E" class="btn btn-secondary" onclick="runTests('e2e')">🖥️ E2E Tests</button>
+        <button id="btnRunAll" class="btn btn-primary" onclick="runTests('all')">▶ Alle Tests ausführen</button>
+      </div>
+    </header>
+
+    <!-- Progress Card -->
+    <div class="progress-card">
+      <div class="progress-header">
+        <span class="progress-title" id="progressTitle">⏸️ Noch kein Testlauf gestartet</span>
+        <span class="progress-status" id="progressStatus">Klicke auf einen Button um Tests auszuführen</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon total">📊</div>
+        <div>
+          <div class="stat-val" id="statTotalTests">0</div>
+          <div class="stat-lbl" id="statTotalSub">Total Testfälle</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon passed">✅</div>
+        <div>
+          <div class="stat-val" id="statPassed" style="color: #34d399;">0</div>
+          <div class="stat-lbl">Bestanden</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon failed">❌</div>
+        <div>
+          <div class="stat-val" id="statFailed" style="color: #f87171;">0</div>
+          <div class="stat-lbl">Fehlgeschlagen</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon idle">⏳</div>
+        <div>
+          <div class="stat-val" id="statIdle" style="color: #94a3b8;">0</div>
+          <div class="stat-lbl">Ausstehend</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon time">⏱️</div>
+        <div>
+          <div class="stat-val" id="statDuration">--</div>
+          <div class="stat-lbl">Laufzeit</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Mode Switcher -->
+    <div class="view-switcher">
+      <button class="view-btn active" onclick="setViewMode('type', this)" id="viewBtnType">🏷️ Nach Test-Art</button>
+      <button class="view-btn" onclick="setViewMode('area', this)" id="viewBtnArea">📁 Nach Funktionsbereich</button>
+      <button class="view-btn" onclick="setViewMode('history', this)" id="viewBtnHistory">📜 Historie</button>
+    </div>
+
+    <!-- Category Tabs (for type & area modes) -->
+    <div class="tabs" id="filterTabs">
+      <!-- populated dynamically -->
+    </div>
+
+    <!-- Suites Container -->
+    <div class="suites-list" id="suitesContainer">
+      <!-- Dynamic content inserted here -->
+    </div>
+  </div>
+
+  <script>
+    let allSuitesData = { unit: [], integration: [], e2e: [] };
+    let featureAreas = {};
+    let currentViewMode = 'type'; // 'type', 'area', 'history'
+    let currentFilter = 'all';
+    let isRunning = false;
+    let suiteResultsMap = {};
+    let historyData = [];
+
+    function getApiBase() {
+      if (window.location.port === '3030') return '';
+      return 'http://localhost:3030';
+    }
+
+    // ─── Initial Load ─────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', async () => {
+      await Promise.all([fetchSuites(), fetchHistory()]);
+      renderTabs();
+      renderContent();
+    });
+
+    async function fetchSuites() {
+      try {
+        let res;
+        try {
+          res = await fetch('/api/tests/suites');
+          if (!res.ok) throw new Error('Not ok');
+        } catch (e) {
+          res = await fetch(`${getApiBase()}/api/tests/suites`);
+        }
+        const data = await res.json();
+        allSuitesData = data.suites || data;
+        featureAreas = data.featureAreas || {};
+
+        // Initialize suiteResultsMap with idle status
+        const all = [...(allSuitesData.unit || []), ...(allSuitesData.integration || []), ...(allSuitesData.e2e || [])];
+        all.forEach(s => {
+          const suiteTests = (s.tests || []).map(t => ({ ...t, status: 'idle' }));
+          suiteResultsMap[s.id] = {
+            ...s,
+            status: 'idle',
+            durationMs: 0,
+            numPassed: 0,
+            numFailed: 0,
+            tests: suiteTests
+          };
+        });
+
+        updateStats();
+      } catch (err) {
+        console.error('Fehler beim Laden der Suiten:', err);
+      }
+    }
+
+    async function fetchHistory() {
+      try {
+        let res;
+        try {
+          res = await fetch('/api/tests/history');
+          if (!res.ok) throw new Error('Not ok');
+        } catch (e) {
+          res = await fetch(`${getApiBase()}/api/tests/history`);
+        }
+        historyData = await res.json();
+      } catch (err) {
+        console.error('Fehler beim Laden der Historie:', err);
+        historyData = [];
+      }
+    }
+
+    async function clearHistory() {
+      if (!confirm('Gesamte Test-Historie löschen?')) return;
+      try {
+        let res;
+        try {
+          res = await fetch('/api/tests/history/clear', { method: 'DELETE' });
+          if (!res.ok) throw new Error('Not ok');
+        } catch (e) {
+          res = await fetch(`${getApiBase()}/api/tests/history/clear`, { method: 'DELETE' });
+        }
+        historyData = [];
+        renderContent();
+      } catch (err) {
+        console.error('Fehler beim Löschen der Historie:', err);
+      }
+    }
+
+    // ─── Stats ─────────────────────────────────────────────────────────────
+    function updateStats() {
+      const all = Object.values(suiteResultsMap);
+      let totalTests = 0, passed = 0, failed = 0, idle = 0;
+
+      all.forEach(s => {
+        if (s.tests) {
+          s.tests.forEach(t => {
+            totalTests++;
+            if (t.status === 'passed') passed++;
+            else if (t.status === 'failed') failed++;
+            else idle++;
+          });
+        }
+      });
+
+      const totalSuites = all.length;
+      document.getElementById('statTotalTests').textContent = totalTests;
+      document.getElementById('statTotalSub').textContent = `Total Testfälle (${totalSuites} Suiten)`;
+      document.getElementById('statPassed').textContent = passed;
+      document.getElementById('statFailed').textContent = failed;
+      document.getElementById('statIdle').textContent = idle;
+    }
+
+    // ─── View Mode Switcher ────────────────────────────────────────────────
+    function setViewMode(mode, btnElem) {
+      currentViewMode = mode;
+      currentFilter = 'all';
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      btnElem.classList.add('active');
+      renderTabs();
+      renderContent();
+    }
+
+    // ─── Filter Tabs ──────────────────────────────────────────────────────
+    function renderTabs() {
+      const tabsContainer = document.getElementById('filterTabs');
+      tabsContainer.innerHTML = '';
+
+      if (currentViewMode === 'history') {
+        tabsContainer.style.display = 'none';
+        return;
+      }
+
+      tabsContainer.style.display = 'flex';
+      const all = Object.values(suiteResultsMap);
+
+      if (currentViewMode === 'type') {
+        const countUnit = all.filter(s => s.category === 'unit').reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
+        const countIntegration = all.filter(s => s.category === 'integration').reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
+        const countE2E = all.filter(s => s.category === 'e2e').reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
+        const totalTests = countUnit + countIntegration + countE2E;
+
+        const tabs = [
+          { key: 'all', label: `Alle Suiten`, badge: `${all.length} Suiten` },
+          { key: 'unit', label: `Unit Tests`, badge: `${countUnit} Tests` },
+          { key: 'integration', label: `Integrationstests`, badge: `${countIntegration} Tests` },
+          { key: 'e2e', label: `System (E2E)`, badge: `${countE2E} Tests` },
+        ];
+
+        tabs.forEach(tab => {
+          const btn = document.createElement('button');
+          btn.className = `tab-btn${tab.key === currentFilter ? ' active' : ''}`;
+          btn.innerHTML = `${tab.label} <span class="badge">${tab.badge}</span>`;
+          btn.onclick = () => { currentFilter = tab.key; renderTabs(); renderContent(); };
+          tabsContainer.appendChild(btn);
+        });
+
+      } else if (currentViewMode === 'area') {
+        // Area-based tabs
+        const areaKeys = Object.keys(featureAreas).sort((a, b) => (featureAreas[a].order || 0) - (featureAreas[b].order || 0));
+        const tabs = [{ key: 'all', label: 'Alle Bereiche', badge: `${all.length} Suiten` }];
+
+        areaKeys.forEach(key => {
+          const area = featureAreas[key];
+          const suitesInArea = all.filter(s => s.area === key);
+          const testCount = suitesInArea.reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
+          tabs.push({ key, label: area.label, badge: `${testCount} Tests` });
+        });
+
+        tabs.forEach(tab => {
+          const btn = document.createElement('button');
+          btn.className = `tab-btn${tab.key === currentFilter ? ' active' : ''}`;
+          btn.innerHTML = `${tab.label} <span class="badge">${tab.badge}</span>`;
+          btn.onclick = () => { currentFilter = tab.key; renderTabs(); renderContent(); };
+          tabsContainer.appendChild(btn);
+        });
+      }
+    }
+
+    // ─── Content Renderer ──────────────────────────────────────────────────
+    function renderContent() {
+      if (currentViewMode === 'history') {
+        renderHistory();
+      } else if (currentViewMode === 'area') {
+        renderByArea();
+      } else {
+        renderByType();
+      }
+    }
+
+    // ─── Render: By Test Type ──────────────────────────────────────────────
+    function renderByType() {
+      const container = document.getElementById('suitesContainer');
+      container.innerHTML = '';
+
+      const allList = Object.values(suiteResultsMap);
+      const filtered = currentFilter === 'all'
+        ? allList
+        : allList.filter(s => s.category === currentFilter);
+
+      filtered.forEach(suite => {
+        container.appendChild(createSuiteCard(suite));
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Keine Tests in dieser Kategorie gefunden.</p></div>';
+      }
+    }
+
+    // ─── Render: By Feature Area ───────────────────────────────────────────
+    function renderByArea() {
+      const container = document.getElementById('suitesContainer');
+      container.innerHTML = '';
+
+      const allList = Object.values(suiteResultsMap);
+      const areaKeys = Object.keys(featureAreas).sort((a, b) => (featureAreas[a].order || 0) - (featureAreas[b].order || 0));
+
+      const areasToShow = currentFilter === 'all' ? areaKeys : [currentFilter];
+
+      areasToShow.forEach(areaKey => {
+        const area = featureAreas[areaKey];
+        if (!area) return;
+
+        const suitesInArea = allList.filter(s => s.area === areaKey);
+        if (suitesInArea.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'area-section';
+
+        const testCount = suitesInArea.reduce((acc, s) => acc + (s.tests ? s.tests.length : 0), 0);
+        section.innerHTML = `<div class="area-header">${area.label} <span class="area-badge">${suitesInArea.length} Suiten · ${testCount} Tests</span></div>`;
+
+        const list = document.createElement('div');
+        list.className = 'suites-list';
+        suitesInArea.forEach(suite => {
+          list.appendChild(createSuiteCard(suite));
+        });
+
+        section.appendChild(list);
+        container.appendChild(section);
+      });
+    }
+
+    // ─── Render: History ───────────────────────────────────────────────────
+    function renderHistory() {
+      const container = document.getElementById('suitesContainer');
+      container.innerHTML = '';
+
+      if (historyData.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📜</div>
+            <p>Noch keine Testläufe in der Historie.</p>
+            <small>Starte einen Testlauf, um hier Ergebnisse zu sehen.</small>
+          </div>`;
+        return;
+      }
+
+      // Clear history button
+      const clearBtn = document.createElement('div');
+      clearBtn.style.cssText = 'text-align: right; margin-bottom: 1rem;';
+      clearBtn.innerHTML = `<button class="btn btn-danger" onclick="clearHistory()">🗑️ Historie löschen</button>`;
+      container.appendChild(clearBtn);
+
+      const list = document.createElement('div');
+      list.className = 'history-list';
+
+      historyData.forEach((run, index) => {
+        const card = document.createElement('div');
+        card.className = `history-card ${run.status}`;
+
+        const ts = new Date(run.timestamp);
+        const dateStr = ts.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = ts.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const durationStr = (run.durationMs / 1000).toFixed(2) + 's';
+        const passRateClass = run.passRate >= 90 ? 'good' : (run.passRate >= 60 ? 'warn' : 'bad');
+        const modeLabel = run.category === 'all' ? 'Alle Tests' : run.category.toUpperCase();
+        const statusIcon = run.status === 'passed' ? '✅' : '⚠️';
+
+        card.innerHTML = `
+          <div class="history-header" onclick="toggleHistory(${index})">
+            <div class="history-info">
+              <span style="font-size:1.25rem">${statusIcon}</span>
+              <div>
+                <div class="history-timestamp">${dateStr} · ${timeStr}</div>
+                <span class="history-mode">${modeLabel}</span>
+              </div>
+            </div>
+            <div class="history-stats">
+              <span class="history-pass-rate ${passRateClass}">${run.passRate}% bestanden</span>
+              <span><span style="color:#34d399">✓ ${run.totalTestsPassed}</span> / <span style="color:#f87171">✗ ${run.totalTestsFailed}</span> / ${run.totalTests} Tests</span>
+              <span>⏱️ ${durationStr}</span>
+              <span>▼</span>
+            </div>
+          </div>
+          <div class="history-details" id="historyDetail-${index}">
+            <div style="margin-top:0.75rem;">
+              ${(run.suites || []).map(s => `
+                <div class="history-suite-row">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span class="status-pill ${s.status}" style="font-size:0.65rem; padding:0.15rem 0.4rem;">${s.status === 'passed' ? '✓' : '✗'}</span>
+                    <span class="cat-tag ${s.category}">${s.category}</span>
+                    <span>${s.name}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:1rem; color:var(--text-muted); font-size:0.8rem;">
+                    <span><span style="color:#34d399">✓ ${s.numPassed}</span> / <span style="color:#f87171">✗ ${s.numFailed}</span></span>
+                    <span>⏱️ ${(s.durationMs / 1000).toFixed(2)}s</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+
+        list.appendChild(card);
+      });
+
+      container.appendChild(list);
+    }
+
+    function toggleHistory(index) {
+      const cards = document.querySelectorAll('.history-card');
+      if (cards[index]) {
+        cards[index].classList.toggle('open');
+      }
+    }
+
+    // ─── Suite Card Creator ────────────────────────────────────────────────
+    function createSuiteCard(suite) {
+      const card = document.createElement('div');
+      card.className = `suite-card ${suite.status} ${allExpanded ? 'open' : ''}`;
+      card.id = `card-${suite.id}`;
+
+      const statusLabel = suite.status === 'idle' ? 'ausstehend' : suite.status;
+      const durationDisplay = suite.durationMs > 0 ? (suite.durationMs / 1000).toFixed(2) + 's' : '--';
+
+      card.innerHTML = `
+        <div class="suite-header" onclick="toggleSuite('${suite.id}')">
+          <div class="suite-title-group">
+            <span class="status-pill ${suite.status}">${statusLabel}</span>
+            <span class="cat-tag ${suite.category}">${suite.category}</span>
+            <div>
+              <div class="suite-name">${suite.name} (${suite.testCount || (suite.tests ? suite.tests.length : 0)} Testfälle)</div>
+              <div class="suite-file">${suite.file}</div>
+            </div>
+          </div>
+          <div class="suite-meta">
+            <span>${durationDisplay}</span>
+            <span>${suite.numPassed > 0 ? `<span style="color:#34d399">✓ ${suite.numPassed}</span>` : ''} ${suite.numFailed > 0 ? `<span style="color:#f87171">✗ ${suite.numFailed}</span>` : ''}</span>
+            <span>▼</span>
+          </div>
+        </div>
+        <div class="suite-details">
+          <div style="margin-top: 0.75rem;">
+            ${suite.tests && suite.tests.length > 0 ? suite.tests.map(t => `
+              <div class="test-case">
+                <div style="flex:1;">
+                  <div class="test-name">
+                    ${t.status === 'passed' ? '<span class="icon-pass">✓</span>' : (t.status === 'failed' ? '<span class="icon-fail">✗</span>' : '<span class="icon-idle">○</span>')}
+                    <span style="${t.status === 'idle' ? 'color:var(--text-muted);' : ''}">${t.name}</span>
+                  </div>
+                  ${t.errorMessage ? `<div class="error-log">${t.errorMessage}</div>` : ''}
+                </div>
+              </div>
+            `).join('') : '<p style="color:var(--text-muted); font-size:0.85rem;">Keine Testfälle erkannt.</p>'}
+          </div>
+        </div>
+      `;
+      return card;
+    }
+
+    function toggleSuite(id) {
+      const card = document.getElementById(`card-${id}`);
+      if (card) {
+        card.classList.toggle('open');
+      }
+    }
+
+    // ─── Toggle All ────────────────────────────────────────────────────────
+    let allExpanded = false;
+    function toggleAllSuites() {
+      allExpanded = !allExpanded;
+      document.querySelectorAll('.suite-card').forEach(c => {
+        if (allExpanded) c.classList.add('open');
+        else c.classList.remove('open');
+      });
+    }
+
+    // ─── Run Tests ─────────────────────────────────────────────────────────
+    function setButtonsDisabled(disabled) {
+      document.querySelectorAll('.btn').forEach(b => b.disabled = disabled);
+    }
+
+    function runTests(category) {
+      if (isRunning) return;
+      isRunning = true;
+      setButtonsDisabled(true);
+
+      // Reset statistics for target suites
+      const all = Object.values(suiteResultsMap);
+      all.forEach(s => {
+        if (category === 'all' || s.category === category) {
+          s.status = 'pending';
+          s.durationMs = 0;
+          s.numPassed = 0;
+          s.numFailed = 0;
+          if (s.tests) {
+            s.tests.forEach(t => { t.status = 'pending'; t.errorMessage = null; });
+          }
+        }
+      });
+
+      // Switch to type view if not already on it
+      if (currentViewMode === 'history') {
+        currentViewMode = 'type';
+        document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('viewBtnType').classList.add('active');
+        renderTabs();
+      }
+
+      updateStats();
+      renderContent();
+
+      const progressBar = document.getElementById('progressBarFill');
+      const progressTitle = document.getElementById('progressTitle');
+      const progressStatus = document.getElementById('progressStatus');
+
+      progressBar.style.width = '0%';
+      progressBar.classList.add('running');
+      progressTitle.textContent = `🔄 Führe ${category === 'all' ? 'alle' : category.toUpperCase()} Tests aus...`;
+      progressStatus.textContent = `0% gestartet`;
+
+      document.getElementById('statDuration').textContent = '0.0s';
+
+      const sseUrl = window.location.port === '3030'
+        ? `/api/tests/run?category=${category}`
+        : `${getApiBase()}/api/tests/run?category=${category}`;
+
+      const eventSource = new EventSource(sseUrl);
+
+      eventSource.addEventListener('start', (e) => {
+        const data = JSON.parse(e.data);
+      });
+
+      eventSource.addEventListener('suite_start', (e) => {
+        const data = JSON.parse(e.data);
+        if (suiteResultsMap[data.suiteId]) {
+          suiteResultsMap[data.suiteId].status = 'running';
+          renderContent();
+        }
+        progressStatus.textContent = `Führe aus: ${data.name} (${data.index} / ${data.total} Suiten)`;
+      });
+
+      eventSource.addEventListener('suite_complete', (e) => {
+        const data = JSON.parse(e.data);
+        if (suiteResultsMap[data.suiteId]) {
+          suiteResultsMap[data.suiteId].status = data.status;
+          suiteResultsMap[data.suiteId].durationMs = data.durationMs;
+          suiteResultsMap[data.suiteId].numPassed = data.numPassed;
+          suiteResultsMap[data.suiteId].numFailed = data.numFailed;
+          suiteResultsMap[data.suiteId].tests = data.tests;
+          renderContent();
+        }
+
+        updateStats();
+        progressBar.style.width = `${data.progressPercent}%`;
+
+        const sumPassed = parseInt(document.getElementById('statPassed').textContent) || 0;
+        progressStatus.textContent = `${data.completedCount} / ${data.totalSuites} Suiten abgeschlossen (${data.progressPercent}%) - ${sumPassed} Tests bestanden`;
+      });
+
+      eventSource.addEventListener('finish', (e) => {
+        const data = JSON.parse(e.data);
+        eventSource.close();
+        isRunning = false;
+        setButtonsDisabled(false);
+
+        progressBar.classList.remove('running');
+        progressBar.style.width = '100%';
+
+        progressTitle.textContent = data.status === 'passed' ? '🎉 Alle Tests erfolgreich bestanden!' : '⚠️ Testlauf mit Fehlern beendet';
+        progressStatus.textContent = `${data.completedCount} Suiten abgeschlossen in ${(data.totalDurationMs / 1000).toFixed(2)}s`;
+
+        document.getElementById('statDuration').textContent = `${(data.totalDurationMs / 1000).toFixed(2)}s`;
+        updateStats();
+
+        // Refresh history after run completes
+        fetchHistory().then(() => {
+          // If user is on history tab, re-render
+          if (currentViewMode === 'history') renderContent();
+        });
+      });
+
+      eventSource.onerror = (err) => {
+        console.error('SSE Error:', err);
+        eventSource.close();
+        isRunning = false;
+        setButtonsDisabled(false);
+        progressBar.classList.remove('running');
+        progressTitle.textContent = '❌ Verbindung zum Test-Server unterbrochen';
+      };
+    }
+  </script>
+</body>
+</html>

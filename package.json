@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "start": "node server.js",
     "test": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:dashboard": "node test_dashboard_server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
