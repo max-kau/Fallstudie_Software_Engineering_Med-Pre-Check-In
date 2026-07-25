@@ -38,13 +38,16 @@ export function renderPraxisDashboardView() {
           </div>
         </div>
 
-        <!-- Navigation Tabs (3 tabs: Kalender, Statistik, Gestaltung) -->
-        <div style="display: flex; gap: var(--space-4); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px;">
+        <!-- Navigation Tabs (4 tabs: Kalender, Statistik, Behandlungszeiten, Gestaltung) -->
+        <div style="display: flex; gap: var(--space-4); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px; flex-wrap: wrap;">
           <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
             📅 Kalender
           </button>
           <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
             📊 Statistik & Termine
+          </button>
+          <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+            ⏱️ Behandlungszeiten & Analyse
           </button>
           <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
             🎨 Pre-Check-In gestalten
@@ -71,6 +74,45 @@ export function renderPraxisDashboardView() {
             <div style="text-align: center; padding: var(--space-8) 0;">
               <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
               <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Termine werden geladen...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content: Behandlungszeiten & Analyse -->
+        <div id="tab-content-zeiten" class="dashboard-tab-content" style="display: none;">
+          <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
+            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">⏱️ Datengestützte Behandlungszeiten & Verzugsschutz</h2>
+            <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-4); line-height: 1.5;">
+              Das System misst automatisch die Realdauer aller abgeschlossenen Behandlungen in Ihrer Praxis und vergleicht diese mit Ihrer manuellen Vorgabe.
+            </p>
+
+            <!-- Clear Explanation Guide Box -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); background: var(--bg-gray); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
+              <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 20px;">⚡</span>
+                <div>
+                  <strong style="color: var(--primary); font-size: var(--font-size-sm);">Verzugsschutz Aktiviert (Automatik):</strong>
+                  <p style="font-size: 0.78rem; color: var(--gray-600); margin-top: 2px; line-height: 1.4;">
+                    Das System nutzt die <strong>historische Ist-Dauer</strong> für neue Kalenderbuchungen und für die Live-Warteschlangen-Prognose. Dies verhindert Terminverzüge im Praxisalltag.
+                  </p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <span style="font-size: 20px;">📌</span>
+                <div>
+                  <strong style="color: #B45309; font-size: var(--font-size-sm);">Verzugsschutz Deaktiviert (Manuell):</strong>
+                  <p style="font-size: 0.78rem; color: var(--gray-600); margin-top: 2px; line-height: 1.4;">
+                    Das System nutzt starr Ihre <strong>manuell festgelegte Soll-Dauer</strong>. Historische Realdaten werden weiterhin im Hintergrund gesammelt.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div id="praxis-duration-analysis-container">
+              <div style="text-align: center; padding: var(--space-6) 0;">
+                <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
+                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Analysedaten werden geladen...</p>
+              </div>
             </div>
           </div>
         </div>
@@ -321,10 +363,11 @@ export async function initPraxisDashboardView() {
     navigate('live-queue');
   });
 
-  // Tab switching logic for 3 tabs
+  // Tab switching logic for 4 tabs
   const tabs = [
     { btn: 'tab-dashboard-kalender', content: 'tab-content-kalender' },
     { btn: 'tab-dashboard-termine', content: 'tab-content-termine' },
+    { btn: 'tab-dashboard-zeiten', content: 'tab-content-zeiten' },
     { btn: 'tab-dashboard-gestaltung', content: 'tab-content-gestaltung' }
   ];
 
@@ -337,6 +380,9 @@ export async function initPraxisDashboardView() {
           b?.classList.add('active');
           if (b) { b.style.color = 'var(--primary)'; b.style.borderBottomColor = 'var(--primary)'; }
           if (c) c.style.display = 'block';
+          if (t.btn === 'tab-dashboard-zeiten') {
+            loadDurationAnalysis();
+          }
         } else {
           b?.classList.remove('active');
           if (b) { b.style.color = 'var(--gray-500)'; b.style.borderBottomColor = 'transparent'; }
@@ -345,6 +391,136 @@ export async function initPraxisDashboardView() {
       });
     });
   });
+
+  // Load duration analysis logic
+  async function loadDurationAnalysis() {
+    const container = document.getElementById('praxis-duration-analysis-container');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/praxis/terminarten/analyse');
+      const data = await res.json();
+      if (!data.success || !data.analysis) {
+        throw new Error('Analysedaten konnten nicht geladen werden.');
+      }
+
+      const rows = data.analysis;
+      let html = `
+        <div style="overflow-x: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-xl); background: white;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: var(--font-size-sm);">
+            <thead>
+              <tr style="background: var(--bg-gray); border-bottom: 1px solid var(--gray-200);">
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Besuchsgrund (Art)</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Soll-Dauer (manuell)</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Ist-Schnitt (historisch)</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Messungen</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Effektiver Wert</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Abweichung</th>
+                <th style="padding: var(--space-3) var(--space-4); text-align: center; font-weight: 700; color: var(--gray-700);">Verzugsschutz (Automatik)</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      rows.forEach(item => {
+        const trendBadge = item.diff > 2
+          ? `<span style="background: #FEE2E2; color: #DC2626; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔴 +${item.diff} Min.</span>`
+          : (item.diff < -2
+            ? `<span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔵 ${item.diff} Min.</span>`
+            : `<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🟢 Im Soll</span>`);
+
+        const manualCellStyle = item.useAuto ? 'opacity: 0.65;' : 'background: #FEF3C7; padding: 6px 10px; border-radius: 8px; border: 1px solid #FCD34D;';
+        const manualBadge = item.useAuto ? '' : '<span style="font-size: 10px; background: #B45309; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; display: inline-block; margin-top: 2px;">📌 AKTIV</span>';
+
+        const avgCellStyle = item.useAuto ? 'background: #EFF6FF; padding: 6px 10px; border-radius: 8px; border: 1px solid #93C5FD;' : 'opacity: 0.65;';
+        const avgBadge = item.useAuto ? '<span style="font-size: 10px; background: #0063BE; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; display: inline-block; margin-top: 2px;">⚡ AKTIV</span>' : '';
+
+        const effectiveBadge = item.useAuto
+          ? `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 12px; display: inline-block;">⚡ ${item.effectiveDuration} Min. (Automatik)</span>`
+          : `<span style="background: #FEF3C7; color: #92400E; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 12px; display: inline-block;">📌 ${item.effectiveDuration} Min. (Manuell)</span>`;
+
+        html += `
+          <tr style="border-bottom: 1px solid var(--gray-100);">
+            <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${item.art}</td>
+            <td style="padding: var(--space-3) var(--space-4);">
+              <div style="${manualCellStyle}">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <input type="number" class="manual-duration-input" data-art="${item.art}" value="${item.manualDuration}" min="5" max="180" style="width: 70px; padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
+                  <span style="color: var(--gray-600); font-size: 12px; font-weight: 600;">Min.</span>
+                </div>
+                ${manualBadge}
+              </div>
+            </td>
+            <td style="padding: var(--space-3) var(--space-4);">
+              <div style="${avgCellStyle}">
+                <div style="font-weight: 700; color: var(--primary); font-size: 13px;">${item.calculatedAvg} Min.</div>
+                ${avgBadge}
+              </div>
+            </td>
+            <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">${item.sampleCount} Behandlungen</td>
+            <td style="padding: var(--space-3) var(--space-4);">${effectiveBadge}</td>
+            <td style="padding: var(--space-3) var(--space-4);">${trendBadge}</td>
+            <td style="padding: var(--space-3) var(--space-4); text-align: center;">
+              <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: ${item.useAuto ? 'var(--primary)' : '#B45309'}; background: ${item.useAuto ? '#E8F4FD' : '#FEF3C7'}; padding: 6px 12px; border-radius: 20px;">
+                <input type="checkbox" class="auto-duration-toggle" data-art="${item.art}" ${item.useAuto ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                <span>${item.useAuto ? '⚡ Automatik' : '📌 Manuell'}</span>
+              </label>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: var(--space-4); display: flex; justify-content: space-between; align-items: center; font-size: var(--font-size-xs); color: var(--gray-500);">
+          <span>💡 Änderungen an den Vorgabewerten und Schaltern werden sofort gespeichert.</span>
+          <button id="btn-refresh-duration-analysis" class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--gray-300); cursor: pointer;">🔄 Daten aktualisieren</button>
+        </div>
+      `;
+
+      container.innerHTML = html;
+
+      // Register event handlers for manual duration input and toggle switch
+      container.querySelectorAll('.manual-duration-input').forEach(input => {
+        input.addEventListener('change', async () => {
+          const art = input.dataset.art;
+          const manualDuration = Number(input.value) || 15;
+          const toggle = container.querySelector(`.auto-duration-toggle[data-art="${CSS.escape(art)}"]`);
+          const useAuto = toggle ? toggle.checked : true;
+          await saveTerminartSettings(art, manualDuration, useAuto);
+        });
+      });
+
+      container.querySelectorAll('.auto-duration-toggle').forEach(toggle => {
+        toggle.addEventListener('change', async () => {
+          const art = toggle.dataset.art;
+          const input = container.querySelector(`.manual-duration-input[data-art="${CSS.escape(art)}"]`);
+          const manualDuration = input ? Number(input.value) || 15 : 15;
+          const useAuto = toggle.checked;
+          await saveTerminartSettings(art, manualDuration, useAuto);
+        });
+      });
+
+      document.getElementById('btn-refresh-duration-analysis')?.addEventListener('click', loadDurationAnalysis);
+    } catch (err) {
+      container.innerHTML = `<div style="color: var(--error); padding: var(--space-4); text-align: center; font-weight: 600;">❌ Fehler beim Laden der Behandlungszeitanalyse: ${err.message}</div>`;
+    }
+  }
+
+  async function saveTerminartSettings(art, manualDuration, useAuto) {
+    try {
+      await fetch('/api/praxis/terminarten/einstellungen', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ art, manualDuration, useAuto })
+      });
+      loadDurationAnalysis();
+    } catch (e) {
+      console.error('Failed to save settings:', e);
+    }
+  }
 
   const statsContainer = document.getElementById('praxis-stats-container');
   const termineContainer = document.getElementById('praxis-termine-container');
