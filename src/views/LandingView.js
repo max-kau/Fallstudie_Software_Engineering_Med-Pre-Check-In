@@ -3,6 +3,7 @@ import { auth } from '../utils/auth.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { praxen } from '../data/praxen.js';
 import { openRescheduleModal } from '../components/RescheduleModal.js';
+import { exportAppointmentToIcs } from '../utils/icsExport.js';
 
 function getPraxisInfo(praxisName) {
   const nameToMatch = praxisName || '';
@@ -993,6 +994,9 @@ function renderCardsList(appointments) {
             📺 Live-Warteschlange ansehen
           </button>
           ` : ''}
+          <button class="btn btn-export-ics btn-outline" data-code="${appt.code}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
+            📥 Kalender-Export (.ics)
+          </button>
           <button class="btn btn-reschedule btn-outline" data-code="${appt.code}" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
             📅 Termin verschieben
           </button>
@@ -1015,6 +1019,17 @@ function renderCardsList(appointments) {
       const code = e.currentTarget.getAttribute('data-code');
       const target = e.currentTarget.getAttribute('data-target');
       window.location.href = `?termin=${code}#${target}`;
+    });
+  });
+
+  // Attach click events for ICS calendar export
+  container.querySelectorAll('.btn-export-ics').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const code = e.currentTarget.getAttribute('data-code');
+      const targetAppt = termineList.find(a => a.code === code);
+      if (targetAppt) {
+        exportAppointmentToIcs(targetAppt);
+      }
     });
   });
 
