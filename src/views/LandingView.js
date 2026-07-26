@@ -1026,7 +1026,7 @@ function renderCardsList(appointments) {
   container.querySelectorAll('.btn-export-ics').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const code = e.currentTarget.getAttribute('data-code');
-      const targetAppt = termineList.find(a => a.code === code);
+      const targetAppt = appointments.find(a => a.code === code);
       if (targetAppt) {
         exportAppointmentToIcs(targetAppt);
       }
