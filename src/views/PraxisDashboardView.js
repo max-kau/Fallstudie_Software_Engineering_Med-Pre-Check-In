@@ -39,20 +39,20 @@ export function renderPraxisDashboardView() {
         </div>
 
         <!-- Navigation Tabs (5 tabs: Kalender, Statistik, Behandlungszeiten, Aktivitätslog, Gestaltung) -->
-        <div style="display: flex; gap: var(--space-4); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px; flex-wrap: wrap;">
-          <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+        <div style="display: flex; gap: var(--space-2); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+          <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             📅 Kalender
           </button>
-          <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             📊 Statistik & Termine
           </button>
-          <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             ⏱️ Behandlungszeiten & Analyse
           </button>
-          <button id="tab-dashboard-activity" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-activity" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             📜 Aktivitätslog
           </button>
-          <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             🎨 Pre-Check-In gestalten
           </button>
         </div>
@@ -434,7 +434,7 @@ export async function initPraxisDashboardView() {
         const c = document.getElementById(t.content);
         if (t.btn === tab.btn) {
           b?.classList.add('active');
-          if (b) { b.style.color = 'var(--primary)'; b.style.borderBottomColor = 'var(--primary)'; }
+          if (b) { b.style.color = 'var(--primary)'; b.style.borderBottomColor = 'var(--primary)'; b.style.fontWeight = '700'; }
           if (c) c.style.display = 'block';
           if (t.btn === 'tab-dashboard-zeiten') {
             loadDurationAnalysis();
@@ -443,7 +443,7 @@ export async function initPraxisDashboardView() {
           }
         } else {
           b?.classList.remove('active');
-          if (b) { b.style.color = 'var(--gray-500)'; b.style.borderBottomColor = 'transparent'; }
+          if (b) { b.style.color = 'var(--gray-500)'; b.style.borderBottomColor = 'transparent'; b.style.fontWeight = '600'; }
           if (c) c.style.display = 'none';
         }
       });
