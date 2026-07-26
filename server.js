@@ -333,6 +333,23 @@ async function initDb() {
     await pool.query('ALTER TABLE queue_status ADD COLUMN IF NOT EXISTS early_minutes INTEGER DEFAULT 0;');
     console.log('Table "queue_status" verified/created with early_minutes.');
 
+    // Create activity_logs table for patient visit & appointment history (90 days retention)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id SERIAL PRIMARY KEY,
+        praxis_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        praxis_name VARCHAR(255) NOT NULL,
+        patient_id INTEGER,
+        patient_name VARCHAR(255),
+        termin_code VARCHAR(50),
+        status VARCHAR(50) NOT NULL,
+        action TEXT NOT NULL,
+        staff_name VARCHAR(255) NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Table "activity_logs" verified/created.');
+
     // Remove the demo user if it exists to allow only custom testing
     await pool.query("DELETE FROM users WHERE email = 'max@doctolib.de'");
     console.log('Demo user max@doctolib.de verified removed from database.');
@@ -340,6 +357,44 @@ async function initDb() {
   } catch (err) {
     console.error('Database initialization failed:', err);
     isDbConnected = false;
+  }
+}
+
+// Automatically purge activity log entries older than 90 days (DSGVO Requirement)
+async function purgeOldActivityLogs() {
+  if (!isDbConnected || !pool) return;
+  try {
+    const res = await pool.query(
+      `DELETE FROM activity_logs WHERE timestamp < NOW() - INTERVAL '90 days'`
+    );
+    if (res && res.rowCount > 0) {
+      console.log(`Auto-purged ${res.rowCount} activity logs older than 90 days.`);
+    }
+  } catch (err) {
+    console.error('Error purging old activity logs:', err);
+  }
+}
+
+// Log patient visit & appointment activity
+async function logActivity({ praxisId, praxisName, patientId, patientName, terminCode, status, action, staffName }) {
+  if (!isDbConnected || !pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO activity_logs (praxis_id, praxis_name, patient_id, patient_name, termin_code, status, action, staff_name, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      [
+        praxisId || null,
+        praxisName || '',
+        patientId || null,
+        patientName || 'Patient',
+        terminCode || null,
+        status || 'unbekannt',
+        action || 'Aktivität erfasst',
+        staffName || 'System'
+      ]
+    );
+  } catch (err) {
+    console.error('Error logging activity:', err);
   }
 }
 
@@ -4530,6 +4585,16 @@ app.post('/api/queue/:terminCode/accept', async (req, res) => {
        ON CONFLICT (termin_code) DO UPDATE SET status = 'in_treatment', updated_at = NOW()`,
       [req.session.user.praxis_name, terminCode]
     );
+
+    await logActivity({
+      praxisId: req.session.userId,
+      praxisName: req.session.user.praxis_name,
+      terminCode,
+      status: 'in_treatment',
+      action: 'Patient in Behandlung genommen (Erschienen)',
+      staffName: req.session.user?.email || 'Praxismitarbeiter'
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error accepting patient:', err);
@@ -4590,6 +4655,16 @@ app.post('/api/queue/:terminCode/done', async (req, res) => {
        ON CONFLICT (termin_code) DO UPDATE SET status = 'done', updated_at = NOW()`,
       [praxisName, terminCode]
     );
+
+    await logActivity({
+      praxisId: req.session.userId,
+      praxisName,
+      terminCode,
+      status: 'erschienen',
+      action: `Behandlung abgeschlossen (Dauer: ${durationMinutes} Min)`,
+      staffName: req.session.user?.email || 'Praxismitarbeiter'
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('Error marking done:', err);
@@ -4627,6 +4702,15 @@ app.post('/api/queue/:terminCode/delay', async (req, res) => {
       [req.session.user.praxis_name, terminCode, delay_minutes || 0, reason || '']
     );
 
+    await logActivity({
+      praxisId: req.session.userId,
+      praxisName: req.session.user.praxis_name,
+      terminCode,
+      status: 'verzögert',
+      action: `Termin um ${delay_minutes || 0} Min verzögert (Grund: ${reason || 'Kein Grund'})`,
+      staffName: req.session.user?.email || 'Praxismitarbeiter'
+    });
+
     // Send delay email to patient
     if (appt.patient_email) {
       try {
@@ -4640,6 +4724,71 @@ app.post('/api/queue/:terminCode/delay', async (req, res) => {
   } catch (err) {
     console.error('Error delaying appointment:', err);
     res.status(500).json({ error: 'Fehler beim Verzögern des Termins.' });
+  }
+});
+
+// API: Get Activity Logs for Praxis (Strictly scoped by praxis, auto-purges >90 days)
+app.get('/api/praxis/activity-logs', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Zugriff verweigert. Nur für autorisiertes Praxispersonal zugänglich.' });
+  }
+
+  try {
+    await purgeOldActivityLogs();
+
+    const praxisUserId = req.session.userId;
+    const praxisName = req.session.user.praxis_name;
+
+    if (!isDbConnected || !pool) {
+      return res.json({ success: true, logs: [] });
+    }
+
+    const result = await pool.query(
+      `SELECT id, praxis_id, praxis_name, patient_id, patient_name, termin_code, status, action, staff_name, timestamp
+       FROM activity_logs
+       WHERE praxis_id = $1 OR praxis_name = $2
+       ORDER BY timestamp DESC`,
+      [praxisUserId, praxisName]
+    );
+
+    res.json({ success: true, logs: result.rows });
+  } catch (err) {
+    console.error('Error fetching activity logs:', err);
+    res.status(500).json({ error: 'Fehler beim Laden des Aktivitätslogs' });
+  }
+});
+
+// API: Create Manual Activity Log Entry (Praxis Staff only)
+app.post('/api/praxis/activity-logs', async (req, res) => {
+  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
+    return res.status(403).json({ error: 'Zugriff verweigert. Nur für autorisiertes Praxispersonal zugänglich.' });
+  }
+
+  try {
+    const { patientId, patientName, terminCode, status, action } = req.body;
+    if (!action || !status) {
+      return res.status(400).json({ error: 'Status und Aktion sind Pflichtfelder.' });
+    }
+
+    const praxisUserId = req.session.userId;
+    const praxisName = req.session.user.praxis_name || 'Praxis';
+    const staffName = req.session.user.email || req.session.user.name || 'Praxismitarbeiter';
+
+    await logActivity({
+      praxisId: praxisUserId,
+      praxisName,
+      patientId: patientId || null,
+      patientName: patientName || 'Patient',
+      terminCode: terminCode || null,
+      status,
+      action,
+      staffName
+    });
+
+    res.json({ success: true, message: 'Aktivität erfolgreich im Log verzeichnet.' });
+  } catch (err) {
+    console.error('Error creating activity log:', err);
+    res.status(500).json({ error: 'Fehler beim Erstellen des Log-Eintrags' });
   }
 });
 
