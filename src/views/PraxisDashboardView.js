@@ -38,18 +38,21 @@ export function renderPraxisDashboardView() {
           </div>
         </div>
 
-        <!-- Navigation Tabs (4 tabs: Kalender, Statistik, Behandlungszeiten, Gestaltung) -->
-        <div style="display: flex; gap: var(--space-4); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px; flex-wrap: wrap;">
-          <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+        <!-- Navigation Tabs (5 tabs: Kalender, Statistik, Behandlungszeiten, Aktivitätslog, Gestaltung) -->
+        <div style="display: flex; gap: var(--space-2); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+          <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             📅 Kalender
           </button>
-          <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             📊 Statistik & Termine
           </button>
-          <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             ⏱️ Behandlungszeiten & Analyse
           </button>
-          <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-md); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-4); cursor: pointer; transition: all 0.15s; margin-bottom: -3px;">
+          <button id="tab-dashboard-activity" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
+            📜 Aktivitätslog
+          </button>
+          <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             🎨 Pre-Check-In gestalten
           </button>
         </div>
@@ -90,6 +93,80 @@ export function renderPraxisDashboardView() {
               <div style="text-align: center; padding: var(--space-6) 0;">
                 <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
                 <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Analysedaten werden geladen...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content: Aktivitätslog -->
+        <div id="tab-content-activity" class="dashboard-tab-content" style="display: none;">
+          <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+              <div>
+                <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-1); display: flex; align-items: center; gap: 8px;">
+                  📜 Aktivitätslog der Patientenbesuche
+                </h2>
+                <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0; line-height: 1.5;">
+                  Vollständiges Protokoll aller Patientenbesuche, Statusänderungen & Bearbeitungsschritte Ihrer Praxis. 
+                  (Gemäß DSGVO automatische Löschung aller Einträge nach exakt 90 Tagen).
+                </p>
+              </div>
+              <button id="btn-open-manual-log-modal" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-xs); font-weight: 700; border-radius: var(--radius-md); cursor: pointer;">
+                ➕ Manuellen Eintrag hinzufügen
+              </button>
+            </div>
+
+            <!-- Filter & Search Controls -->
+            <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-6); flex-wrap: wrap; align-items: center; background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
+              <input type="text" id="activity-log-search" placeholder="🔍 Suche nach Patient, Code, Aktion..." style="flex: 1; min-width: 200px; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px;">
+              <select id="activity-log-filter-status" style="padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px; background: white; cursor: pointer;">
+                <option value="all">Alle Status</option>
+                <option value="erschienen">✓ Erschienen</option>
+                <option value="in_treatment">🩺 In Behandlung</option>
+                <option value="abgesagt">❌ Abgesagt</option>
+                <option value="verzögert">⏱️ Verzögert</option>
+                <option value="verschoben">📅 Verschoben</option>
+              </select>
+            </div>
+
+            <!-- Modal for manual log entry (hidden by default) -->
+            <div id="manual-log-modal-container" style="display: none; background: #F8FAFC; border: 1px solid var(--gray-300); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-6);">
+              <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800);">Aktivität manuell im Protokoll verzeichnen</h4>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3);">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Patienten-ID / Name *</label>
+                  <input type="text" id="manual-log-patient" placeholder="z. B. Max Mustermann (#12)" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Termin-Code (optional)</label>
+                  <input type="text" id="manual-log-code" placeholder="z. B. ABC1234" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Status *</label>
+                  <select id="manual-log-status" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
+                    <option value="erschienen">✓ Erschienen</option>
+                    <option value="in_treatment">🩺 In Behandlung</option>
+                    <option value="abgesagt">❌ Abgesagt</option>
+                    <option value="verzögert">⏱️ Verzögert</option>
+                    <option value="verschoben">📅 Verschoben</option>
+                  </select>
+                </div>
+              </div>
+              <div style="margin-bottom: var(--space-3);">
+                <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Aktion / Notiz *</label>
+                <input type="text" id="manual-log-action" placeholder="z. B. Nachsorge-Dokumente im Empfang ausgehändigt" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+              </div>
+              <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+                <button id="btn-cancel-manual-log" class="btn btn-outline" style="padding: 4px 12px; font-size: 12px;">Abbrechen</button>
+                <button id="btn-save-manual-log" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px;">Speichern</button>
+              </div>
+            </div>
+
+            <!-- Activity Logs Table Container -->
+            <div id="praxis-activity-logs-container">
+              <div style="text-align: center; padding: var(--space-6) 0;">
+                <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
+                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Aktivitätslog wird geladen...</p>
               </div>
             </div>
           </div>
@@ -341,11 +418,12 @@ export async function initPraxisDashboardView() {
     navigate('live-queue');
   });
 
-  // Tab switching logic for 4 tabs
+  // Tab switching logic for 5 tabs
   const tabs = [
     { btn: 'tab-dashboard-kalender', content: 'tab-content-kalender' },
     { btn: 'tab-dashboard-termine', content: 'tab-content-termine' },
     { btn: 'tab-dashboard-zeiten', content: 'tab-content-zeiten' },
+    { btn: 'tab-dashboard-activity', content: 'tab-content-activity' },
     { btn: 'tab-dashboard-gestaltung', content: 'tab-content-gestaltung' }
   ];
 
@@ -356,18 +434,217 @@ export async function initPraxisDashboardView() {
         const c = document.getElementById(t.content);
         if (t.btn === tab.btn) {
           b?.classList.add('active');
-          if (b) { b.style.color = 'var(--primary)'; b.style.borderBottomColor = 'var(--primary)'; }
+          if (b) { b.style.color = 'var(--primary)'; b.style.borderBottomColor = 'var(--primary)'; b.style.fontWeight = '700'; }
           if (c) c.style.display = 'block';
           if (t.btn === 'tab-dashboard-zeiten') {
             loadDurationAnalysis();
+          } else if (t.btn === 'tab-dashboard-activity') {
+            loadActivityLogs();
           }
         } else {
           b?.classList.remove('active');
-          if (b) { b.style.color = 'var(--gray-500)'; b.style.borderBottomColor = 'transparent'; }
+          if (b) { b.style.color = 'var(--gray-500)'; b.style.borderBottomColor = 'transparent'; b.style.fontWeight = '600'; }
           if (c) c.style.display = 'none';
         }
       });
     });
+  });
+
+  // Activity Log Logic
+  let rawActivityLogs = [];
+
+  async function loadActivityLogs() {
+    const container = document.getElementById('praxis-activity-logs-container');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/praxis/activity-logs');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Fehler beim Laden');
+
+      rawActivityLogs = data.logs || [];
+      filterAndRenderActivityLogs();
+    } catch (err) {
+      console.error('Error loading activity logs:', err);
+      container.innerHTML = `
+        <div style="text-align: center; padding: var(--space-6); color: #EF4444;">
+          <p style="font-weight: 700;">Fehler beim Laden des Aktivitätslogs.</p>
+          <p style="font-size: 12px; color: var(--gray-500);">${err.message}</p>
+        </div>
+      `;
+    }
+  }
+
+  function filterAndRenderActivityLogs() {
+    const searchVal = (document.getElementById('activity-log-search')?.value || '').toLowerCase().trim();
+    const statusVal = document.getElementById('activity-log-filter-status')?.value || 'all';
+
+    const filtered = rawActivityLogs.filter(log => {
+      const matchesSearch = !searchVal ||
+        (log.patient_name || '').toLowerCase().includes(searchVal) ||
+        (log.patient_id ? String(log.patient_id) : '').includes(searchVal) ||
+        (log.termin_code || '').toLowerCase().includes(searchVal) ||
+        (log.action || '').toLowerCase().includes(searchVal) ||
+        (log.staff_name || '').toLowerCase().includes(searchVal);
+
+      const matchesStatus = statusVal === 'all' || (log.status || '').toLowerCase().includes(statusVal.toLowerCase());
+
+      return matchesSearch && matchesStatus;
+    });
+
+    renderActivityLogsList(filtered);
+  }
+
+  function formatLogTimestamp(ts) {
+    if (!ts) return '–';
+    try {
+      let d;
+      if (ts instanceof Date) {
+        d = ts;
+      } else if (typeof ts === 'number') {
+        d = new Date(ts);
+      } else {
+        let str = String(ts).trim();
+        if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(str)) {
+          str = str.replace(' ', 'T');
+        }
+        d = new Date(str);
+      }
+
+      if (isNaN(d.getTime())) return String(ts);
+
+      return d.toLocaleString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) {
+      return String(ts);
+    }
+  }
+
+  function renderActivityLogsList(logs) {
+    const container = document.getElementById('praxis-activity-logs-container');
+    if (!container) return;
+
+    if (logs.length === 0) {
+      container.innerHTML = `
+        <div class="dl-profile-card fade-in-up" style="text-align: center; padding: var(--space-10) var(--space-6); background: white; border-radius: var(--radius-xl); border: 1px dashed var(--gray-300);">
+          <div style="font-size: var(--font-size-4xl); margin-bottom: var(--space-4);">📜</div>
+          <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">Keine Aktivitätseinträge gefunden</h3>
+          <p class="text-muted" style="max-width: 460px; margin: 0 auto; font-size: var(--font-size-sm); line-height: 1.5;">
+            Keine Protokolleinträge entsprechen Ihren aktuellen Filterkriterien. (DSGVO-Speicherdauer: max. 90 Tage).
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    let tableRows = logs.map(log => {
+      const formattedDate = formatLogTimestamp(log.timestamp);
+
+      let statusBadge = '';
+      const st = (log.status || '').toLowerCase();
+      if (st.includes('erschienen') || st.includes('done') || st.includes('abgeschlossen')) {
+        statusBadge = `<span style="background: #ECFDF5; color: #059669; border: 1px solid rgba(5, 150, 105, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ Erschienen</span>`;
+      } else if (st.includes('in_treatment') || st.includes('behandlung')) {
+        statusBadge = `<span style="background: #EFF6FF; color: #1D4ED8; border: 1px solid rgba(29, 78, 216, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">🩺 In Behandlung</span>`;
+      } else if (st.includes('abgesagt') || st.includes('storniert') || st.includes('cancel')) {
+        statusBadge = `<span style="background: #FEE2E2; color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">❌ Abgesagt</span>`;
+      } else if (st.includes('verzögert') || st.includes('delay')) {
+        statusBadge = `<span style="background: #FEF3C7; color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏱️ Verzögert</span>`;
+      } else if (st.includes('verschoben') || st.includes('rescheduled')) {
+        statusBadge = `<span style="background: #F3E8FF; color: #7E22CE; border: 1px solid rgba(126, 34, 206, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">📅 Verschoben</span>`;
+      } else {
+        statusBadge = `<span style="background: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-300); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">📋 ${log.status}</span>`;
+      }
+
+      const patIdText = log.patient_id ? `ID #${log.patient_id}` : (log.patient_name || 'Patient');
+
+      return `
+        <tr style="border-bottom: 1px solid var(--gray-100); transition: background 0.15s;" onmouseover="this.style.background='var(--bg-gray)'" onmouseout="this.style.background='white'">
+          <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-700); white-space: nowrap;">${formattedDate}</td>
+          <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${patIdText}</td>
+          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-family: monospace; font-size: 12px;">${log.termin_code || '–'}</td>
+          <td style="padding: var(--space-3) var(--space-4);">${statusBadge}</td>
+          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-800); font-weight: 500;">${log.action}</td>
+          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">👤 ${log.staff_name || 'System'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div style="background: white; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); overflow: hidden;">
+        <div style="padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
+          <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em;">Einträge: ${logs.length}</span>
+          <span style="font-size: 11px; color: var(--gray-500); font-weight: 600;">🔒 Gesichert & DSGVO-konform (Speicherdauer 90 Tage)</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: var(--font-size-sm);">
+            <thead>
+              <tr style="background: #F8FAFC; border-bottom: 2px solid var(--gray-200);">
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Zeitstempel</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Patienten-ID</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Termin-Code</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Status</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Aktivität / Beschreibung</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Mitarbeiter</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Setup search & filter listeners
+  document.getElementById('activity-log-search')?.addEventListener('input', () => {
+    filterAndRenderActivityLogs();
+  });
+  document.getElementById('activity-log-filter-status')?.addEventListener('change', () => {
+    filterAndRenderActivityLogs();
+  });
+
+  // Manual log modal controls
+  const manualLogModal = document.getElementById('manual-log-modal-container');
+  document.getElementById('btn-open-manual-log-modal')?.addEventListener('click', () => {
+    if (manualLogModal) manualLogModal.style.display = manualLogModal.style.display === 'none' ? 'block' : 'none';
+  });
+  document.getElementById('btn-cancel-manual-log')?.addEventListener('click', () => {
+    if (manualLogModal) manualLogModal.style.display = 'none';
+  });
+  document.getElementById('btn-save-manual-log')?.addEventListener('click', async () => {
+    const patientName = document.getElementById('manual-log-patient')?.value.trim();
+    const terminCode = document.getElementById('manual-log-code')?.value.trim();
+    const status = document.getElementById('manual-log-status')?.value;
+    const action = document.getElementById('manual-log-action')?.value.trim();
+
+    if (!patientName || !action) {
+      alert('Bitte füllen Sie Patienten-Name/ID und Aktion aus.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/praxis/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patientName, terminCode, status, action })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (manualLogModal) manualLogModal.style.display = 'none';
+        document.getElementById('manual-log-patient').value = '';
+        document.getElementById('manual-log-code').value = '';
+        document.getElementById('manual-log-action').value = '';
+        loadActivityLogs();
+      } else {
+        alert(data.error || 'Fehler beim Speichern');
+      }
+    } catch (err) {
+      console.error('Error saving manual activity log:', err);
+      alert('Fehler beim Speichern der Aktivität.');
+    }
   });
 
   // Load duration analysis logic
