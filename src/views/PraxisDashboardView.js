@@ -144,11 +144,11 @@ export function renderPraxisDashboardView() {
                 <div>
                   <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Status *</label>
                   <select id="manual-log-status" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
-                    <option value="erschienen">erschienen</option>
-                    <option value="in_treatment">in_treatment</option>
-                    <option value="abgesagt">abgesagt</option>
-                    <option value="verzögert">verzögert</option>
-                    <option value="verschoben">verschoben</option>
+                    <option value="erschienen">✓ Erschienen</option>
+                    <option value="in_treatment">🩺 In Behandlung</option>
+                    <option value="abgesagt">❌ Abgesagt</option>
+                    <option value="verzögert">⏱️ Verzögert</option>
+                    <option value="verschoben">📅 Verschoben</option>
                   </select>
                 </div>
               </div>
@@ -495,6 +495,32 @@ export async function initPraxisDashboardView() {
     renderActivityLogsList(filtered);
   }
 
+  function formatLogTimestamp(ts) {
+    if (!ts) return '–';
+    try {
+      let d;
+      if (ts instanceof Date) {
+        d = ts;
+      } else if (typeof ts === 'number') {
+        d = new Date(ts);
+      } else {
+        let str = String(ts).trim();
+        if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(str)) {
+          str = str.replace(' ', 'T');
+        }
+        d = new Date(str);
+      }
+
+      if (isNaN(d.getTime())) return String(ts);
+
+      return d.toLocaleString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) {
+      return String(ts);
+    }
+  }
+
   function renderActivityLogsList(logs) {
     const container = document.getElementById('praxis-activity-logs-container');
     if (!container) return;
@@ -513,9 +539,7 @@ export async function initPraxisDashboardView() {
     }
 
     let tableRows = logs.map(log => {
-      const formattedDate = new Date(log.timestamp).toLocaleString('de-DE', {
-        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-      });
+      const formattedDate = formatLogTimestamp(log.timestamp);
 
       let statusBadge = '';
       const st = (log.status || '').toLowerCase();
