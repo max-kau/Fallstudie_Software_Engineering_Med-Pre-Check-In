@@ -220,7 +220,7 @@ function renderSuccessScreen() {
     : '';
 
   return `
-    ${renderHeader()}
+    ${renderHeader({ showSaveExit: false })}
     <div class="view">
       <div class="container container--form">
         <div class="view-content" style="justify-content:center">

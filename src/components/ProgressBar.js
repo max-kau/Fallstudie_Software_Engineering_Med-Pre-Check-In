@@ -17,6 +17,7 @@ export function renderProgressBar(currentStep) {
 
   const totalSteps = steps.length;
   const fillPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;
+  const lineOffsetPercent = (100 / (totalSteps * 2)).toFixed(4);
 
   const stepsHtml = steps.map(step => {
     let state = '';
@@ -35,7 +36,7 @@ export function renderProgressBar(currentStep) {
     <div class="progress-container">
       <div class="container">
         <div class="progress-steps">
-          <div class="progress-line">
+          <div class="progress-line" style="left: ${lineOffsetPercent}%; right: ${lineOffsetPercent}%;">
             <div class="progress-line-fill" style="width: ${fillPercent}%"></div>
           </div>
           ${stepsHtml}

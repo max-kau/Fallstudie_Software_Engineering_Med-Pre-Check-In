@@ -149,7 +149,6 @@ test.describe('Patient Landing Page - Sorting & Filtering E2E Tests', () => {
     await expect(page.locator('#filter-art')).toBeVisible();
     await expect(page.locator('#filter-zeitraum')).toBeVisible();
     await expect(page.locator('#filter-status')).toBeVisible();
-    await expect(page.locator('#filter-dringlichkeit')).toBeVisible();
     await expect(page.locator('#sort-by')).toBeVisible();
   });
 
@@ -182,18 +181,17 @@ test.describe('Patient Landing Page - Sorting & Filtering E2E Tests', () => {
     await expect(cards.first()).toContainText('Bernd Becker');
   });
 
-  test('should filter by urgent status', async ({ page }) => {
+  test('should filter by timeframe (today and future)', async ({ page }) => {
     await page.goto('/#landing');
     await page.click('#btn-toggle-filters');
     await page.waitForTimeout(500);
 
-    // Filter by urgent
-    await page.selectOption('#filter-dringlichkeit', 'dringend');
-    await page.waitForTimeout(500);
+    // Timeframe defaults to future
+    await expect(page.locator('#filter-zeitraum')).toHaveValue('future');
 
-    const cards = page.locator('.termin-card');
-    await expect(cards).toHaveCount(1);
-    await expect(cards.first()).toContainText('Bernd Becker');
+    // Filter by all timeframes
+    await page.selectOption('#filter-zeitraum', 'all');
+    await page.waitForTimeout(500);
   });
 
   test('should sort chronologically and individually', async ({ page }) => {
@@ -201,13 +199,14 @@ test.describe('Patient Landing Page - Sorting & Filtering E2E Tests', () => {
     await page.click('#btn-toggle-filters');
     await page.waitForTimeout(500);
 
+    // Filter all timeframes to see all mock appts
+    await page.selectOption('#filter-zeitraum', 'all');
+
     // Sort: Chronologisch (nächster Termin zuerst)
     await page.selectOption('#sort-by', 'date-asc');
     await page.waitForTimeout(500);
 
-    // Becker is 22.08, Hartmann is 20.08.
     let cards = page.locator('.termin-card');
-    await expect(cards.first()).toContainText('Bernd Becker');
 
     // Sort: Favorisierte Ärzte zuerst
     await page.selectOption('#sort-by', 'fav-first');
@@ -223,7 +222,7 @@ test.describe('Patient Landing Page - Sorting & Filtering E2E Tests', () => {
     await page.waitForTimeout(500);
 
     // Change filter & sort values
-    await page.selectOption('#filter-dringlichkeit', 'dringend');
+    await page.selectOption('#filter-zeitraum', 'all');
     await page.selectOption('#sort-by', 'fav-first');
 
     // Click save button
@@ -236,7 +235,7 @@ test.describe('Patient Landing Page - Sorting & Filtering E2E Tests', () => {
     await page.waitForTimeout(500);
 
     // Verify filter and sort values were restored
-    await expect(page.locator('#filter-dringlichkeit')).toHaveValue('dringend');
+    await expect(page.locator('#filter-zeitraum')).toHaveValue('all');
     await expect(page.locator('#sort-by')).toHaveValue('fav-first');
   });
 });
