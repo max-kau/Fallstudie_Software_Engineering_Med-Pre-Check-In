@@ -4,6 +4,7 @@ import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { praxen } from '../data/praxen.js';
 import { openRescheduleModal } from '../components/RescheduleModal.js';
 import { exportAppointmentToIcs } from '../utils/icsExport.js';
+import { t } from '../utils/i18n.js';
 
 function getPraxisInfo(praxisName) {
   const nameToMatch = praxisName || '';
@@ -16,11 +17,11 @@ function getPraxisInfo(praxisName) {
 
 function getStepLabel(step) {
   switch (step) {
-    case 'beschwerden': return 'Beschwerden (Schritt 1 von 3)';
-    case 'medikamente': return 'Medikamente (Schritt 2 von 3)';
-    case 'allergien': return 'Allergien (Schritt 3 von 3)';
-    case 'zusammenfassung': return 'Zusammenfassung (Schritt 3 von 3)';
-    default: return 'Einleitung';
+    case 'beschwerden': return `${t('flow.step_symptoms')} (1/3)`;
+    case 'medikamente': return `${t('flow.step_meds')} (2/3)`;
+    case 'allergien': return `${t('flow.step_allergies')} (3/3)`;
+    case 'zusammenfassung': return `${t('flow.step_summary')} (3/3)`;
+    default: return t('flow.step_intro');
   }
 }
 
@@ -167,13 +168,13 @@ export function renderLandingView() {
         <!-- Header Profile Title -->
         <div class="landing-header fade-in-up" style="margin-bottom: var(--space-8); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
           <div>
-            <span style="font-weight: 700; font-size: var(--font-size-sm); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Mein Konto</span>
-            <h1 style="font-size: var(--font-size-3xl); font-weight: 800; color: var(--gray-800); letter-spacing: -0.02em;">Meine Termine & Vorsorge</h1>
-            <p class="text-muted" style="margin-top: 4px; font-size: var(--font-size-sm);">Verwalten Sie Ihre Arzttermine und bereiten Sie sich digital auf Ihre Behandlungen vor.</p>
+            <span style="font-weight: 700; font-size: var(--font-size-sm); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">${t('landing.my_account')}</span>
+            <h1 style="font-size: var(--font-size-3xl); font-weight: 800; color: var(--gray-800); letter-spacing: -0.02em;">${t('landing.appointments_header')}</h1>
+            <p class="text-muted" style="margin-top: 4px; font-size: var(--font-size-sm);">${t('landing.appointments_subtitle')}</p>
           </div>
           <button id="btn-toggle-filters" class="btn btn-outline" style="display: flex; align-items: center; gap: 8px; font-size: var(--font-size-sm); padding: 8px 16px; border-radius: var(--radius-lg); height: auto;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            <span>Filter & Sortierung</span>
+            <span>${t('landing.filter_sort_btn')}</span>
           </button>
         </div>
 
@@ -181,75 +182,75 @@ export function renderLandingView() {
         <div id="filter-panel" class="dl-profile-card fade-in-up" style="display: none; padding: var(--space-5); background: white; border-radius: var(--radius-xl); box-shadow: var(--shadow-md); border: 1px solid var(--gray-200); margin-bottom: var(--space-6);">
           <h4 style="font-weight: 700; font-size: var(--font-size-sm); color: var(--gray-700); margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Termine filtern & sortieren
+            ${t('landing.filter_title')}
           </h4>
           
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
             <!-- Praxis / Arzt -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-praxis" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Praxis / Arzt</label>
+              <label for="filter-praxis" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_praxis')}</label>
               <select id="filter-praxis" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">Alle Praxen & Ärzte</option>
+                <option value="all">${t('landing.filter_all_praxen')}</option>
               </select>
             </div>
             
             <!-- Fachbereich -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-fachbereich" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Fachbereich / Branche</label>
+              <label for="filter-fachbereich" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_specialty')}</label>
               <select id="filter-fachbereich" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">Alle Fachbereiche</option>
+                <option value="all">${t('landing.filter_all_specialties')}</option>
               </select>
             </div>
             
             <!-- Art der Untersuchung -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-art" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Art der Untersuchung</label>
+              <label for="filter-art" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_type')}</label>
               <select id="filter-art" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">Alle Terminarten</option>
+                <option value="all">${t('landing.filter_all_types')}</option>
               </select>
             </div>
 
             <!-- Zeitraum -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-zeitraum" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Zeitraum</label>
+              <label for="filter-zeitraum" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_timeframe')}</label>
               <select id="filter-zeitraum" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">Alle Zeiträume</option>
-                <option value="week">Diese Woche</option>
-                <option value="month">Diesen Monat</option>
-                <option value="past">Vergangene Termine (Historie)</option>
-                <option value="future">Zukünftige Termine</option>
+                <option value="all">${t('landing.filter_all_timeframes')}</option>
+                <option value="week">${t('landing.filter_this_week')}</option>
+                <option value="month">${t('landing.filter_this_month')}</option>
+                <option value="past">${t('landing.filter_past')}</option>
+                <option value="future">${t('landing.filter_future')}</option>
               </select>
             </div>
 
             <!-- Status -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-status" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Status</label>
+              <label for="filter-status" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_status')}</label>
               <select id="filter-status" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="active" selected>Aktive Termine</option>
-                <option value="all">Alle Status</option>
-                <option value="bestaetigt">Bestätigt</option>
-                <option value="ausstehend">Ausstehend (Pre-Check-In offen)</option>
-                <option value="abgesagt">Abgesagt</option>
+                <option value="active" selected>${t('landing.filter_active_appts')}</option>
+                <option value="all">${t('landing.filter_all_status')}</option>
+                <option value="bestaetigt">${t('landing.filter_confirmed')}</option>
+                <option value="ausstehend">${t('landing.filter_pending')}</option>
+                <option value="abgesagt">${t('landing.filter_cancelled')}</option>
               </select>
             </div>
 
             <!-- Dringlichkeit -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-dringlichkeit" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Dringlichkeit</label>
+              <label for="filter-dringlichkeit" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_urgency')}</label>
               <select id="filter-dringlichkeit" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">Alle Dringlichkeiten</option>
-                <option value="dringend">Nur wichtige/dringende Termine</option>
+                <option value="all">${t('landing.filter_all_urgencies')}</option>
+                <option value="dringend">${t('landing.filter_urgent_only')}</option>
               </select>
             </div>
 
             <!-- Sortierung -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="sort-by" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">Sortieren nach</label>
+              <label for="sort-by" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.sort_by')}</label>
               <select id="sort-by" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="date-asc">Chronologisch (Nächste zuerst)</option>
-                <option value="date-desc">Chronologisch (Weiteste zuerst)</option>
-                <option value="fav-first">Favorisierte Ärzte zuerst (⭐)</option>
-                <option value="priority">Manuelle Priorisierung (🔢)</option>
+                <option value="date-asc">${t('landing.sort_date_asc')}</option>
+                <option value="date-desc">${t('landing.sort_date_desc')}</option>
+                <option value="fav-first">${t('landing.sort_fav')}</option>
+                <option value="priority">${t('landing.sort_priority')}</option>
               </select>
             </div>
           </div>
@@ -257,15 +258,15 @@ export function renderLandingView() {
           <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--gray-200); padding-top: var(--space-4); flex-wrap: wrap; gap: var(--space-2);">
             <div id="filter-saved-status" style="font-size: var(--font-size-xs); color: #10B981; font-weight: 600; display: none; align-items: center; gap: 4px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>Filter-Einstellungen als Standard gespeichert</span>
+              <span>${t('landing.filters_saved')}</span>
             </div>
             <div style="display: flex; gap: var(--space-2); margin-left: auto;">
               <button id="btn-reset-filters" class="btn btn-outline" style="font-size: var(--font-size-xs); padding: 6px 12px; height: auto;">
-                Filter zurücksetzen
+                ${t('landing.reset_filters')}
               </button>
               <button id="btn-save-filters" class="btn btn-primary" style="font-size: var(--font-size-xs); padding: 6px 12px; height: auto; display: flex; align-items: center; gap: 6px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                <span>Filter als Standard speichern</span>
+                <span>${t('landing.save_filters')}</span>
               </button>
             </div>
           </div>
@@ -275,14 +276,14 @@ export function renderLandingView() {
         <div id="landing-content-container">
           <div style="text-align: center; padding: var(--space-12) 0;">
             <div class="dl-auth-spinner" style="display: inline-block; width: 40px; height: 40px; border-width: 3px;"></div>
-            <p class="text-muted" style="margin-top: var(--space-4); font-size: var(--font-size-sm);">Ihre Termine werden sicher geladen...</p>
+            <p class="text-muted" style="margin-top: var(--space-4); font-size: var(--font-size-sm);">${t('landing.loading_appts')}</p>
           </div>
         </div>
 
         <!-- Footnote Disclaimer -->
         <div style="margin-top: var(--space-16); padding-top: var(--space-6); border-top: 1px solid var(--gray-200); text-align: center;">
           <p style="font-size: var(--font-size-xs); color: var(--gray-400); line-height: 1.5; max-width: 600px; margin: 0 auto;">
-            * Hinweis zur Demonstration: Dotolib Pre-Check-In ist ein studentisches Projekt zu Fallstudien-Zwecken. Alle angezeigten Praxen, Ärzte und Termine sind fiktiv. Es findet keine echte medizinische Vermittlung oder Behandlung statt.
+            ${t('landing.demo_disclaimer')}
           </p>
         </div>
 
@@ -367,14 +368,14 @@ function populateFilterOptions(appointments) {
   const filterPraxisSelect = document.getElementById('filter-praxis');
   if (filterPraxisSelect) {
     const oldVal = filterPraxisSelect.value;
-    filterPraxisSelect.innerHTML = '<option value="all">Alle Praxen & Ärzte</option>';
+    filterPraxisSelect.innerHTML = `<option value="all">${t('landing.filter_all_praxen')}</option>`;
     const items = [];
     appointments.forEach(a => {
       if (a.praxis && !items.includes(a.praxis)) {
         items.push(a.praxis);
         const opt = document.createElement('option');
         opt.value = a.praxis;
-        opt.textContent = `Praxis: ${a.praxis}`;
+        opt.textContent = `${t('praxis.title')}: ${a.praxis}`;
         filterPraxisSelect.appendChild(opt);
       }
       if (a.doctor && !items.includes(a.doctor)) {
@@ -393,7 +394,7 @@ function populateFilterOptions(appointments) {
   const filterFachbereichSelect = document.getElementById('filter-fachbereich');
   if (filterFachbereichSelect) {
     const oldVal = filterFachbereichSelect.value;
-    filterFachbereichSelect.innerHTML = '<option value="all">Alle Fachbereiche</option>';
+    filterFachbereichSelect.innerHTML = `<option value="all">${t('landing.filter_all_specialties')}</option>`;
     const uniqueFachbereiche = Array.from(new Set(appointments.map(a => a.fachrichtung).filter(Boolean)));
     uniqueFachbereiche.forEach(fb => {
       const opt = document.createElement('option');
@@ -409,7 +410,7 @@ function populateFilterOptions(appointments) {
   const filterArtSelect = document.getElementById('filter-art');
   if (filterArtSelect) {
     const oldVal = filterArtSelect.value;
-    filterArtSelect.innerHTML = '<option value="all">Alle Terminarten</option>';
+    filterArtSelect.innerHTML = `<option value="all">${t('landing.filter_all_types')}</option>`;
     const uniqueArten = Array.from(new Set(appointments.map(a => a.art).filter(Boolean)));
     uniqueArten.forEach(art => {
       const opt = document.createElement('option');
@@ -658,13 +659,13 @@ function renderCardsList(appointments) {
     container.innerHTML = `
       <div class="dl-profile-card fade-in-up" style="text-align: center; padding: var(--space-10) var(--space-6); background: white; border-radius: var(--radius-xl); border: 1px dashed var(--gray-300);">
         <div style="font-size: var(--font-size-4xl); margin-bottom: var(--space-4);">📅</div>
-        <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">Keine Termine gebucht</h3>
+        <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">${t('landing.no_appts_title')}</h3>
         <p class="text-muted" style="max-width: 420px; margin: 0 auto var(--space-6) auto; font-size: var(--font-size-sm); line-height: 1.5;">
-          Sie haben aktuell keine anstehenden Arzttermine. Suchen Sie jetzt nach einer Praxis in Ihrer Nähe, um einen Termin zu vereinbaren.
+          ${t('landing.no_appts_desc')}
         </p>
         <button class="dl-home-search-btn" id="btn-landing-go-home" style="margin: 0 auto;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: var(--space-2);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          Praxis finden & Termin buchen
+          ${t('landing.find_praxis_btn')}
         </button>
       </div>
     `;
@@ -679,9 +680,9 @@ function renderCardsList(appointments) {
     container.innerHTML = `
       <div class="dl-profile-card fade-in-up" style="text-align: center; padding: var(--space-8) var(--space-6); background: white; border-radius: var(--radius-xl); border: 1px dashed var(--gray-300);">
         <div style="font-size: 32px; margin-bottom: var(--space-3);">🔍</div>
-        <h3 style="font-size: var(--font-size-md); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-1);">Keine passenden Termine gefunden</h3>
+        <h3 style="font-size: var(--font-size-md); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-1);">${t('landing.no_matching_title')}</h3>
         <p class="text-muted" style="font-size: var(--font-size-sm); max-width: 360px; margin: 0 auto;">
-          Passen Sie Ihre Filter- oder Sortiereinstellungen an, um andere Termine anzuzeigen.
+          ${t('landing.no_matching_desc')}
         </p>
       </div>
     `;
@@ -725,10 +726,10 @@ function renderCardsList(appointments) {
           <div class="precheck-banner__content">
             <div class="precheck-banner__info">
               <span class="precheck-banner__badge" style="background: #EF4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
-                ❌ ABGESAGT
+                ❌ ${t('status.cancelled').toUpperCase()}
               </span>
-              <h4 class="precheck-banner__title" style="color: #991B1B; font-weight: 700; font-size: var(--font-size-md); margin-bottom: 2px;">Termin wurde storniert</h4>
-              <p class="precheck-banner__desc" style="color: #B91C1C; font-size: var(--font-size-sm); line-height: 1.4;">Sie haben diesen Termin abgesagt. Er kann nicht mehr wahrgenommen werden.</p>
+              <h4 class="precheck-banner__title" style="color: #991B1B; font-weight: 700; font-size: var(--font-size-md); margin-bottom: 2px;">${t('landing.cancelled_title')}</h4>
+              <p class="precheck-banner__desc" style="color: #B91C1C; font-size: var(--font-size-sm); line-height: 1.4;">${t('landing.cancelled_desc')}</p>
             </div>
           </div>
         </div>
@@ -742,7 +743,7 @@ function renderCardsList(appointments) {
         hintSectionHtml = `
           <div class="patient-hint-banner-alert" style="margin-top: var(--space-4); background: #FFFBEB; border: 1px solid #FEF3C7; border-left: 4px solid #F59E0B; padding: var(--space-4); border-radius: var(--radius-lg); text-align: left; width: 100%;">
             <h5 style="margin: 0 0 var(--space-2) 0; font-size: var(--font-size-sm); color: #B45309; font-weight: 700; display: flex; align-items: center; gap: 6px;">
-              💡 Wichtige Hinweise Ihrer Praxis:
+              ${t('landing.practice_notes')}
             </h5>
             ${hintList.length > 0 ? `<ul style="margin: 0; padding-left: 20px; font-size: var(--font-size-sm); color: #92400E;">${listItems}</ul>` : ''}
             ${latestHint.custom_text ? `<div style="margin-top: var(--space-2); font-size: var(--font-size-sm); color: #92400E; font-style: italic;">${latestHint.custom_text}</div>` : ''}
@@ -756,15 +757,15 @@ function renderCardsList(appointments) {
             <div class="precheck-banner__info" style="flex: 1; min-width: 250px;">
               <span class="precheck-banner__badge precheck-banner__badge--success">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                PRE-CHECK-IN ABGESCHLOSSEN
+                ${t('landing.submitted_badge')}
               </span>
-              <h4 class="precheck-banner__title">Ihre Angaben wurden übermittelt</h4>
-              <p class="precheck-banner__desc">Ihr Arzt hat alle wichtigen Informationen vorliegen. Sie können die Zusammenfassung jederzeit einsehen.</p>
+              <h4 class="precheck-banner__title">${t('landing.submitted_title')}</h4>
+              <p class="precheck-banner__desc">${t('landing.submitted_desc')}</p>
               ${hintSectionHtml}
             </div>
             <div class="precheck-banner__action" style="align-self: flex-start;">
               <button class="precheck-banner__btn precheck-banner__btn--outline-success btn-go-precheck" data-code="${appt.code}" data-target="zusammenfassung">
-                Zusammenfassung ansehen
+                ${t('landing.view_summary_btn')}
               </button>
             </div>
           </div>
@@ -777,10 +778,10 @@ function renderCardsList(appointments) {
             <div class="precheck-banner__info">
               <span class="precheck-banner__badge" style="background: #E5E7EB; color: #4B5563; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                ABGELAUFEN
+                ${t('landing.expired_badge')}
               </span>
-              <h4 class="precheck-banner__title" style="color: #374151; font-weight: 700; font-size: var(--font-size-md); margin-bottom: 2px;">Pre-Check-In abgelaufen</h4>
-              <p class="precheck-banner__desc" style="color: #6B7280; font-size: var(--font-size-sm); line-height: 1.4;">Dieser Termin liegt in der Vergangenheit. Ein Pre-Check-In kann nachträglich nicht mehr ausgefüllt oder fortgesetzt werden.</p>
+              <h4 class="precheck-banner__title" style="color: #374151; font-weight: 700; font-size: var(--font-size-md); margin-bottom: 2px;">${t('landing.expired_title')}</h4>
+              <p class="precheck-banner__desc" style="color: #6B7280; font-size: var(--font-size-sm); line-height: 1.4;">${t('landing.expired_desc')}</p>
             </div>
           </div>
           <div class="precheck-banner__locked-overlay" style="background: rgba(243, 244, 246, 0.05); pointer-events: none;"></div>
@@ -793,14 +794,14 @@ function renderCardsList(appointments) {
             <div class="precheck-banner__info">
               <span class="precheck-banner__badge precheck-banner__badge--progress">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                LAUFENDER PRE-CHECK-IN
+                ${t('landing.in_progress_badge')}
               </span>
-              <h4 class="precheck-banner__title">Setzen Sie Ihre Vorbereitung fort</h4>
-              <p class="precheck-banner__desc">Fortfahren bei: ${getStepLabel(currentStep)}. Bereiten Sie Ihren Termin weiter digital vor.</p>
+              <h4 class="precheck-banner__title">${t('landing.in_progress_title')}</h4>
+              <p class="precheck-banner__desc">${t('landing.in_progress_desc').replace('{step}', getStepLabel(currentStep))}</p>
             </div>
             <div class="precheck-banner__action">
               <button class="precheck-banner__btn precheck-banner__btn--outline-progress btn-go-precheck" data-code="${appt.code}" data-target="${currentStep}">
-                Pre-Check-In fortsetzen
+                ${t('landing.continue_prep_btn')}
               </button>
             </div>
           </div>
@@ -813,14 +814,14 @@ function renderCardsList(appointments) {
             <div class="precheck-banner__info">
               <span class="precheck-banner__badge precheck-banner__badge--available">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                PRE-CHECK-IN VERFÜGBAR
+                PRE-CHECK-IN
               </span>
-              <h4 class="precheck-banner__title">Bereiten Sie Ihren Termin online vor</h4>
-              <p class="precheck-banner__desc">Erfassen Sie vorab Ihre Beschwerden, Medikamente und Allergien online. So bleibt mehr Behandlungszeit.</p>
+              <h4 class="precheck-banner__title">${t('landing.start_prep_title')}</h4>
+              <p class="precheck-banner__desc">${t('landing.start_prep_desc')}</p>
             </div>
             <div class="precheck-banner__action">
               <button class="precheck-banner__btn precheck-banner__btn--start btn-go-precheck" data-code="${appt.code}" data-target="confirm">
-                Pre-Check-In starten
+                ${t('landing.start_prep_btn')}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
               </button>
             </div>
@@ -837,18 +838,12 @@ function renderCardsList(appointments) {
             <div class="precheck-banner__info">
               <span class="precheck-banner__badge precheck-banner__badge--locked">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                NOCH NICHT VERFÜGBAR
+                ${t('status.pending').toUpperCase()}
               </span>
-              <h4 class="precheck-banner__title precheck-banner__title--locked">Pre-Check-In wird freigeschaltet am ${openDateStr}</h4>
+              <h4 class="precheck-banner__title precheck-banner__title--locked">${t('landing.locked_title')}</h4>
               <p class="precheck-banner__desc precheck-banner__desc--locked">
-                ${daysText ? `<span class="precheck-banner__countdown">${daysText}</span> · ` : ''}Der Pre-Check-In wird 2 Werktage vor Ihrem Termin automatisch verfügbar.
+                ${daysText ? `<span class="precheck-banner__countdown">${daysText}</span> · ` : ''}${t('landing.locked_desc').replace('{openDate}', openDateStr)}
               </p>
-            </div>
-            <div class="precheck-banner__action">
-              <button class="precheck-banner__btn precheck-banner__btn--notify btn-notify-email" data-code="${appt.code}" data-open-date="${openDateStr}">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                Per E-Mail benachrichtigen
-              </button>
             </div>
           </div>
           <div class="precheck-banner__locked-overlay"></div>
@@ -861,7 +856,7 @@ function renderCardsList(appointments) {
       sharedDocsHtml = `
         <div class="shared-docs-patient-container" style="padding: var(--space-4) var(--space-6); border-top: 1px solid var(--gray-100); background: #F8FAFC; border-bottom: 1px solid var(--gray-100);">
           <h5 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-xs); color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
-            📂 Bereitgestellte Dokumente Ihrer Praxis:
+            📂 ${t('flow.step_docs')}:
           </h5>
           <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-2);">
             ${appt.shared_documents.map(doc => `
@@ -885,7 +880,7 @@ function renderCardsList(appointments) {
       aftercareHtml = `
         <div class="aftercare-patient-container" style="padding: var(--space-4) var(--space-6); border-top: 1px solid var(--gray-100); background: #EFF6FF; border-bottom: 1px solid var(--gray-100);">
           <h5 style="margin: 0 0 var(--space-2) 0; font-size: var(--font-size-xs); color: #1D4ED8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
-            🩺 Wichtige Nachsorge-Hinweise Ihrer Praxis:
+            🩺 Nachsorge-Hinweise:
           </h5>
           ${appt.aftercare_instructions.map(instr => `
             <div style="background: white; border: 1px solid #BFDBFE; padding: var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-sm); color: var(--gray-700); font-style: italic; line-height: 1.5; box-shadow: var(--shadow-sm); margin-bottom: var(--space-2);">
@@ -899,7 +894,7 @@ function renderCardsList(appointments) {
     const starColor = appt.favorite ? '#F59E0B' : '#D1D5DB';
     const starIcon = appt.favorite ? '★' : '☆';
     const starHtml = `
-      <button class="btn-toggle-favorite" data-code="${appt.code}" title="Als Favorit markieren" style="background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 4px; color: ${starColor}; line-height: 1; transition: transform 0.1s; display: inline-flex; align-items: center;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+      <button class="btn-toggle-favorite" data-code="${appt.code}" title="Favorit" style="background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 4px; color: ${starColor}; line-height: 1; transition: transform 0.1s; display: inline-flex; align-items: center;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
         ${starIcon}
       </button>
     `;
@@ -907,7 +902,7 @@ function renderCardsList(appointments) {
     const urgentColor = appt.urgent ? '#EF4444' : '#D1D5DB';
     const urgentIcon = appt.urgent ? '🚩' : '🏳️';
     const urgentBtnHtml = `
-      <button class="btn-toggle-urgent" data-code="${appt.code}" title="Dringlichkeit umschalten" style="background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 4px; color: ${urgentColor}; line-height: 1; transition: transform 0.1s; display: inline-flex; align-items: center;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+      <button class="btn-toggle-urgent" data-code="${appt.code}" title="Dringlichkeit" style="background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 4px; color: ${urgentColor}; line-height: 1; transition: transform 0.1s; display: inline-flex; align-items: center;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
         ${urgentIcon}
       </button>
     `;
@@ -957,9 +952,9 @@ function renderCardsList(appointments) {
           <div style="display: flex; align-items: center; gap: var(--space-3); margin-left: auto;">
             ${priorityControlsHtml}
             <div style="background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); text-align: right; border: 1px solid var(--gray-200); min-width: 170px;">
-              <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Termin</span>
+              <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">${t('landing.your_appointment')}</span>
               <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block;">${formatGermanDate(appt.date)}</strong>
-              <span style="font-size: var(--font-size-xs); color: var(--gray-500); display: block; margin-top: 2px;">${appt.time} Uhr · ${appt.art}</span>
+              <span style="font-size: var(--font-size-xs); color: var(--gray-500); display: block; margin-top: 2px;">${appt.time} · ${appt.art}</span>
             </div>
 
             ${!isPast && appt.status !== 'abgesagt' ? `
@@ -991,17 +986,17 @@ function renderCardsList(appointments) {
         <div class="dl-card-action-footer" style="display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-top: 1px solid var(--gray-100); flex-wrap: wrap;">
           ${isToday ? `
           <button class="btn btn-open-queue" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #10B981, #059669); color: white; border: none; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
-            📺 Live-Warteschlange ansehen
+            📺 ${t('landing.open_live_queue_btn')}
           </button>
           ` : ''}
           <button class="btn btn-export-ics btn-outline" data-code="${appt.code}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
-            📥 Kalender-Export (.ics)
+            📥 ${t('landing.export_ics_btn')}
           </button>
           <button class="btn btn-reschedule btn-outline" data-code="${appt.code}" data-praxis="${appt.praxis}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
-            📅 Termin verschieben
+            📅 ${t('landing.reschedule_btn')}
           </button>
           <button class="btn btn-cancel-appt btn-outline-danger" data-code="${appt.code}" data-date="${formatGermanDate(appt.date)}" data-time="${appt.time}" style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-4); font-weight: 700; display: flex; align-items: center; gap: 6px;">
-            ❌ Termin absagen
+            ❌ ${t('landing.cancel_btn')}
           </button>
         </div>
         ` : ''}

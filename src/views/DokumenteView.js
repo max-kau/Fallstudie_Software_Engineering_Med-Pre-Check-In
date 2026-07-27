@@ -2,6 +2,7 @@ import { renderHeader } from '../components/Header.js';
 import { renderProgressBar } from '../components/ProgressBar.js';
 import { renderStepNavigation, initStepNavigation } from '../components/StepNavigation.js';
 import { store } from '../utils/store.js';
+import { t } from '../utils/i18n.js';
 
 function formatBytes(bytes, decimals = 1) {
   if (bytes === 0) return '0 Bytes';
@@ -34,7 +35,7 @@ export function renderDokumenteView() {
           </div>
         </div>
         <div class="file-actions">
-          <button class="btn-file-delete" data-id="${file.id}" type="button" title="Datei löschen">
+          <button class="btn-file-delete" data-id="${file.id}" type="button" title="${t('dokumente.delete_tooltip')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
           </button>
         </div>
@@ -44,7 +45,7 @@ export function renderDokumenteView() {
 
   const hasPraxisDocs = store.getPraxisDocuments().length > 0;
   const nextStep = hasPraxisDocs ? 'praxis-dokumente' : 'zusammenfassung';
-  const nextLabel = hasPraxisDocs ? 'Weiter' : 'Zur Zusammenfassung';
+  const nextLabel = hasPraxisDocs ? t('common.next') : t('dokumente.next_to_summary');
 
   return `
     ${renderHeader()}
@@ -52,16 +53,16 @@ export function renderDokumenteView() {
       ${renderProgressBar(5)}
       <div class="container container--form">
         <div class="view-content">
-          <h2 style="margin-bottom: var(--space-2);">Befunde und Dokumente</h2>
-          <p class="text-muted" style="margin-bottom: var(--space-6);">Laden Sie medizinische Dokumente, Befunde, Überweisungen oder Fotos hoch (z.B. von Medikamentenpackungen oder betroffenen Stellen).</p>
+          <h2 style="margin-bottom: var(--space-2);">${t('dokumente.title')}</h2>
+          <p class="text-muted" style="margin-bottom: var(--space-6);">${t('dokumente.subtitle')}</p>
 
           <div class="form-group" style="margin-bottom: var(--space-6);">
             <div class="upload-dropzone" id="file-dropzone">
               <div class="upload-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               </div>
-              <span class="upload-title">Datei auswählen oder ablegen</span>
-              <span class="upload-desc">PDF, PNG oder JPEG bis max. 5 MB</span>
+              <span class="upload-title">${t('dokumente.dropzone_title')}</span>
+              <span class="upload-desc">${t('dokumente.dropzone_desc')}</span>
               <input type="file" id="dokument-file-input" style="display: none;" accept=".pdf,.png,.jpg,.jpeg" multiple />
             </div>
             <div class="validation-message" id="upload-error" style="display: none; margin-top: var(--space-2);"></div>
@@ -69,7 +70,7 @@ export function renderDokumenteView() {
 
           <!-- Uploaded Files List -->
           <div class="form-group" style="margin-bottom: var(--space-6);">
-            <label class="form-label" style="display: ${data.liste.length > 0 ? 'block' : 'none'};">Hochgeladene Dateien</label>
+            <label class="form-label" style="display: ${data.liste.length > 0 ? 'block' : 'none'};">${t('dokumente.uploaded_files')}</label>
             <div class="file-list" id="uploaded-files-list">
               ${filesHtml}
             </div>
@@ -128,14 +129,14 @@ export function initDokumenteView() {
       // Validate MIME format
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
       if (!allowedTypes.includes(file.type)) {
-        showError(`Format nicht unterstützt: ${file.name}. Bitte laden Sie nur PDF-, PNG- oder JPEG-Dateien hoch.`);
+        showError(t('dokumente.error_format').replace('{name}', file.name));
         continue;
       }
 
       // Validate size limit (5MB)
       const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
-        showError(`Datei ist zu groß: ${file.name} (maximal 5 MB erlaubt).`);
+        showError(t('dokumente.error_size').replace('{name}', file.name));
         continue;
       }
 
@@ -148,7 +149,7 @@ export function initDokumenteView() {
         refreshFileList();
       } catch (err) {
         removeLoadingItem(tempId);
-        showError(`Fehler beim Hochladen der Datei: ${file.name}. Bitte versuchen Sie es erneut.`);
+        showError(t('dokumente.error_upload').replace('{name}', file.name));
       }
     }
   }
@@ -183,7 +184,7 @@ export function initDokumenteView() {
         </div>
         <div class="file-details">
           <span class="file-name">${filename}</span>
-          <span class="file-size">Wird hochgeladen...</span>
+          <span class="file-size">${t('dokumente.uploading')}</span>
         </div>
       </div>
       <div class="file-actions">
@@ -224,7 +225,7 @@ export function initDokumenteView() {
             </div>
           </div>
           <div class="file-actions">
-            <button class="btn-file-delete" data-id="${file.id}" type="button" title="Datei löschen">
+            <button class="btn-file-delete" data-id="${file.id}" type="button" title="${t('dokumente.delete_tooltip')}">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             </button>
           </div>
@@ -240,12 +241,12 @@ export function initDokumenteView() {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const fileId = parseInt(btn.dataset.id);
-        if (confirm('Möchten Sie diese Datei wirklich löschen?')) {
+        if (confirm(t('dokumente.confirm_delete'))) {
           try {
             await store.deleteFile(fileId);
             refreshFileList();
           } catch (err) {
-            showError('Datei konnte nicht gelöscht werden.');
+            showError(t('dokumente.error_delete'));
           }
         }
       });

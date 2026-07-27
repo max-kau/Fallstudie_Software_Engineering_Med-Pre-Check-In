@@ -1,7 +1,4 @@
-/**
- * PatientDetailModal
- * Shows detailed patient info, precheck summary, doctor notes, and hint management.
- */
+import { t } from '../utils/i18n.js';
 
 const DEFAULT_HINTS = [
   'Bitte erscheinen Sie nüchtern (nichts essen/trinken ab 22 Uhr am Vortag)',
@@ -21,13 +18,13 @@ export function openPatientDetailModal(terminCode) {
     <div class="dl-modal-backdrop" id="patient-detail-modal" style="z-index: 9000;">
       <div class="dl-modal-card fade-in-up" style="max-width: 680px; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="dl-modal-header" style="flex-shrink: 0;">
-          <h3 class="dl-modal-title">Termindetails</h3>
+          <h3 class="dl-modal-title">${t('praxis.appt_details', 'Termindetails')}</h3>
           <button class="dl-modal-close" id="btn-close-patient-detail">&times;</button>
         </div>
         <div class="dl-modal-body" id="patient-detail-body" style="overflow-y: auto; padding: var(--space-6); flex-grow: 1;">
           <div style="text-align: center; padding: var(--space-8);">
             <div class="dl-auth-spinner" style="display: inline-block; width: 28px; height: 28px; border-width: 3px;"></div>
-            <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Daten werden geladen...</p>
+            <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading', 'Daten werden geladen...')}</p>
           </div>
         </div>
       </div>
@@ -142,43 +139,43 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--primary-lightest); border-radius: var(--radius-lg); margin-bottom: var(--space-5); border: 1px solid rgba(16,122,202,0.15);">
       <span style="font-size: var(--font-size-lg);">📅</span>
       <div>
-        <span style="font-size: var(--font-size-sm); font-weight: 700; color: var(--primary);">${termin.date} · ${termin.time} Uhr</span>
+        <span style="font-size: var(--font-size-sm); font-weight: 700; color: var(--primary);">${termin.date} · ${termin.time}</span>
         <span style="font-size: var(--font-size-xs); color: var(--gray-500); display: block;">${termin.art} · ${termin.doctor}</span>
       </div>
       <div style="margin-left: auto;">
         ${termin.precheck_submitted
-          ? '<span style="background: #ECFDF5; color: #059669; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ Pre-Check-In erledigt</span>'
-          : '<span style="background: #FEF2F2; color: #DC2626; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏳ Pre-Check-In ausstehend</span>'
+          ? `<span style="background: #ECFDF5; color: #059669; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">${t('status.precheck_done', '✓ Pre-Check-In erledigt')}</span>`
+          : `<span style="background: #FEF2F2; color: #DC2626; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">${t('status.precheck_pending', '⏳ Pre-Check-In ausstehend')}</span>`
         }
       </div>
     </div>
 
     <!-- Section 1: Patient Info -->
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">👤 Patienteninformationen</h4>
+      <h4 class="pdm-section-title">${t('praxis.patient_info', '👤 Patienteninformationen')}</h4>
       <div class="pdm-info-grid">
         <div class="pdm-info-row">
-          <span class="pdm-info-label">Name</span>
+          <span class="pdm-info-label">${t('profile.name', 'Name')}</span>
           <span class="pdm-info-value">${patientName}</span>
         </div>
         <div class="pdm-info-row">
-          <span class="pdm-info-label">Geburtsdatum</span>
+          <span class="pdm-info-label">${t('profile.dob', 'Geburtsdatum')}</span>
           <span class="pdm-info-value">${patient?.geburtsdatum || '–'}</span>
         </div>
         <div class="pdm-info-row">
-          <span class="pdm-info-label">Telefon</span>
+          <span class="pdm-info-label">${t('profile.phone', 'Telefon')}</span>
           <span class="pdm-info-value">${patient?.telefonnummer || '–'}</span>
         </div>
         <div class="pdm-info-row">
-          <span class="pdm-info-label">Adresse</span>
+          <span class="pdm-info-label">${t('profile.address', 'Adresse')}</span>
           <span class="pdm-info-value">${adresse}</span>
         </div>
         <div class="pdm-info-row">
-          <span class="pdm-info-label">Versicherung</span>
+          <span class="pdm-info-label">${t('profile.insurance', 'Versicherung')}</span>
           <span class="pdm-info-value">${versicherung}</span>
         </div>
         <div class="pdm-info-row">
-          <span class="pdm-info-label">E-Mail</span>
+          <span class="pdm-info-label">${t('profile.email', 'E-Mail')}</span>
           <span class="pdm-info-value">${patient?.email || '–'}</span>
         </div>
       </div>
@@ -187,27 +184,27 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     <!-- Section 2: PreCheck Summary -->
     ${termin.precheck_submitted ? `
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">🩺 Pre-Check-In Zusammenfassung</h4>
+      <h4 class="pdm-section-title">${t('praxis.precheck_summary', '🩺 Pre-Check-In Zusammenfassung')}</h4>
       <div style="display: flex; flex-direction: column; gap: var(--space-4);">
         <div>
-          <div class="pdm-subsection-title">Beschwerden</div>
+          <div class="pdm-subsection-title">${t('praxis.complaints', 'Beschwerden')}</div>
           <div class="pdm-data-block">
-            <div><strong>Symptome:</strong> ${symptoms}</div>
-            <div style="margin-top: var(--space-1);"><strong>Beschreibung:</strong> ${freitext}</div>
-            <div style="margin-top: var(--space-1);"><strong>Schmerzstärke:</strong> ${staerke}</div>
+            <div><strong>${t('praxis.symptoms', 'Symptome')}:</strong> ${symptoms}</div>
+            <div style="margin-top: var(--space-1);"><strong>${t('praxis.description', 'Beschreibung')}:</strong> ${freitext}</div>
+            <div style="margin-top: var(--space-1);"><strong>${t('praxis.pain_level', 'Schmerzstärke')}:</strong> ${staerke}</div>
           </div>
         </div>
         <div>
-          <div class="pdm-subsection-title">Medikamente</div>
+          <div class="pdm-subsection-title">${t('praxis.medications', 'Medikamente')}</div>
           <div class="pdm-data-block">${meds}</div>
         </div>
         <div>
-          <div class="pdm-subsection-title">Allergien</div>
-          <div class="pdm-data-block">${allergien}${allerAnm ? `<div style="margin-top: var(--space-1);"><strong>Anmerkungen:</strong> ${allerAnm}</div>` : ''}</div>
+          <div class="pdm-subsection-title">${t('praxis.allergies', 'Allergien')}</div>
+          <div class="pdm-data-block">${allergien}${allerAnm ? `<div style="margin-top: var(--space-1);"><strong>${t('praxis.notes', 'Anmerkungen')}:</strong> ${allerAnm}</div>` : ''}</div>
         </div>
         ${hasCustomAnswers ? `
         <div>
-          <div class="pdm-subsection-title">Zusatzfragen</div>
+          <div class="pdm-subsection-title">${t('praxis.additional_questions', 'Zusatzfragen')}</div>
           <div class="pdm-data-block">
             ${Object.entries(customAnswers).map(([q, a]) => {
               const ansText = Array.isArray(a) ? a.join(', ') : (a || 'Keine Antwort');
@@ -232,14 +229,14 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
         </div>
         ` : ''}
         <div>
-          <div class="pdm-subsection-title">Hochgeladene Dokumente</div>
+          <div class="pdm-subsection-title">${t('praxis.uploaded_docs', 'Hochgeladene Dokumente')}</div>
           <div class="pdm-data-block" style="padding: var(--space-3);">
             ${docsHtml}
           </div>
         </div>
         ${Object.keys(docConfirmations).length > 0 ? `
         <div>
-          <div class="pdm-subsection-title">Dokumentenbestätigungen</div>
+          <div class="pdm-subsection-title">${t('praxis.doc_confirmations', 'Dokumentenbestätigungen')}</div>
           <div class="pdm-data-block" style="padding: var(--space-3);">
             ${Object.entries(docConfirmations).map(([docId, conf]) => {
               const statusColor = conf.status === 'rejected' ? '#DC2626' : '#059669';
@@ -273,7 +270,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     ${termin.rating != null ? `
     <div class="pdm-section" style="margin-bottom: var(--space-5); background: #FFFBEB; border: 1px solid #FCD34D; padding: var(--space-4); border-radius: var(--radius-lg);">
       <h4 class="pdm-section-title" style="color: #D97706; margin-bottom: var(--space-2); font-weight: 800; display: flex; align-items: center; gap: 6px;">
-        ⭐ Patienten-Feedback & Bewertung
+        ${t('praxis.patient_feedback', '⭐ Patienten-Feedback & Bewertung')}
       </h4>
       <div style="font-size: var(--font-size-lg); font-weight: 700; color: #D97706; display: flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
         ${'★'.repeat(termin.rating)}${'☆'.repeat(5 - termin.rating)} 
@@ -291,7 +288,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     ${termin.precheck_submitted ? `
     <div class="pdm-section" id="ai-assessments-section" style="margin-bottom: var(--space-5); background: #f8fafc; border: 1px solid #e2e8f0; padding: var(--space-4); border-radius: var(--radius-lg);">
       <h4 class="pdm-section-title" style="color: var(--primary); margin-bottom: var(--space-3); font-weight: 800; display: flex; align-items: center; gap: 6px;">
-        🤖 KI-Assistent
+        ${t('praxis.ai_assistant', '🤖 KI-Assistent')}
       </h4>
       <div id="ai-assessments-container" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
         <div class="dl-auth-spinner" style="width: 24px; height: 24px; border-width: 2.5px; border-color: var(--primary) transparent transparent transparent;"></div>
@@ -319,28 +316,28 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
 
     <!-- Section 3: Doctor Notes -->
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">📝 Eigene Notizen (nur für Sie sichtbar)</h4>
-      <textarea id="doctor-note-input" class="pdm-note-textarea" placeholder="Notizen zum Termin eingeben...">${note?.note_text || ''}</textarea>
+      <h4 class="pdm-section-title">${t('praxis.doctor_notes', '📝 Eigene Notizen (nur für Sie sichtbar)')}</h4>
+      <textarea id="doctor-note-input" class="pdm-note-textarea" placeholder="${t('praxis.notes_placeholder', 'Notizen zum Termin eingeben...')}">${note?.note_text || ''}</textarea>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-2);">
         <span id="doctor-note-status" style="font-size: var(--font-size-xs); color: var(--gray-400);"></span>
         <button id="btn-save-note" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
-          💾 Notiz speichern
+          ${t('praxis.save_note', '💾 Notiz speichern')}
         </button>
       </div>
     </div>
 
     <!-- Section 4: Patient Hints -->
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">💡 Hinweise an den Patienten</h4>
-      ${hintsHtml || '<p style="font-size: var(--font-size-sm); color: var(--gray-400); margin-bottom: var(--space-3);">Noch keine Hinweise gesendet.</p>'}
+      <h4 class="pdm-section-title">${t('praxis.patient_hints', '💡 Hinweise an den Patienten')}</h4>
+      ${hintsHtml || `<p style="font-size: var(--font-size-sm); color: var(--gray-400); margin-bottom: var(--space-3);">${t('praxis.no_hints_sent', 'Noch keine Hinweise gesendet.')}</p>`}
       <button id="btn-send-hint" class="btn" style="background: var(--primary); color: white; padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: var(--space-3); font-size: var(--font-size-sm);">
-        📨 Hinweis schicken
+        ${t('praxis.send_hint', '📨 Hinweis schicken')}
       </button>
     </div>
 
     <!-- Section 5: Documents for Patient -->
     <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
-      <h4 class="pdm-section-title">📂 Dokumente für den Patienten bereitstellen (Laborberichte, Rezepte, etc.)</h4>
+      <h4 class="pdm-section-title">${t('praxis.share_docs_title', '📂 Dokumente für den Patienten bereitstellen (Laborberichte, Rezepte, etc.)')}</h4>
       <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
         Hier hochgeladene Dateien werden für den Patienten in seinem Portal freigegeben und er erhält eine sofortige Benachrichtigung per E-Mail.
       </p>

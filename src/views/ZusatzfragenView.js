@@ -2,6 +2,7 @@ import { renderHeader } from '../components/Header.js';
 import { renderProgressBar } from '../components/ProgressBar.js';
 import { renderStepNavigation, initStepNavigation, updateNextButtonState } from '../components/StepNavigation.js';
 import { store } from '../utils/store.js';
+import { t } from '../utils/i18n.js';
 
 export function renderZusatzfragenView() {
   const questions = store.getCustomQuestions();
@@ -14,7 +15,7 @@ export function renderZusatzfragenView() {
     let inputHtml = '';
     if (q.question_type === 'text') {
       inputHtml = `
-        <textarea class="form-textarea custom-q-input" data-text="${q.question_text}" placeholder="Ihre Antwort..." style="margin-top: var(--space-2); min-height: 80px;">${currentVal || ''}</textarea>
+        <textarea class="form-textarea custom-q-input" data-text="${q.question_text}" placeholder="..." style="margin-top: var(--space-2); min-height: 80px;">${currentVal || ''}</textarea>
       `;
     } else if (q.question_type === 'single') {
       const options = q.options || [];
@@ -66,8 +67,8 @@ export function renderZusatzfragenView() {
       ${renderProgressBar(1)}
       <div class="container container--form">
         <div class="view-content">
-          <h2 style="margin-bottom: var(--space-2);">Zusatzfragen der Praxis</h2>
-          <p class="text-muted" style="margin-bottom: var(--space-6);">Bitte beantworten Sie die folgenden spezifischen Fragen Ihrer Arztpraxis.</p>
+          <h2 style="margin-bottom: var(--space-2);">${t('zusatzfragen.title')}</h2>
+          <p class="text-muted" style="margin-bottom: var(--space-6);">${t('zusatzfragen.subtitle')}</p>
 
           <form id="custom-questions-form" onsubmit="event.preventDefault();">
             ${questionsHtml}
@@ -90,15 +91,15 @@ function validateZusatzfragen() {
 
     if (q.question_type === 'text') {
       if (!val || val.trim().length === 0) {
-        return { valid: false, message: `Bitte beantworten Sie die Pflichtfrage: "${q.question_text}"` };
+        return { valid: false, message: t('zusatzfragen.val_text').replace('{q}', q.question_text) };
       }
     } else if (q.question_type === 'single') {
       if (!val) {
-        return { valid: false, message: `Bitte treffen Sie eine Auswahl für: "${q.question_text}"` };
+        return { valid: false, message: t('zusatzfragen.val_single').replace('{q}', q.question_text) };
       }
     } else if (q.question_type === 'multiple') {
       if (!Array.isArray(val) || val.length === 0) {
-        return { valid: false, message: `Bitte wählen Sie mindestens eine Option für: "${q.question_text}"` };
+        return { valid: false, message: t('zusatzfragen.val_multiple').replace('{q}', q.question_text) };
       }
     }
   }

@@ -1,4 +1,5 @@
 import { praxen } from '../data/praxen.js';
+import { t, getLanguage } from '../utils/i18n.js';
 
 let selectedDate = null;
 let selectedTime = null;
@@ -44,11 +45,20 @@ async function fetchBlockedSlots(praxisName, date, excludeCode) {
 function renderCalendarHtml() {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
+  const lang = getLanguage();
   
-  const monthNames = [
+  const monthNamesDe = [
     'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
     'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
   ];
+  const monthNamesEn = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const monthNames = lang === 'en' ? monthNamesEn : monthNamesDe;
+  const weekdaysHtml = lang === 'en'
+    ? '<span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>'
+    : '<span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>';
   
   const firstDay = new Date(year, month, 1);
   let startDayOfWeek = firstDay.getDay();
@@ -78,9 +88,9 @@ function renderCalendarHtml() {
     const disabledAttr = isDisabled ? 'disabled' : '';
     let titleAttr = '';
     if (isSunday) {
-      titleAttr = 'title="Sonntags geschlossen"';
+      titleAttr = `title="${t('reschedule.sunday_closed')}"`;
     } else if (isPast) {
-      titleAttr = 'title="In der Vergangenheit"';
+      titleAttr = `title="${t('reschedule.past_date')}"`;
     }
     
     daysHtml += `
@@ -101,7 +111,7 @@ function renderCalendarHtml() {
         <button type="button" class="dl-calendar-btn" id="btn-next-month">&gt;</button>
       </div>
       <div class="dl-calendar-weekdays">
-        <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+        ${weekdaysHtml}
       </div>
       <div class="dl-calendar-days">
         ${daysHtml}
@@ -112,12 +122,12 @@ function renderCalendarHtml() {
 
 function renderTimeslotsHtml() {
   if (!selectedDate) {
-    return `<p class="text-muted" style="text-align: center; font-size: var(--font-size-sm);">Bitte wählen Sie zuerst ein Datum.</p>`;
+    return `<p class="text-muted" style="text-align: center; font-size: var(--font-size-sm);">${t('reschedule.select_date_first')}</p>`;
   }
 
   const slots = getAvailableTimeslotsForDate(selectedDate);
   if (slots.length === 0) {
-    return `<p class="text-muted" style="text-align: center; font-size: var(--font-size-sm);">Keine Termine an diesem Tag verfügbar.</p>`;
+    return `<p class="text-muted" style="text-align: center; font-size: var(--font-size-sm);">${t('reschedule.no_slots')}</p>`;
   }
 
   let html = `<div class="dl-time-slots" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); margin-top: var(--space-2);">`;
@@ -125,7 +135,7 @@ function renderTimeslotsHtml() {
     const isBlocked = blockedSlots.includes(slot);
     const isSelected = selectedTime === slot;
     const btnClass = isSelected ? 'active' : '';
-    const disabledAttr = isBlocked ? 'disabled title="Bereits belegt"' : '';
+    const disabledAttr = isBlocked ? `disabled title="${t('reschedule.slot_occupied')}"` : '';
     
     html += `
       <button class="booking-time-slot ${btnClass}" data-time="${slot}" ${disabledAttr} style="padding: var(--space-2) 0; font-size: var(--font-size-sm); font-weight: 600;">
@@ -224,25 +234,25 @@ export function openRescheduleModal(terminCode, praxisName, callback) {
     <div class="dl-modal-backdrop" id="reschedule-modal" style="z-index: 9100;">
       <div class="dl-modal-card fade-in-up" style="max-width: 480px; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
         <div class="dl-modal-header" style="padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--gray-200);">
-          <h3 class="dl-modal-title" style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800);">Termin verschieben</h3>
+          <h3 class="dl-modal-title" style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800);">${t('reschedule.title')}</h3>
           <button class="dl-modal-close" id="btn-close-reschedule" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray-400);">&times;</button>
         </div>
         
         <div class="dl-modal-body" style="padding: var(--space-5) var(--space-6); overflow-y: auto; max-height: 70vh;">
           <p style="font-size: var(--font-size-sm); color: var(--gray-600); margin-bottom: var(--space-4); line-height: 1.4;">
-            Wählen Sie ein neues Datum und eine neue Uhrzeit für Ihren Termin in der Praxis <strong>${praxisName}</strong>.
+            ${t('reschedule.desc').replace('{praxis}', praxisName)}
           </p>
 
-          <label class="booking-section-label" style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-2); display: block;">1. Datum wählen</label>
+          <label class="booking-section-label" style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-2); display: block;">${t('reschedule.select_date')}</label>
           <div id="reschedule-calendar-container" style="margin-bottom: var(--space-4);"></div>
 
-          <label class="booking-section-label" style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-2); display: block;">2. Uhrzeit wählen</label>
+          <label class="booking-section-label" style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-2); display: block;">${t('reschedule.select_time')}</label>
           <div id="reschedule-time-container"></div>
         </div>
 
         <div class="dl-modal-footer" style="padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: var(--space-3);">
-          <button class="btn btn-outline" id="btn-cancel-reschedule-action" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm);">Abbrechen</button>
-          <button class="btn btn-primary" id="btn-save-reschedule" disabled style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm);">Termin verschieben</button>
+          <button class="btn btn-outline" id="btn-cancel-reschedule-action" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm);">${t('common.cancel')}</button>
+          <button class="btn btn-primary" id="btn-save-reschedule" disabled style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm);">${t('reschedule.save_btn')}</button>
         </div>
       </div>
     </div>
@@ -286,7 +296,7 @@ export function openRescheduleModal(terminCode, praxisName, callback) {
       console.error(err);
       alert(err.message || 'Verbindung fehlgeschlagen.');
       saveBtn.disabled = false;
-      saveBtn.innerText = 'Termin verschieben';
+      saveBtn.innerText = t('reschedule.save_btn');
     }
   });
 

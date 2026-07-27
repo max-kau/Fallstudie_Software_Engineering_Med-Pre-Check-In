@@ -1,8 +1,4 @@
-/**
- * CalendarView Component
- * Outlook-style calendar for the Praxis Dashboard.
- * Supports day and week views with drag-to-resize appointment blocks.
- */
+import { t, getLanguage } from '../utils/i18n.js';
 
 const CALENDAR_START_HOUR = 7;
 const CALENDAR_END_HOUR = 24;
@@ -17,8 +13,17 @@ const MONTH_MAP = {
   'jul': 6, 'aug': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'dez': 11
 };
 
-const WEEKDAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+function getWeekdayNames() {
+  return getLanguage() === 'en'
+    ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    : ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+}
+
+function getMonthNames() {
+  return getLanguage() === 'en'
+    ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    : ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+}
 
 function parseGermanDate(dateStr) {
   if (!dateStr) return null;
@@ -57,13 +62,22 @@ function parseTimeToMinutes(timeStr) {
 
 function formatDateHeader(date) {
   const d = new Date(date);
-  return `${WEEKDAY_NAMES[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  const weekdays = getWeekdayNames();
+  const months = getMonthNames();
+  if (getLanguage() === 'en') {
+    return `${weekdays[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+  return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function formatWeekHeader(startDate) {
   const end = new Date(startDate);
   end.setDate(end.getDate() + 6);
-  return `${String(startDate.getDate()).padStart(2, '0')}. ${MONTH_NAMES[startDate.getMonth()]} – ${String(end.getDate()).padStart(2, '0')}. ${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
+  const months = getMonthNames();
+  if (getLanguage() === 'en') {
+    return `${months[startDate.getMonth()]} ${startDate.getDate()} – ${months[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
+  }
+  return `${String(startDate.getDate()).padStart(2, '0')}. ${months[startDate.getMonth()]} – ${String(end.getDate()).padStart(2, '0')}. ${months[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 function isSameDay(d1, d2) {
@@ -130,28 +144,28 @@ export function renderCalendarView() {
       <!-- Calendar Header -->
       <div class="cal-header">
         <div class="cal-nav">
-          <button class="cal-nav-btn" id="cal-prev" title="Zurück">
+          <button class="cal-nav-btn" id="cal-prev" title="${t('common.back', 'Zurück')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <button class="cal-nav-btn cal-today-btn" id="cal-today">Heute</button>
-          <button class="cal-nav-btn" id="cal-next" title="Vor">
+          <button class="cal-nav-btn cal-today-btn" id="cal-today">${t('calendar.today')}</button>
+          <button class="cal-nav-btn" id="cal-next" title="${t('common.next', 'Vor')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
         <h2 class="cal-title" id="cal-title"></h2>
         <div class="cal-view-toggle">
-          <button class="cal-toggle-btn active" id="cal-view-day" data-view="day">Tag</button>
-          <button class="cal-toggle-btn" id="cal-view-week" data-view="week">Woche</button>
-          <button class="cal-toggle-btn" id="cal-view-buffer" data-view="buffer" style="border-left: 1px solid var(--gray-300);">⏸️ Pufferzeiten</button>
+          <button class="cal-toggle-btn active" id="cal-view-day" data-view="day">${t('calendar.day')}</button>
+          <button class="cal-toggle-btn" id="cal-view-week" data-view="week">${t('calendar.week')}</button>
+          <button class="cal-toggle-btn" id="cal-view-buffer" data-view="buffer" style="border-left: 1px solid var(--gray-300);">⏸️ ${t('calendar.buffer_times')}</button>
         </div>
       </div>
 
       <!-- Legend -->
       <div class="cal-legend" id="cal-legend">
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>Pre-Check-In erledigt</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>Pre-Check-In offen</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94A3B8;"></span>Nicht freigeschaltet</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#F59E0B;"></span>Pufferzeit</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>${t('calendar.precheck_done')}</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>${t('calendar.precheck_open')}</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94A3B8;"></span>${t('calendar.not_unlocked')}</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#F59E0B;"></span>${t('calendar.buffer_time')}</span>
       </div>
 
       <!-- Calendar Body -->
@@ -278,7 +292,7 @@ function renderCurrentTimeIndicator(date) {
          style="position: absolute; left: 0; right: 0; top: ${topPx}px; border-top: 2px solid #EF4444; z-index: 10; pointer-events: none;">
       <div style="position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: #EF4444; border-radius: 50%; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);"></div>
       <span style="position: absolute; right: 4px; top: -9px; background: #EF4444; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); letter-spacing: 0.3px;">
-        📍 ${timeStr} Uhr
+        📍 ${timeStr}${getLanguage() === 'en' ? '' : ' Uhr'}
       </span>
     </div>
   `;
@@ -287,6 +301,7 @@ function renderCurrentTimeIndicator(date) {
 function renderDayView(date, appointments, openingHours, bufferTimes) {
   const dayAppts = filterAppointmentsByDate(appointments, date);
   const isToday = isSameDay(date, new Date());
+  const weekdays = getWeekdayNames();
 
   return `
     <div class="cal-grid cal-grid--day">
@@ -301,7 +316,7 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
       </div>
       <div class="cal-day-col">
         <div class="cal-day-header ${isToday ? 'cal-day-header--today' : ''}">
-          <span class="cal-day-name">${WEEKDAY_NAMES[date.getDay()]}</span>
+          <span class="cal-day-name">${weekdays[date.getDay()]}</span>
           <span class="cal-day-num ${isToday ? 'cal-day-num--today' : ''}">${date.getDate()}</span>
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
@@ -318,6 +333,7 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
 
 function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
   const today = new Date();
+  const weekdays = getWeekdayNames();
   let cols = '';
   for (let i = 0; i < 7; i++) {
     const d = new Date(mondayDate);
@@ -327,7 +343,7 @@ function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
     cols += `
       <div class="cal-day-col cal-week-col">
         <div class="cal-day-header ${isToday ? 'cal-day-header--today' : ''}">
-          <span class="cal-day-name">${WEEKDAY_NAMES[d.getDay()]}</span>
+          <span class="cal-day-name">${weekdays[d.getDay()]}</span>
           <span class="cal-day-num ${isToday ? 'cal-day-num--today' : ''}">${d.getDate()}</span>
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
@@ -383,7 +399,7 @@ function renderAppointmentBlock(appt) {
   const color = getAppointmentColor(appt);
   const cv = getAppointmentColorVars(color);
   const name = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
-  const timeLabel = appt.time ? `${appt.time} Uhr` : '';
+  const timeLabel = appt.time ? (getLanguage() === 'en' ? appt.time : `${appt.time} Uhr`) : '';
 
   // Check for conflicts
   const hasConflict = appt._hasConflict || false;

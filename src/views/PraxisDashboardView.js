@@ -85,9 +85,9 @@ export function renderPraxisDashboardView() {
         <!-- Tab Content: Behandlungszeiten & Analyse -->
         <div id="tab-content-zeiten" class="dashboard-tab-content" style="display: none;">
           <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
-            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">⏱️ Datengestützte Behandlungszeiten & Verzugsschutz</h2>
+            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">${t('praxis.treatment_times_title')}</h2>
             <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-6); line-height: 1.5;">
-              Aktivieren Sie den <strong>Verzugsschutz (Automatik)</strong>, um neue Kalendertermine und Wartezeiten auf Basis der <strong>historisch berechneten Ist-Dauer</strong> zu planen. Bei Deaktivierung wird Ihre <strong>manuelle Soll-Dauer</strong> genutzt. Die jeweils aktive Spalte ist farblich hervorgehoben.
+              ${t('praxis.treatment_times_desc')}
             </p>
 
             <div id="praxis-duration-analysis-container">
@@ -131,34 +131,34 @@ export function renderPraxisDashboardView() {
 
             <!-- Modal for manual log entry (hidden by default) -->
             <div id="manual-log-modal-container" style="display: none; background: #F8FAFC; border: 1px solid var(--gray-300); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-6);">
-              <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800);">Aktivität manuell im Protokoll verzeichnen</h4>
+              <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800);">${t('praxis.manual_log_title')}</h4>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3);">
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Patienten-ID / Name *</label>
-                  <input type="text" id="manual-log-patient" placeholder="z. B. Max Mustermann (#12)" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.patient_id_label')}</label>
+                  <input type="text" id="manual-log-patient" placeholder="${t('praxis.patient_id_placeholder')}" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
                 </div>
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Termin-Code (optional)</label>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.code_label')}</label>
                   <input type="text" id="manual-log-code" placeholder="z. B. ABC1234" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
                 </div>
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Status *</label>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.status')} *</label>
                   <select id="manual-log-status" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
-                    <option value="erschienen">✓ Erschienen</option>
-                    <option value="in_treatment">🩺 In Behandlung</option>
-                    <option value="abgesagt">❌ Abgesagt</option>
-                    <option value="verzögert">⏱️ Verzögert</option>
-                    <option value="verschoben">📅 Verschoben</option>
+                    <option value="erschienen">✓ ${t('status.appeared')}</option>
+                    <option value="in_treatment">🩺 ${t('status.in_treatment')}</option>
+                    <option value="abgesagt">❌ ${t('status.cancelled')}</option>
+                    <option value="verzögert">⏱️ ${t('status.delayed')}</option>
+                    <option value="verschoben">📅 ${t('status.rescheduled')}</option>
                   </select>
                 </div>
               </div>
               <div style="margin-bottom: var(--space-3);">
-                <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Aktion / Notiz *</label>
-                <input type="text" id="manual-log-action" placeholder="z. B. Nachsorge-Dokumente im Empfang ausgehändigt" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+                <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.action_note_label')}</label>
+                <input type="text" id="manual-log-action" placeholder="${t('praxis.action_note_placeholder')}" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
               </div>
               <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
-                <button id="btn-cancel-manual-log" class="btn btn-outline" style="padding: 4px 12px; font-size: 12px;">Abbrechen</button>
-                <button id="btn-save-manual-log" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px;">Speichern</button>
+                <button id="btn-cancel-manual-log" class="btn btn-outline" style="padding: 4px 12px; font-size: 12px;">${t('common.cancel')}</button>
+                <button id="btn-save-manual-log" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px;">${t('common.save')}</button>
               </div>
             </div>
 
@@ -166,7 +166,7 @@ export function renderPraxisDashboardView() {
             <div id="praxis-activity-logs-container">
               <div style="text-align: center; padding: var(--space-6) 0;">
                 <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
-                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Aktivitätslog wird geladen...</p>
+                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
               </div>
             </div>
           </div>
@@ -175,10 +175,9 @@ export function renderPraxisDashboardView() {
         <!-- Tab Content: Gestaltung -->
         <div id="tab-content-gestaltung" class="dashboard-tab-content" style="display: none;">
           <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
-            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">🎨 Eigenen Fragebogen gestalten</h2>
+            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">${t('praxis.custom_questions_title')}</h2>
             <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-4); line-height: 1.5;">
-              Fügen Sie hier eigene Fragen hinzu, die Patienten beim Ausfüllen des Pre-Check-Ins für Ihre Praxis beantworten müssen. 
-              Sie können Freitextfragen, Einzelauswahl oder Mehrfachauswahl-Fragen erstellen.
+              ${t('praxis.custom_questions_desc')}
             </p>
             
             <div id="questions-list-container" style="margin-top: var(--space-4);">
@@ -187,10 +186,10 @@ export function renderPraxisDashboardView() {
 
             <div style="display: flex; gap: var(--space-3); margin-top: var(--space-6); flex-wrap: wrap;">
               <button id="btn-add-question" type="button" class="btn" style="background: var(--primary-lightest); color: var(--primary); border: 1px dashed var(--primary); padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s;">
-                ➕ Neue Frage hinzufügen
+                ${t('praxis.add_question')}
               </button>
               <button id="btn-save-questions" type="button" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                💾 Fragebogen speichern
+                ${t('praxis.save_questionnaire')}
               </button>
             </div>
             <div id="questions-status-message" style="margin-top: var(--space-4); font-size: var(--font-size-sm); font-weight: 600; display: none;"></div>

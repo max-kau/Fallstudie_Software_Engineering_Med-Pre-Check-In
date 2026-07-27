@@ -1,4 +1,5 @@
 import { auth } from '../utils/auth.js';
+import { t } from '../utils/i18n.js';
 
 export function openCreateAppointmentModal(callback) {
   // Remove existing modal if any
@@ -28,24 +29,24 @@ export function openCreateAppointmentModal(callback) {
         
         <!-- Header -->
         <div class="dl-modal-header" style="padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center;">
-          <h3 class="dl-modal-title" style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 0;">📞 Telefonischen Termin eintragen</h3>
+          <h3 class="dl-modal-title" style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 0;">${t('create_appt.title')}</h3>
           <button class="dl-modal-close" id="btn-close-create-appt" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray-400); line-height: 1;">&times;</button>
         </div>
         
         <!-- Body / Form -->
         <div class="dl-modal-body" style="padding: var(--space-5) var(--space-6); overflow-y: auto; max-height: 70vh; display: flex; flex-direction: column; gap: var(--space-4);">
           <p style="font-size: var(--font-size-sm); color: var(--gray-600); line-height: 1.4; margin: 0;">
-            Tragen Sie hier einen telefonisch vereinbarten Termin ein. Geben Sie dazu die Patientendaten ein. Existierende Patienten können über die Suche geladen werden.
+            ${t('create_appt.subtitle')}
           </p>
 
           <!-- Search Section -->
           <div style="background: var(--gray-50); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200); display: flex; flex-direction: column; gap: var(--space-3);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700);">🔍 PATIENTEN-SUCHE</span>
-              <span id="patient-status-badge" style="background: var(--gray-200); color: var(--gray-700); font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">🆕 Neuer Patient</span>
+              <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700);">${t('create_appt.patient_search')}</span>
+              <span id="patient-status-badge" style="background: var(--gray-200); color: var(--gray-700); font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">${t('create_appt.new_patient')}</span>
             </div>
             <div style="position: relative; display: flex; align-items: center;">
-              <input type="text" id="create-appt-search" placeholder="Name, Vorname oder E-Mail eingeben..." style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) 36px var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; transition: all 0.2s ease;">
+              <input type="text" id="create-appt-search" placeholder="${t('create_appt.search_placeholder')}" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) 36px var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; transition: all 0.2s ease;">
               <div id="search-spinner" class="dl-auth-spinner" style="display: none; position: absolute; right: 12px; width: 16px; height: 16px; border-width: 2px;"></div>
               <div id="create-appt-search-results" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); z-index: 9200; max-height: 280px; overflow-y: auto; padding: 4px 0;"></div>
             </div>
@@ -55,56 +56,56 @@ export function openCreateAppointmentModal(callback) {
 
           <!-- Patient Information (Akte) -->
           <div style="display: flex; flex-direction: column; gap: var(--space-3); border: 1px solid var(--gray-200); padding: var(--space-4); border-radius: var(--radius-lg);">
-            <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-1); margin-bottom: var(--space-1);">📋 PATIENTENAKTE</span>
+            <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-1); margin-bottom: var(--space-1);">${t('create_appt.patient_file')}</span>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Vorname *</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.firstname')}</label>
                 <input type="text" id="create-appt-vorname" placeholder="Max" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Nachname *</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.lastname')}</label>
                 <input type="text" id="create-appt-nachname" placeholder="Mustermann" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
             </div>
 
             <div>
-              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">E-Mail-Adresse *</label>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.email')}</label>
               <input type="email" id="create-appt-email" placeholder="patient@example.com" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Geburtsdatum</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.birthdate')}</label>
                 <input type="date" id="create-appt-geburtsdatum" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Telefonnummer</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.phone')}</label>
                 <input type="text" id="create-appt-telefon" placeholder="0176..." style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-3);">
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Straße & Hausnummer</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.address')}</label>
                 <input type="text" id="create-appt-strasse" placeholder="Hauptstr. 10" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">PLZ & Ort</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.zip_city')}</label>
                 <input type="text" id="create-appt-plzort" placeholder="80331 München" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Versicherung</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.insurance')}</label>
                 <select id="create-appt-versicherung" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; cursor: pointer;">
-                  <option value="gesetzlich">Gesetzlich</option>
-                  <option value="privat">Privat</option>
+                  <option value="gesetzlich">${t('create_appt.public')}</option>
+                  <option value="privat">${t('create_appt.private')}</option>
                 </select>
               </div>
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Krankenkasse</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.insurance_provider')}</label>
                 <input type="text" id="create-appt-krankenkasse" placeholder="Techniker Krankenkasse" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
             </div>
@@ -112,46 +113,46 @@ export function openCreateAppointmentModal(callback) {
 
           <!-- Appointment Details Section -->
           <div style="display: flex; flex-direction: column; gap: var(--space-3); border: 1px solid var(--gray-200); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--gray-50);">
-            <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-1); margin-bottom: var(--space-1);">📅 TERMIN-DETAILS</span>
+            <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-1); margin-bottom: var(--space-1);">${t('create_appt.appt_details')}</span>
 
             <div>
-              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Behandelnder Arzt / Behandler *</label>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.doctor')}</label>
               <input type="text" id="create-appt-doctor" value="${defaultDoctor}" placeholder="Dr. Hartmann" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Datum *</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.date')}</label>
                 <input type="date" id="create-appt-date" value="${defaultDateStr}" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
               </div>
               <div>
-                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Uhrzeit *</label>
+                <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.time')}</label>
                 <select id="create-appt-time" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; cursor: pointer;">
-                  <option value="08:00">08:00 Uhr</option>
-                  <option value="08:30">08:30 Uhr</option>
-                  <option value="09:00">09:00 Uhr</option>
-                  <option value="09:30" selected>09:30 Uhr</option>
-                  <option value="10:00">10:00 Uhr</option>
-                  <option value="10:30">10:30 Uhr</option>
-                  <option value="11:00">11:00 Uhr</option>
-                  <option value="11:30">11:30 Uhr</option>
-                  <option value="12:00">12:00 Uhr</option>
-                  <option value="12:30">12:30 Uhr</option>
-                  <option value="13:00">13:00 Uhr</option>
-                  <option value="13:30">13:30 Uhr</option>
-                  <option value="14:00">14:00 Uhr</option>
-                  <option value="14:30">14:30 Uhr</option>
-                  <option value="15:00">15:00 Uhr</option>
-                  <option value="15:30">15:30 Uhr</option>
-                  <option value="16:00">16:00 Uhr</option>
-                  <option value="16:30">16:30 Uhr</option>
-                  <option value="17:00">17:00 Uhr</option>
+                  <option value="08:00">08:00</option>
+                  <option value="08:30">08:30</option>
+                  <option value="09:00">09:00</option>
+                  <option value="09:30" selected>09:30</option>
+                  <option value="10:00">10:00</option>
+                  <option value="10:30">10:30</option>
+                  <option value="11:00">11:00</option>
+                  <option value="11:30">11:30</option>
+                  <option value="12:00">12:00</option>
+                  <option value="12:30">12:30</option>
+                  <option value="13:00">13:00</option>
+                  <option value="13:30">13:30</option>
+                  <option value="14:00">14:00</option>
+                  <option value="14:30">14:30</option>
+                  <option value="15:00">15:00</option>
+                  <option value="15:30">15:30</option>
+                  <option value="16:00">16:00</option>
+                  <option value="16:30">16:30</option>
+                  <option value="17:00">17:00</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Besuchsgrund (Art) *</label>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('create_appt.reason')}</label>
               <select id="create-appt-art" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; cursor: pointer;">
                 <option value="Routineuntersuchung">Routineuntersuchung</option>
                 <option value="Erstgespräch">Erstgespräch</option>
@@ -162,10 +163,10 @@ export function openCreateAppointmentModal(callback) {
             </div>
 
             <div>
-              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Behandlungsdauer (Minuten) *</label>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('create_appt.duration')}</label>
               <div style="display: flex; gap: var(--space-2); align-items: center;">
                 <input type="number" id="create-appt-duration" min="5" max="180" value="15" style="width: 100px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
-                <span style="font-size: var(--font-size-xs); color: var(--gray-500);">Min.</span>
+                <span style="font-size: var(--font-size-xs); color: var(--gray-500);">${t('create_appt.min_abbr')}</span>
               </div>
               <div id="create-appt-duration-hint" style="font-size: 0.72rem; color: var(--primary); margin-top: 4px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
                 <span>💡 Empfohlene Dauer wird geladen...</span>
@@ -176,8 +177,8 @@ export function openCreateAppointmentModal(callback) {
 
         <!-- Footer -->
         <div class="dl-modal-footer" style="padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: var(--space-3);">
-          <button class="btn btn-outline" id="btn-cancel-create-appt" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm); border: 1px solid var(--gray-300); background: white; border-radius: var(--radius-md); cursor: pointer;">Abbrechen</button>
-          <button class="btn btn-primary" id="btn-submit-create-appt" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm); background: var(--primary); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 700;">Termin eintragen</button>
+          <button class="btn btn-outline" id="btn-cancel-create-appt" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm); border: 1px solid var(--gray-300); background: white; border-radius: var(--radius-md); cursor: pointer;">${t('common.cancel')}</button>
+          <button class="btn btn-primary" id="btn-submit-create-appt" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-sm); background: var(--primary); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 700;">${t('create_appt.submit_btn')}</button>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { store } from '../utils/store.js';
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { openDocumentViewerModal } from '../components/DocumentViewerModal.js';
+import { t } from '../utils/i18n.js';
 
 function formatGermanDate(dateStr) {
   if (!dateStr) return '';
@@ -15,7 +16,16 @@ function formatGermanDate(dateStr) {
   return dateStr;
 }
 
-const DAUER_MAP = { heute: 'Seit heute', einige_tage: 'Seit einigen Tagen', eine_woche: 'Seit etwa einer Woche', mehrere_wochen: 'Seit mehreren Wochen', monate: 'Seit Monaten', laenger: 'Länger als 6 Monate' };
+function getDauerMap() {
+  return {
+    heute: t('beschwerden.duration_today'),
+    einige_tage: t('beschwerden.duration_days'),
+    eine_woche: t('beschwerden.duration_week'),
+    mehrere_wochen: t('beschwerden.duration_weeks'),
+    monate: t('beschwerden.duration_months'),
+    laenger: t('beschwerden.duration_longer')
+  };
+}
 
 function formatBytes(bytes, decimals = 1) {
   if (bytes === 0) return '0 Bytes';
@@ -32,15 +42,16 @@ export function renderSummaryView() {
   const m = allData.medikamente;
   const a = allData.allergien;
   const d = allData.dokumente || { liste: [] };
+  const dauerMap = getDauerMap();
 
   if (allData.submitted) return renderSuccessScreen();
 
   const symptomsList = [...b.chips];
   const beschwerdenContent = `
-    ${symptomsList.length ? `<div class="summary-item"><div class="summary-item-label">Ausgewählte Symptome</div>${symptomsList.join(', ')}</div>` : ''}
-    ${b.freitext ? `<div class="summary-item"><div class="summary-item-label">Beschreibung</div>${b.freitext}</div>` : ''}
-    ${b.dauer ? `<div class="summary-item"><div class="summary-item-label">Dauer</div>${DAUER_MAP[b.dauer] || b.dauer}</div>` : ''}
-    <div class="summary-item"><div class="summary-item-label">Stärke</div>${b.staerke} / 10</div>
+    ${symptomsList.length ? `<div class="summary-item"><div class="summary-item-label">${t('summary.selected_symptoms')}</div>${symptomsList.join(', ')}</div>` : ''}
+    ${b.freitext ? `<div class="summary-item"><div class="summary-item-label">${t('summary.description')}</div>${b.freitext}</div>` : ''}
+    ${b.dauer ? `<div class="summary-item"><div class="summary-item-label">${t('summary.duration')}</div>${dauerMap[b.dauer] || b.dauer}</div>` : ''}
+    <div class="summary-item"><div class="summary-item-label">${t('summary.severity')}</div>${b.staerke} / 10</div>
   `;
 
   const customQuestions = store.getCustomQuestions();
@@ -50,7 +61,7 @@ export function renderSummaryView() {
   const customContent = hasCustomQuestions
     ? customQuestions.map(q => {
         const ans = customAnswers[q.question_text];
-        const displayAns = Array.isArray(ans) ? ans.join(', ') : (ans || 'Keine Antwort');
+        const displayAns = Array.isArray(ans) ? ans.join(', ') : (ans || t('summary.no_answer'));
         return `
           <div class="summary-item">
             <div class="summary-item-label">${q.question_text}</div>
@@ -61,22 +72,22 @@ export function renderSummaryView() {
     : '';
 
   const medContent = m.keine
-    ? '<div class="summary-item">Keine Medikamente</div>'
-    : (m.liste.length ? `<div class="summary-item">${m.liste.join(', ')}</div>` : '<div class="summary-item text-muted">Keine Angabe</div>');
+    ? `<div class="summary-item">${t('summary.no_meds')}</div>`
+    : (m.liste.length ? `<div class="summary-item">${m.liste.join(', ')}</div>` : `<div class="summary-item text-muted">${t('summary.no_info')}</div>`);
 
   const allerContent = a.keine
-    ? '<div class="summary-item">Keine bekannten Allergien</div>'
-    : `${a.liste.length ? `<div class="summary-item">${a.liste.join(', ')}</div>` : '<div class="summary-item text-muted">Keine Angabe</div>'}
-       ${a.anmerkungen ? `<div class="summary-item"><div class="summary-item-label">Anmerkungen</div>${a.anmerkungen}</div>` : ''}`;
+    ? `<div class="summary-item">${t('summary.no_allergies')}</div>`
+    : `${a.liste.length ? `<div class="summary-item">${a.liste.join(', ')}</div>` : `<div class="summary-item text-muted">${t('summary.no_info')}</div>`}
+       ${a.anmerkungen ? `<div class="summary-item"><div class="summary-item-label">${t('summary.notes')}</div>${a.anmerkungen}</div>` : ''}`;
 
   const docsContent = d.liste.length
     ? d.liste.map(file => `
         <div class="summary-item" style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);">
           <span>📄 ${file.filename} (${formatBytes(file.fileSize)})</span>
-          <a href="/api/file/${file.id}" target="_blank" style="color: var(--primary); text-decoration: underline; font-size: var(--font-size-xs); font-weight: 500;">Ansehen</a>
+          <a href="/api/file/${file.id}" target="_blank" style="color: var(--primary); text-decoration: underline; font-size: var(--font-size-xs); font-weight: 500;">${t('summary.view')}</a>
         </div>
       `).join('')
-    : '<div class="summary-item text-muted">Keine Dokumente hochgeladen</div>';
+    : `<div class="summary-item text-muted">${t('summary.no_docs')}</div>`;
 
   const aiQuestions = allData.aiQuestions || [];
   const hasAiQuestions = aiQuestions.length > 0;
@@ -84,31 +95,31 @@ export function renderSummaryView() {
     ? aiQuestions.map((q, idx) => `
         <div class="summary-item">
           <div class="summary-item-label">${idx + 1}. ${q.question}</div>
-          <div style="font-weight: 500; color: var(--gray-800); margin-top: 4px;">${q.answer || 'Keine Antwort'}</div>
+          <div style="font-weight: 500; color: var(--gray-800); margin-top: 4px;">${q.answer || t('summary.no_answer')}</div>
         </div>
       `).join('')
-    : '<div class="summary-item text-muted">Keine Folgefragen beantwortet</div>';
+    : `<div class="summary-item text-muted">${t('summary.no_ai_q')}</div>`;
 
   return `
     ${renderHeader()}
     <div class="view">
       <div class="container container--form">
         <div class="view-content" style="padding-top:var(--space-8)">
-          <h2 style="margin-bottom:var(--space-2)">Zusammenfassung</h2>
-          <p class="text-muted" style="margin-bottom:var(--space-6)">Bitte überprüfen Sie Ihre Angaben vor dem Absenden.</p>
+          <h2 style="margin-bottom:var(--space-2)">${t('summary.title')}</h2>
+          <p class="text-muted" style="margin-bottom:var(--space-6)">${t('summary.subtitle')}</p>
 
           <!-- Demonstrationshinweis -->
           <div style="background: #FFFBEB; border: 1px solid #FEF3C7; color: #B45309; padding: var(--space-4); border-radius: var(--radius-lg); margin-bottom: var(--space-6); font-size: var(--font-size-xs); display: flex; gap: var(--space-3); align-items: flex-start; line-height: 1.5;">
             <span style="font-size: var(--font-size-lg); line-height: 1;">⚠️</span>
             <div>
-              <strong>Demonstrationshinweis:</strong> Dies ist eine Übungssimulation. Die von Ihnen eingetragenen Daten sind rein fiktiv und werden ausschließlich zu Testzwecken verarbeitet.
+              <strong>${t('summary.demo_notice_title')}</strong> ${t('summary.demo_notice_desc')}
             </div>
           </div>
 
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
-              <div class="summary-title">🩺 Beschwerden</div>
-              <button class="summary-edit" data-edit="beschwerden">Bearbeiten</button>
+              <div class="summary-title">${t('summary.symptoms_title')}</div>
+              <button class="summary-edit" data-edit="beschwerden">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">${beschwerdenContent}</div>
           </div>
@@ -116,8 +127,8 @@ export function renderSummaryView() {
           ${hasCustomQuestions ? `
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
-              <div class="summary-title">📋 Praxis-Zusatzfragen</div>
-              <button class="summary-edit" data-edit="zusatzfragen">Bearbeiten</button>
+              <div class="summary-title">${t('summary.custom_q_title')}</div>
+              <button class="summary-edit" data-edit="zusatzfragen">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">${customContent}</div>
           </div>
@@ -125,16 +136,16 @@ export function renderSummaryView() {
 
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
-              <div class="summary-title">💊 Medikamente</div>
-              <button class="summary-edit" data-edit="medikamente">Bearbeiten</button>
+              <div class="summary-title">${t('summary.meds_title')}</div>
+              <button class="summary-edit" data-edit="medikamente">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">${medContent}</div>
           </div>
 
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
-              <div class="summary-title">⚠️ Allergien</div>
-              <button class="summary-edit" data-edit="allergien">Bearbeiten</button>
+              <div class="summary-title">${t('summary.allergies_title')}</div>
+              <button class="summary-edit" data-edit="allergien">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">${allerContent}</div>
           </div>
@@ -142,8 +153,8 @@ export function renderSummaryView() {
           ${hasAiQuestions ? `
           <div class="summary-section card fade-in-up" style="border-left: 4px solid var(--blue-600);">
             <div class="summary-header">
-              <div class="summary-title" style="display: flex; align-items: center; gap: var(--space-2);">🤖 Spezifische Folgefragen (KI)</div>
-              <button class="summary-edit" data-edit="ai-fragen">Bearbeiten</button>
+              <div class="summary-title" style="display: flex; align-items: center; gap: var(--space-2);">${t('summary.ai_q_title')}</div>
+              <button class="summary-edit" data-edit="ai-fragen">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">${aiQuestionsContent}</div>
           </div>
@@ -151,8 +162,8 @@ export function renderSummaryView() {
 
           <div class="summary-section card fade-in-up">
             <div class="summary-header">
-              <div class="summary-title">📂 Dokumente</div>
-              <button class="summary-edit" data-edit="dokumente">Bearbeiten</button>
+              <div class="summary-title">${t('summary.docs_title')}</div>
+              <button class="summary-edit" data-edit="dokumente">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">${docsContent}</div>
           </div>
@@ -161,33 +172,33 @@ export function renderSummaryView() {
           <!-- Praxis Documents Confirmation Section -->
           <div id="praxis-docs-section" class="summary-section card fade-in-up" style="display: none;">
             <div class="summary-header">
-              <div class="summary-title">📋 Bereitgestellte Dokumente</div>
-              <button class="summary-edit" data-edit="praxis-dokumente">Bearbeiten</button>
+              <div class="summary-title">${t('summary.praxis_docs_title')}</div>
+              <button class="summary-edit" data-edit="praxis-dokumente">${t('summary.edit')}</button>
             </div>
             <div class="summary-content">
-              <p class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-3); line-height: 1.5;">Bitte öffnen und bestätigen Sie alle bereitgestellten Dokumente bevor Sie den Pre-Check-In absenden.</p>
+              <p class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-3); line-height: 1.5;">${t('summary.praxis_docs_desc')}</p>
               <div id="praxis-docs-list"></div>
             </div>
           </div>
 
           <div class="summary-section card fade-in-up" style="margin-top: var(--space-6);">
             <div class="summary-header">
-              <div class="summary-title">✍️ Digitale Unterschrift</div>
-              <button class="summary-edit" id="btn-clear-signature" style="color: var(--danger); background: transparent; border: none; cursor: pointer;">Löschen</button>
+              <div class="summary-title">${t('summary.signature_title')}</div>
+              <button class="summary-edit" id="btn-clear-signature" style="color: var(--danger); background: transparent; border: none; cursor: pointer;">${t('summary.clear_signature')}</button>
             </div>
             <div class="summary-content" style="padding: 0; background: var(--white); border: 2px dashed var(--gray-200); border-radius: var(--radius-lg); overflow: hidden;">
               <canvas id="signature-canvas" style="width: 100%; height: 150px; display: block; cursor: crosshair; background: #fff;"></canvas>
             </div>
-            <p class="text-muted" style="font-size: var(--font-size-xs); margin-top: var(--space-2);">Bitte unterschreiben Sie im obigen Feld mit Ihrer Maus oder Ihrem Finger (bei Touchscreens).</p>
+            <p class="text-muted" style="font-size: var(--font-size-xs); margin-top: var(--space-2);">${t('summary.signature_hint')}</p>
           </div>
 
           <label class="checkbox-group" style="margin:var(--space-4) 0">
             <input type="checkbox" class="checkbox-input" id="confirm-checkbox" />
-            <span class="checkbox-label">Ich bestätige, dass meine Angaben korrekt und vollständig sind.</span>
+            <span class="checkbox-label">${t('summary.confirm_checkbox')}</span>
           </label>
 
           <button class="btn btn-primary btn-lg btn-block" id="btn-submit" disabled>
-            ✓ Pre-Check-In absenden
+            ${t('summary.submit_btn')}
           </button>
         </div>
       </div>
@@ -204,7 +215,7 @@ function renderSuccessScreen() {
   const pdfDownloadButton = pdfFile
     ? `<a href="/api/file/${pdfFile.id}" target="_blank" class="btn btn-outline btn-lg btn-block" style="margin-top: var(--space-4); display: flex; align-items: center; justify-content: center; gap: var(--space-2); text-decoration: none;">
          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-         Zusammenfassung (PDF) herunterladen
+         ${t('summary.download_pdf')}
        </a>`
     : '';
 
@@ -215,8 +226,8 @@ function renderSuccessScreen() {
         <div class="view-content" style="justify-content:center">
           <div class="success-screen">
             <div class="success-icon success-animate">✓</div>
-            <h2>Erfolgreich übermittelt!</h2>
-            <p style="margin-top:var(--space-3)">Ihre Angaben wurden erfolgreich an <strong>${termin.praxis}</strong> übermittelt. Ihr Arzt kann sich nun optimal auf Ihren Termin vorbereiten.</p>
+            <h2>${t('summary.success_headline')}</h2>
+            <p style="margin-top:var(--space-3)">${t('summary.success_msg').replace('{praxis}', termin.praxis)}</p>
             <div class="termin-card" style="margin-top:var(--space-8);text-align:left">
               <div class="termin-icon">📅</div>
               <div class="termin-info">
@@ -226,9 +237,9 @@ function renderSuccessScreen() {
             </div>
             ${pdfDownloadButton}
             <button class="btn btn-primary btn-lg btn-block" id="btn-success-home" style="margin-top: var(--space-4);">
-              Zurück zur Startseite
+              ${t('summary.back_home')}
             </button>
-            <p class="text-muted" style="margin-top:var(--space-8);font-size:var(--font-size-sm)">Sie können dieses Fenster jetzt schließen.</p>
+            <p class="text-muted" style="margin-top:var(--space-8);font-size:var(--font-size-sm)">${t('summary.close_window_hint')}</p>
           </div>
         </div>
       </div>
@@ -250,6 +261,7 @@ function generatePDF(allData, signatureDataUrl) {
   const doc = new jsPDF();
   const patient = store.getPatientInfo();
   const termin = store.getTerminInfo();
+  const dauerMap = getDauerMap();
 
   // Title / Header
   doc.setFont('helvetica', 'bold');
@@ -300,7 +312,7 @@ function generatePDF(allData, signatureDataUrl) {
   doc.text(splitFreitext, 20, y);
   y += splitFreitext.length * 5;
 
-  const dauerText = allData.beschwerden.dauer ? (DAUER_MAP[allData.beschwerden.dauer] || allData.beschwerden.dauer) : 'Keine Angabe';
+  const dauerText = allData.beschwerden.dauer ? (dauerMap[allData.beschwerden.dauer] || allData.beschwerden.dauer) : 'Keine Angabe';
   doc.text(`Dauer der Beschwerden: ${dauerText}`, 20, y);
   y += 5;
   doc.text(`Schmerzstärke: ${allData.beschwerden.staerke || 0} / 10`, 20, y);
@@ -484,9 +496,9 @@ export function initSummaryView() {
       return `<div class="doc-status-badge doc-status-pending" title="Noch nicht bearbeitet"></div>`;
     }
     if (c.status === 'rejected') {
-      return `<div class="doc-status-badge doc-status-rejected" title="Abgelehnt">✗</div>`;
+      return `<div class="doc-status-badge doc-status-rejected" title="${t('doc_modal.rejected')}">✗</div>`;
     }
-    return `<div class="doc-status-badge doc-status-accepted" title="${c.status === 'confirmed' ? 'Bestätigt' : 'Akzeptiert'}">✓</div>`;
+    return `<div class="doc-status-badge doc-status-accepted" title="${c.status === 'confirmed' ? t('doc_modal.confirmed') : t('doc_modal.accepted')}">✓</div>`;
   }
 
   function renderPraxisDocsList() {
@@ -510,11 +522,11 @@ export function initSummaryView() {
           ${renderDocStatusBadge(doc)}
           <div class="doc-confirm-details">
             <span class="doc-confirm-title">${doc.title}</span>
-            <span class="doc-confirm-type">${doc.doc_type === 'confirm' ? 'Bestätigung erforderlich' : 'Akzeptieren / Ablehnen'}</span>
+            <span class="doc-confirm-type">${doc.doc_type === 'confirm' ? t('doc_modal.confirm') : t('doc_modal.accept')}</span>
           </div>
         </div>
         <button class="btn-doc-open" data-doc-id="${doc.id}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 14px; border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;">
-          Öffnen
+          ${t('dokumente.read_file')}
         </button>
       </div>
     `).join('');
@@ -685,9 +697,9 @@ export function initSummaryView() {
         setupSuccessHomeButton();
       } catch (err) {
         console.error('Submission failed:', err);
-        alert('Fehler beim Absenden. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.');
+        alert(t('summary.submit_error'));
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '✓ Pre-Check-In absenden';
+        submitBtn.innerHTML = t('summary.submit_btn');
       }
     });
   }

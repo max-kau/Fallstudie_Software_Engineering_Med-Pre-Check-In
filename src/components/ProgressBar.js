@@ -1,13 +1,14 @@
 import { store } from '../utils/store.js';
+import { t } from '../utils/i18n.js';
 
 export function renderProgressBar(currentStep) {
   const hasPraxisDocs = store.getPraxisDocuments().length > 0;
   const steps = [
-    { num: 1, label: 'Beschwerden' },
-    { num: 2, label: 'Medikamente' },
-    { num: 3, label: 'Allergien' },
-    { num: 4, label: 'Folgefragen' },
-    { num: 5, label: 'Dokumente' },
+    { num: 1, label: t('flow.step_symptoms') },
+    { num: 2, label: t('flow.step_meds') },
+    { num: 3, label: t('flow.step_allergies') },
+    { num: 4, label: t('flow.step_questions') },
+    { num: 5, label: t('flow.step_docs') },
   ];
 
   if (hasPraxisDocs) {

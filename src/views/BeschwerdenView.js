@@ -3,6 +3,7 @@ import { renderProgressBar } from '../components/ProgressBar.js';
 import { renderStepNavigation, initStepNavigation, updateNextButtonState } from '../components/StepNavigation.js';
 import { renderTagInput, initTagInput } from '../components/TagInput.js';
 import { store } from '../utils/store.js';
+import { t } from '../utils/i18n.js';
 
 function getSymptomsByFachrichtung(termin) {
   if (!termin) {
@@ -96,11 +97,11 @@ export function renderBeschwerdenView() {
       ${renderProgressBar(1)}
       <div class="container container--form">
         <div class="view-content">
-          <h2 style="margin-bottom: var(--space-2);">Welche Beschwerden haben Sie?</h2>
-          <p class="text-muted" style="margin-bottom: var(--space-6);">Beschreiben Sie Ihre aktuellen Symptome so genau wie möglich.</p>
+          <h2 style="margin-bottom: var(--space-2);">${t('beschwerden.title')}</h2>
+          <p class="text-muted" style="margin-bottom: var(--space-6);">${t('beschwerden.subtitle')}</p>
 
           <div class="form-group" style="margin-bottom: var(--space-6);">
-            <label class="form-label">Mögliche Beschwerden</label>
+            <label class="form-label">${t('beschwerden.possible')}</label>
             <div class="chips-container" id="symptom-chips">
               ${chipsHtml}
               <button class="chip chip--other ${data.showCustomInput ? 'selected' : ''}" id="chip-other" type="button">
@@ -108,7 +109,7 @@ export function renderBeschwerdenView() {
                   <line x1="12" y1="5" x2="12" y2="19"/>
                   <line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
-                Was anderes
+                ${t('beschwerden.other')}
               </button>
             </div>
           </div>
@@ -116,39 +117,39 @@ export function renderBeschwerdenView() {
           <!-- Custom keyword input (hidden by default) -->
           <div class="custom-input-area ${data.showCustomInput ? 'custom-input-area--visible' : ''}" id="custom-input-area">
             <div class="form-group" style="margin-bottom: var(--space-4);">
-              <label class="form-label">Eigene Beschwerden als Stichwörter</label>
+              <label class="form-label">${t('beschwerden.custom_title')}</label>
               <p class="form-hint" style="margin-bottom: var(--space-2);">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;">
                   <circle cx="12" cy="12" r="10"/>
                   <line x1="12" y1="16" x2="12" y2="12"/>
                   <line x1="12" y1="8" x2="12.01" y2="8"/>
                 </svg>
-                Geben Sie einzelne Stichwörter ein und drücken Sie Enter.
+                ${t('beschwerden.custom_hint')}
               </p>
-              ${renderTagInput('beschwerden-custom', customKeywords, 'z.B. Taubheitsgefühl + Enter')}
+              ${renderTagInput('beschwerden-custom', customKeywords, t('beschwerden.custom_placeholder'))}
             </div>
           </div>
 
           <div class="form-group" style="margin-bottom: var(--space-6);">
-            <label class="form-label" for="beschwerden-text">Beschreiben Sie Ihre Beschwerden genauer</label>
-            <textarea class="form-textarea" id="beschwerden-text" placeholder="z.B. Ich habe starke Kopfschmerzen, besonders morgens nach dem Aufstehen...">${data.freitext}</textarea>
+            <label class="form-label" for="beschwerden-text">${t('beschwerden.detail_label')}</label>
+            <textarea class="form-textarea" id="beschwerden-text" placeholder="${t('beschwerden.detail_placeholder')}">${data.freitext}</textarea>
           </div>
 
           <div class="form-group" style="margin-bottom: var(--space-6);">
-            <label class="form-label" for="beschwerden-dauer">Seit wann bestehen die Beschwerden?</label>
+            <label class="form-label" for="beschwerden-dauer">${t('beschwerden.duration_label')}</label>
             <select class="form-select" id="beschwerden-dauer">
-              <option value="" ${!data.dauer ? 'selected' : ''}>Bitte wählen...</option>
-              <option value="heute" ${data.dauer === 'heute' ? 'selected' : ''}>Seit heute</option>
-              <option value="einige_tage" ${data.dauer === 'einige_tage' ? 'selected' : ''}>Seit einigen Tagen</option>
-              <option value="eine_woche" ${data.dauer === 'eine_woche' ? 'selected' : ''}>Seit etwa einer Woche</option>
-              <option value="mehrere_wochen" ${data.dauer === 'mehrere_wochen' ? 'selected' : ''}>Seit mehreren Wochen</option>
-              <option value="monate" ${data.dauer === 'monate' ? 'selected' : ''}>Seit Monaten</option>
-              <option value="laenger" ${data.dauer === 'laenger' ? 'selected' : ''}>Länger als 6 Monate</option>
+              <option value="" ${!data.dauer ? 'selected' : ''}>${t('beschwerden.select_placeholder')}</option>
+              <option value="heute" ${data.dauer === 'heute' ? 'selected' : ''}>${t('beschwerden.duration_today')}</option>
+              <option value="einige_tage" ${data.dauer === 'einige_tage' ? 'selected' : ''}>${t('beschwerden.duration_days')}</option>
+              <option value="eine_woche" ${data.dauer === 'eine_woche' ? 'selected' : ''}>${t('beschwerden.duration_week')}</option>
+              <option value="mehrere_wochen" ${data.dauer === 'mehrere_wochen' ? 'selected' : ''}>${t('beschwerden.duration_weeks')}</option>
+              <option value="monate" ${data.dauer === 'monate' ? 'selected' : ''}>${t('beschwerden.duration_months')}</option>
+              <option value="laenger" ${data.dauer === 'laenger' ? 'selected' : ''}>${t('beschwerden.duration_longer')}</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Wie stark sind die Beschwerden?</label>
+            <label class="form-label">${t('beschwerden.severity_label')}</label>
             <div class="slider-container">
               <div class="slider-value" id="slider-value">${data.staerke !== null ? data.staerke : '–'}</div>
               <div class="slider-track slider-track--with-arrows ${data.staerke === null ? 'slider-unset' : ''}">
@@ -161,8 +162,8 @@ export function renderBeschwerdenView() {
                 </span>
               </div>
               <div class="slider-labels">
-                <span>1 – Leicht</span>
-                <span>10 – Sehr stark</span>
+                <span>${t('beschwerden.severity_light')}</span>
+                <span>${t('beschwerden.severity_strong')}</span>
               </div>
             </div>
           </div>
@@ -185,16 +186,16 @@ function validateBeschwerden() {
   const hasAnySymptom = hasChips || hasCustomKeywords;
 
   if (customOpen && !hasCustomKeywords) {
-    return { valid: false, message: 'Bitte geben Sie mindestens ein Stichwort für Ihre Beschwerde ein.' };
+    return { valid: false, message: t('beschwerden.val_custom') };
   }
   if (!hasAnySymptom && !hasFreitext) {
-    return { valid: false, message: 'Bitte wählen Sie mindestens eine Beschwerde aus oder beschreiben Sie Ihre Symptome.' };
+    return { valid: false, message: t('beschwerden.val_symptom') };
   }
   if (!hasDauer) {
-    return { valid: false, message: 'Bitte geben Sie an, seit wann die Beschwerden bestehen.' };
+    return { valid: false, message: t('beschwerden.val_duration') };
   }
   if (!hasStaerke) {
-    return { valid: false, message: 'Bitte geben Sie die Stärke Ihrer Beschwerden an.' };
+    return { valid: false, message: t('beschwerden.val_severity') };
   }
   return { valid: true };
 }
@@ -254,16 +255,16 @@ export function initBeschwerdenView() {
     if (!area) return;
     area.innerHTML = `
       <div class="form-group" style="margin-bottom: var(--space-4);">
-        <label class="form-label">Eigene Beschwerden als Stichwörter</label>
+        <label class="form-label">${t('beschwerden.custom_title')}</label>
         <p class="form-hint" style="margin-bottom: var(--space-2);">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;">
             <circle cx="12" cy="12" r="10"/>
             <line x1="12" y1="16" x2="12" y2="12"/>
             <line x1="12" y1="8" x2="12.01" y2="8"/>
           </svg>
-          Geben Sie einzelne Stichwörter ein und drücken Sie Enter.
+          ${t('beschwerden.custom_hint')}
         </p>
-        ${renderTagInput('beschwerden-custom', data.customKeywords, 'z.B. Taubheitsgefühl + Enter')}
+        ${renderTagInput('beschwerden-custom', data.customKeywords, t('beschwerden.custom_placeholder'))}
       </div>
     `;
     initTagInput('beschwerden-custom', data.customKeywords, (tags) => {

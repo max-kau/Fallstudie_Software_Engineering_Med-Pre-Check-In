@@ -1,15 +1,18 @@
-export function renderStepNavigation(prevHash, nextHash, nextLabel = 'Weiter', nextDisabled = false) {
+import { t } from '../utils/i18n.js';
+
+export function renderStepNavigation(prevHash, nextHash, nextLabel = null, nextDisabled = false) {
+  const resolvedNextLabel = nextLabel || t('common.next');
   const prevBtn = prevHash
     ? `<button class="btn btn-secondary btn-lg" id="btn-prev" data-nav="${prevHash}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-        Zurück
+        ${t('common.back')}
        </button>`
     : '<div></div>';
 
   const nextBtn = `
     <button class="btn btn-primary btn-lg" id="btn-next" data-nav="${nextHash}" ${nextDisabled ? 'disabled' : ''}>
-      ${nextLabel}
-      ${nextLabel !== 'Absenden' ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>` : ''}
+      ${resolvedNextLabel}
+      ${resolvedNextLabel !== 'Absenden' ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>` : ''}
     </button>
   `;
 

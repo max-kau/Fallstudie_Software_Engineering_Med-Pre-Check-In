@@ -1,5 +1,6 @@
 import { store } from '../utils/store.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
+import { t } from '../utils/i18n.js';
 
 function formatGermanDate(dateStr) {
   if (!dateStr) return '';
@@ -27,12 +28,12 @@ export function renderConfirmView() {
           <!-- Greeting -->
           <div class="confirm-greeting">
             <span class="confirm-wave">👋</span>
-            <h1 class="confirm-title">Hallo, ${patient.vorname} ${patient.nachname}!</h1>
+            <h1 class="confirm-title">${t('confirm.greeting').replace('{name}', `${patient.vorname} ${patient.nachname}`)}</h1>
           </div>
 
           <!-- Question -->
           <p class="confirm-question">
-            Möchten Sie den Pre-Check-In für den nachfolgenden Termin starten?
+            ${t('confirm.question')}
           </p>
 
           <!-- Appointment Details -->
@@ -53,7 +54,7 @@ export function renderConfirmView() {
                   <circle cx="12" cy="12" r="10"/>
                   <polyline points="12 6 12 12 16 14"/>
                 </svg>
-                ${formatGermanDate(termin.date)} · ${termin.time} Uhr
+                ${formatGermanDate(termin.date)} · ${termin.time}
               </span>
             </div>
           </div>
@@ -64,7 +65,7 @@ export function renderConfirmView() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
-            Ihre Daten werden vertraulich behandelt und dienen der Vorbereitung Ihres Arzttermins.
+            ${t('confirm.privacy')}
           </p>
 
           <!-- Action Buttons -->
@@ -73,14 +74,14 @@ export function renderConfirmView() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-              Pre-Check-In starten
+              ${t('confirm.start')}
             </button>
             <button class="confirm-btn confirm-btn--cancel" id="btn-confirm-cancel">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
-              Pre-Check-In abbrechen
+              ${t('confirm.cancel')}
             </button>
           </div>
 
