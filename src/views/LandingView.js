@@ -185,7 +185,7 @@ export function renderLandingView() {
             ${t('landing.filter_title')}
           </h4>
           
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
             <!-- Praxis / Arzt -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
               <label for="filter-praxis" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_praxis')}</label>
@@ -214,11 +214,12 @@ export function renderLandingView() {
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
               <label for="filter-zeitraum" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_timeframe')}</label>
               <select id="filter-zeitraum" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">${t('landing.filter_all_timeframes')}</option>
+                <option value="future" selected>${t('landing.filter_future')}</option>
+                <option value="today">${t('landing.filter_today')}</option>
                 <option value="week">${t('landing.filter_this_week')}</option>
                 <option value="month">${t('landing.filter_this_month')}</option>
                 <option value="past">${t('landing.filter_past')}</option>
-                <option value="future">${t('landing.filter_future')}</option>
+                <option value="all">${t('landing.filter_all_timeframes')}</option>
               </select>
             </div>
 
@@ -234,15 +235,6 @@ export function renderLandingView() {
               </select>
             </div>
 
-            <!-- Dringlichkeit -->
-            <div style="display: flex; flex-direction: column; gap: var(--space-1);">
-              <label for="filter-dringlichkeit" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.filter_urgency')}</label>
-              <select id="filter-dringlichkeit" class="dl-input" style="height: 38px; padding: 0 10px; border-radius: var(--radius-md); font-size: var(--font-size-sm);">
-                <option value="all">${t('landing.filter_all_urgencies')}</option>
-                <option value="dringend">${t('landing.filter_urgent_only')}</option>
-              </select>
-            </div>
-
             <!-- Sortierung -->
             <div style="display: flex; flex-direction: column; gap: var(--space-1);">
               <label for="sort-by" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500);">${t('landing.sort_by')}</label>
@@ -250,7 +242,6 @@ export function renderLandingView() {
                 <option value="date-asc">${t('landing.sort_date_asc')}</option>
                 <option value="date-desc">${t('landing.sort_date_desc')}</option>
                 <option value="fav-first">${t('landing.sort_fav')}</option>
-                <option value="priority">${t('landing.sort_priority')}</option>
               </select>
             </div>
           </div>
@@ -444,9 +435,8 @@ function saveFilters() {
     praxis: document.getElementById('filter-praxis')?.value || 'all',
     fachbereich: document.getElementById('filter-fachbereich')?.value || 'all',
     art: document.getElementById('filter-art')?.value || 'all',
-    zeitraum: document.getElementById('filter-zeitraum')?.value || 'all',
+    zeitraum: document.getElementById('filter-zeitraum')?.value || 'future',
     status: document.getElementById('filter-status')?.value || 'active',
-    dringlichkeit: document.getElementById('filter-dringlichkeit')?.value || 'all',
     sort: document.getElementById('sort-by')?.value || 'date-asc'
   };
 
@@ -475,7 +465,6 @@ function applySavedFiltersToSelects() {
     'filter-art': saved.art,
     'filter-zeitraum': saved.zeitraum,
     'filter-status': saved.status,
-    'filter-dringlichkeit': saved.dringlichkeit,
     'sort-by': saved.sort
   };
 
@@ -492,7 +481,7 @@ function applySavedFiltersToSelects() {
 }
 
 function setupFilterSortListeners() {
-  const ids = ['filter-praxis', 'filter-fachbereich', 'filter-art', 'filter-zeitraum', 'filter-status', 'filter-dringlichkeit', 'sort-by'];
+  const ids = ['filter-praxis', 'filter-fachbereich', 'filter-art', 'filter-zeitraum', 'filter-status', 'sort-by'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -519,12 +508,14 @@ function resetFilters() {
     localStorage.removeItem(SAVED_FILTERS_KEY);
   } catch {}
 
-  const ids = ['filter-praxis', 'filter-fachbereich', 'filter-art', 'filter-zeitraum', 'filter-status', 'filter-dringlichkeit'];
+  const ids = ['filter-praxis', 'filter-fachbereich', 'filter-art', 'filter-zeitraum', 'filter-status'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       if (id === 'filter-status') {
         el.value = 'active';
+      } else if (id === 'filter-zeitraum') {
+        el.value = 'future';
       } else {
         el.value = 'all';
       }
@@ -579,22 +570,27 @@ function applyFiltersAndSort() {
     filtered = filtered.filter(a => a.art === artVal);
   }
 
-  // 4. Zeitraum Filter
-  const zeitraumVal = document.getElementById('filter-zeitraum')?.value || 'all';
+  // 4. Zeitraum Filter (default: 'future')
+  const zeitraumVal = document.getElementById('filter-zeitraum')?.value || 'future';
   if (zeitraumVal !== 'all') {
     const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
     filtered = filtered.filter(a => {
       const apptDate = parseGermanDateTime(a.date, a.time);
       if (!apptDate) return true;
 
-      if (zeitraumVal === 'week') {
+      if (zeitraumVal === 'today') {
+        return apptDate >= todayStart && apptDate <= todayEnd;
+      } else if (zeitraumVal === 'week') {
         return isSameWeek(now, apptDate);
       } else if (zeitraumVal === 'month') {
         return isSameMonth(now, apptDate);
       } else if (zeitraumVal === 'past') {
-        return apptDate < now;
+        return apptDate < todayStart;
       } else if (zeitraumVal === 'future') {
-        return apptDate >= now;
+        return apptDate >= todayStart;
       }
       return true;
     });
@@ -618,31 +614,20 @@ function applyFiltersAndSort() {
     });
   }
 
-  // 6. Dringlichkeit Filter
-  const dringlichkeitVal = document.getElementById('filter-dringlichkeit')?.value || 'all';
-  if (dringlichkeitVal === 'dringend') {
-    filtered = filtered.filter(a => a.urgent === true);
-  }
-
-  // 7. Sortierung
+  // 6. Sortierung
   const sortVal = document.getElementById('sort-by')?.value || 'date-asc';
   filtered.sort((a, b) => {
     const dateA = parseGermanDateTime(a.date, a.time) || new Date(0);
     const dateB = parseGermanDateTime(b.date, b.time) || new Date(0);
 
     if (sortVal === 'date-asc') {
-      return dateB - dateA;
-    } else if (sortVal === 'date-desc') {
       return dateA - dateB;
+    } else if (sortVal === 'date-desc') {
+      return dateB - dateA;
     } else if (sortVal === 'fav-first') {
       const favA = a.favorite ? 1 : 0;
       const favB = b.favorite ? 1 : 0;
       if (favA !== favB) return favB - favA;
-      return dateA - dateB;
-    } else if (sortVal === 'priority') {
-      const prioA = parseInt(a.priority, 10) || 0;
-      const prioB = parseInt(b.priority, 10) || 0;
-      if (prioA !== prioB) return prioB - prioA;
       return dateA - dateB;
     }
     return 0;
@@ -899,32 +884,6 @@ function renderCardsList(appointments) {
       </button>
     `;
 
-    const urgentColor = appt.urgent ? '#EF4444' : '#D1D5DB';
-    const urgentIcon = appt.urgent ? '🚩' : '🏳️';
-    const urgentBtnHtml = `
-      <button class="btn-toggle-urgent" data-code="${appt.code}" title="Dringlichkeit" style="background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 4px; color: ${urgentColor}; line-height: 1; transition: transform 0.1s; display: inline-flex; align-items: center;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
-        ${urgentIcon}
-      </button>
-    `;
-
-    const urgentBadgeHtml = appt.urgent 
-      ? `<span class="dl-tag" style="background: #FEE2E2; color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-           DRINGEND
-         </span>`
-      : '';
-
-    const priorityControlsHtml = `
-      <div style="display: flex; align-items: center; gap: 6px; background: var(--gray-50); border: 1px solid var(--gray-200); padding: 4px 8px; border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-600); margin-right: 4px;">
-        <span>Prio:</span>
-        <strong style="color: var(--gray-800); min-width: 14px; text-align: center;">${appt.priority || 0}</strong>
-        <div style="display: flex; flex-direction: column; gap: 2px;">
-          <button class="btn-priority-up" data-code="${appt.code}" style="border: none; background: none; font-size: 8px; cursor: pointer; padding: 0; line-height: 1; color: var(--gray-500); display: block;">▲</button>
-          <button class="btn-priority-down" data-code="${appt.code}" style="border: none; background: none; font-size: 8px; cursor: pointer; padding: 0; line-height: 1; color: var(--gray-500); display: block;">▼</button>
-        </div>
-      </div>
-    `;
-
     listHtml += `
       <div class="dl-profile-card fade-in-up termin-card" style="animation-delay: ${idx * 0.05}s; display: flex; flex-direction: column; overflow: hidden; padding: 0; background: white; border-radius: var(--radius-xl); box-shadow: var(--shadow-md); border: 1px solid var(--gray-200); ${appt.status === 'abgesagt' ? 'opacity: 0.65;' : ''}">
         
@@ -938,19 +897,16 @@ function renderCardsList(appointments) {
               <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
                 <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em;">${appt.praxis.toUpperCase()}</span>
                 ${starHtml}
-                ${urgentBtnHtml}
               </div>
               <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 2px 0 6px 0;">${appt.doctor}</h3>
               <p class="text-muted" style="font-size: var(--font-size-sm); line-height: 1.4;">${appt.fachrichtung} · ${appt.adresse}</p>
               <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; align-items: center;">
-                ${urgentBadgeHtml}
                 ${tagsHtml}
               </div>
             </div>
           </div>
           
           <div style="display: flex; align-items: center; gap: var(--space-3); margin-left: auto;">
-            ${priorityControlsHtml}
             <div style="background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); text-align: right; border: 1px solid var(--gray-200); min-width: 170px;">
               <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">${t('landing.your_appointment')}</span>
               <strong style="font-size: var(--font-size-sm); color: var(--gray-800); display: block;">${formatGermanDate(appt.date)}</strong>
@@ -1165,80 +1121,6 @@ function renderCardsList(appointments) {
         }
       } catch (err) {
         console.error('Error toggling favorite:', err);
-      }
-    });
-  });
-
-  // Attach click events for toggling urgency
-  container.querySelectorAll('.btn-toggle-urgent').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const code = e.currentTarget.getAttribute('data-code');
-      const appt = window._allAppointments.find(a => a.code === code);
-      if (!appt) return;
-      const newUrgent = !appt.urgent;
-      
-      try {
-        const res = await fetch(`/api/termine/${code}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urgent: newUrgent })
-        });
-        if (res.ok) {
-          appt.urgent = newUrgent;
-          applyFiltersAndSort();
-        }
-      } catch (err) {
-        console.error('Error toggling urgency:', err);
-      }
-    });
-  });
-
-  // Attach click events for priority adjustment
-  container.querySelectorAll('.btn-priority-up').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const code = e.currentTarget.getAttribute('data-code');
-      const appt = window._allAppointments.find(a => a.code === code);
-      if (!appt) return;
-      const newPriority = (appt.priority || 0) + 1;
-      
-      try {
-        const res = await fetch(`/api/termine/${code}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ priority: newPriority })
-        });
-        if (res.ok) {
-          appt.priority = newPriority;
-          applyFiltersAndSort();
-        }
-      } catch (err) {
-        console.error('Error updating priority:', err);
-      }
-    });
-  });
-
-  container.querySelectorAll('.btn-priority-down').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const code = e.currentTarget.getAttribute('data-code');
-      const appt = window._allAppointments.find(a => a.code === code);
-      if (!appt) return;
-      const newPriority = Math.max(0, (appt.priority || 0) - 1);
-      
-      try {
-        const res = await fetch(`/api/termine/${code}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ priority: newPriority })
-        });
-        if (res.ok) {
-          appt.priority = newPriority;
-          applyFiltersAndSort();
-        }
-      } catch (err) {
-        console.error('Error updating priority:', err);
       }
     });
   });
