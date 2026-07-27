@@ -1,4 +1,4 @@
-import { registerRoute, initRouter, navigate } from './utils/router.js';
+import { registerRoute, initRouter, navigate, handleRoute } from './utils/router.js';
 import { store } from './utils/store.js';
 import { renderHomeView, initHomeView } from './views/HomeView.js';
 import { renderAuthView, initAuthView } from './views/AuthView.js';
@@ -19,6 +19,7 @@ import { renderPraxisDokumenteView, initPraxisDokumenteView } from './views/Prax
 import { renderFeedbackView, initFeedbackView } from './views/FeedbackView.js';
 import { renderLiveQueueDoctorView, initLiveQueueDoctorView } from './views/LiveQueueDoctorView.js';
 import { renderLiveQueuePatientView, initLiveQueuePatientView } from './views/LiveQueuePatientView.js';
+import { renderTestDashboardView, initTestDashboardView } from './views/TestDashboardView.js';
 
 // Register all routes
 registerRoute('home', renderHomeView);
@@ -40,6 +41,7 @@ registerRoute('praxis-dashboard', renderPraxisDashboardView);
 registerRoute('feedback', renderFeedbackView);
 registerRoute('live-queue', renderLiveQueueDoctorView);
 registerRoute('warteschlange', renderLiveQueuePatientView);
+registerRoute('test-dashboard', renderTestDashboardView);
 
 // View initializers map
 const initializers = {
@@ -62,6 +64,7 @@ const initializers = {
   feedback: initFeedbackView,
   'live-queue': initLiveQueueDoctorView,
   warteschlange: initLiveQueuePatientView,
+  'test-dashboard': initTestDashboardView,
 };
 
 // Listen for view changes and run initializers
@@ -101,6 +104,11 @@ window.addEventListener('viewChanged', (e) => {
 
 // Start the app
 initRouter();
+
+// Re-render view on language change
+window.addEventListener('languageChanged', () => {
+  handleRoute();
+});
 
 // Expose store for E2E testing
 window.__doctolib_store = store;

@@ -4,6 +4,7 @@ import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { renderCalendarView, initCalendarView } from '../components/CalendarView.js';
 import { openPatientDetailModal } from '../components/PatientDetailModal.js';
 import { openCreateAppointmentModal } from '../components/CreateAppointmentModal.js';
+import { t } from '../utils/i18n.js';
 
 export function renderPraxisDashboardView() {
   const user = auth.getUser() || {};
@@ -22,7 +23,7 @@ export function renderPraxisDashboardView() {
                 ${(user.praxis_name || 'P')[0]}
               </div>
               <div>
-                <span style="font-weight: 700; font-size: var(--font-size-xs); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Praxis-Dashboard</span>
+                <span style="font-weight: 700; font-size: var(--font-size-xs); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">${t('praxis.dashboard')}</span>
                 <h1 style="font-size: var(--font-size-2xl); font-weight: 800; color: var(--gray-800); letter-spacing: -0.02em; margin: 0;">${user.praxis_name || 'Meine Praxis'}</h1>
               </div>
             </div>
@@ -30,30 +31,30 @@ export function renderPraxisDashboardView() {
           </div>
           <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
             <button id="btn-open-live-queue" class="btn" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #10B981, #059669); color: white; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); border: none;">
-              📺 Live-Warteschlange
+              📺 ${t('praxis.live_queue')}
             </button>
             <button id="btn-create-appointment" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-              ➕ Telefonischen Termin eintragen
+              ➕ ${t('praxis.enter_manual_appointment')}
             </button>
           </div>
         </div>
 
-        <!-- Navigation Tabs (5 tabs: Kalender, Statistik, Behandlungszeiten, Aktivitätslog, Gestaltung) -->
+        <!-- Navigation Tabs -->
         <div style="display: flex; gap: var(--space-2); border-bottom: 2px solid var(--gray-200); margin-bottom: var(--space-8); padding-bottom: 1px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;">
           <button id="tab-dashboard-kalender" class="dashboard-tab active" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 700; color: var(--primary); border-bottom: 3px solid var(--primary); padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
-            📅 Kalender
+            📅 ${t('praxis.tab_calendar')}
           </button>
           <button id="tab-dashboard-termine" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
-            📊 Statistik & Termine
+            📊 ${t('praxis.tab_stats')}
           </button>
           <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
-            ⏱️ Behandlungszeiten & Analyse
+            ⏱️ ${t('praxis.tab_treatment_times')}
           </button>
           <button id="tab-dashboard-activity" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
-            📜 Aktivitätslog
+            📜 ${t('praxis.tab_activity_log')}
           </button>
           <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
-            🎨 Pre-Check-In gestalten
+            🎨 ${t('praxis.tab_design')}
           </button>
         </div>
 
@@ -68,7 +69,7 @@ export function renderPraxisDashboardView() {
           <div id="praxis-stats-container" style="margin-bottom: var(--space-8);">
             <div style="text-align: center; padding: var(--space-8) 0;">
               <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
-              <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Statistiken werden geladen...</p>
+              <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
             </div>
           </div>
 
@@ -76,7 +77,7 @@ export function renderPraxisDashboardView() {
           <div id="praxis-termine-container">
             <div style="text-align: center; padding: var(--space-8) 0;">
               <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
-              <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Termine werden geladen...</p>
+              <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
             </div>
           </div>
         </div>
@@ -92,7 +93,7 @@ export function renderPraxisDashboardView() {
             <div id="praxis-duration-analysis-container">
               <div style="text-align: center; padding: var(--space-6) 0;">
                 <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
-                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Analysedaten werden geladen...</p>
+                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
               </div>
             </div>
           </div>
@@ -104,28 +105,27 @@ export function renderPraxisDashboardView() {
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
               <div>
                 <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-1); display: flex; align-items: center; gap: 8px;">
-                  📜 Aktivitätslog der Patientenbesuche
+                  📜 ${t('praxis.activity_title')}
                 </h2>
                 <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0; line-height: 1.5;">
-                  Vollständiges Protokoll aller Patientenbesuche, Statusänderungen & Bearbeitungsschritte Ihrer Praxis. 
-                  (Gemäß DSGVO automatische Löschung aller Einträge nach exakt 90 Tagen).
+                  ${t('praxis.activity_subtitle')}
                 </p>
               </div>
               <button id="btn-open-manual-log-modal" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-xs); font-weight: 700; border-radius: var(--radius-md); cursor: pointer;">
-                ➕ Manuellen Eintrag hinzufügen
+                ➕ ${t('praxis.add_manual_entry')}
               </button>
             </div>
 
             <!-- Filter & Search Controls -->
             <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-6); flex-wrap: wrap; align-items: center; background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
-              <input type="text" id="activity-log-search" placeholder="🔍 Suche nach Patient, Code, Aktion..." style="flex: 1; min-width: 200px; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px;">
+              <input type="text" id="activity-log-search" placeholder="🔍 ${t('praxis.search_placeholder')}" style="flex: 1; min-width: 200px; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px;">
               <select id="activity-log-filter-status" style="padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px; background: white; cursor: pointer;">
-                <option value="all">Alle Status</option>
-                <option value="erschienen">✓ Erschienen</option>
-                <option value="in_treatment">🩺 In Behandlung</option>
-                <option value="abgesagt">❌ Abgesagt</option>
-                <option value="verzögert">⏱️ Verzögert</option>
-                <option value="verschoben">📅 Verschoben</option>
+                <option value="all">${t('praxis.filter_all_status')}</option>
+                <option value="erschienen">✓ ${t('status.appeared')}</option>
+                <option value="in_treatment">🩺 ${t('status.in_treatment')}</option>
+                <option value="abgesagt">❌ ${t('status.cancelled')}</option>
+                <option value="verzögert">⏱️ ${t('status.delayed')}</option>
+                <option value="verschoben">📅 ${t('status.rescheduled')}</option>
               </select>
             </div>
 
@@ -544,17 +544,17 @@ export async function initPraxisDashboardView() {
       let statusBadge = '';
       const st = (log.status || '').toLowerCase();
       if (st.includes('erschienen') || st.includes('done') || st.includes('abgeschlossen')) {
-        statusBadge = `<span style="background: #ECFDF5; color: #059669; border: 1px solid rgba(5, 150, 105, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ Erschienen</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; background: #ECFDF5; color: #059669; border: 1px solid rgba(5, 150, 105, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ ${t('status.appeared')}</span>`;
       } else if (st.includes('in_treatment') || st.includes('behandlung')) {
-        statusBadge = `<span style="background: #EFF6FF; color: #1D4ED8; border: 1px solid rgba(29, 78, 216, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">🩺 In Behandlung</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; background: #EFF6FF; color: #1D4ED8; border: 1px solid rgba(29, 78, 216, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">🩺 ${t('status.in_treatment')}</span>`;
       } else if (st.includes('abgesagt') || st.includes('storniert') || st.includes('cancel')) {
-        statusBadge = `<span style="background: #FEE2E2; color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">❌ Abgesagt</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; background: #FEE2E2; color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">❌ ${t('status.cancelled')}</span>`;
       } else if (st.includes('verzögert') || st.includes('delay')) {
-        statusBadge = `<span style="background: #FEF3C7; color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏱️ Verzögert</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; background: #FEF3C7; color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏱️ ${t('status.delayed')}</span>`;
       } else if (st.includes('verschoben') || st.includes('rescheduled')) {
-        statusBadge = `<span style="background: #F3E8FF; color: #7E22CE; border: 1px solid rgba(126, 34, 206, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">📅 Verschoben</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; background: #F3E8FF; color: #7E22CE; border: 1px solid rgba(126, 34, 206, 0.2); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">📅 ${t('status.rescheduled')}</span>`;
       } else {
-        statusBadge = `<span style="background: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-300); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">📋 ${log.status}</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; background: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-300); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">📋 ${log.status}</span>`;
       }
 
       const patIdText = log.patient_id ? `ID #${log.patient_id}` : (log.patient_name || 'Patient');
@@ -562,11 +562,11 @@ export async function initPraxisDashboardView() {
       return `
         <tr style="border-bottom: 1px solid var(--gray-100); transition: background 0.15s;" onmouseover="this.style.background='var(--bg-gray)'" onmouseout="this.style.background='white'">
           <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-700); white-space: nowrap;">${formattedDate}</td>
-          <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${patIdText}</td>
-          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-family: monospace; font-size: 12px;">${log.termin_code || '–'}</td>
-          <td style="padding: var(--space-3) var(--space-4);">${statusBadge}</td>
+          <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800); white-space: nowrap;">${patIdText}</td>
+          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-family: monospace; font-size: 12px; white-space: nowrap;">${log.termin_code || '–'}</td>
+          <td style="padding: var(--space-3) var(--space-4); white-space: nowrap;">${statusBadge}</td>
           <td style="padding: var(--space-3) var(--space-4); color: var(--gray-800); font-weight: 500;">${log.action}</td>
-          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">👤 ${log.staff_name || 'System'}</td>
+          <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px; white-space: nowrap;">👤 ${log.staff_name || 'System'}</td>
         </tr>
       `;
     }).join('');
@@ -574,19 +574,19 @@ export async function initPraxisDashboardView() {
     container.innerHTML = `
       <div style="background: white; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); overflow: hidden;">
         <div style="padding: var(--space-4) var(--space-6); background: var(--bg-gray); border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
-          <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em;">Einträge: ${logs.length}</span>
+          <span style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em;">${t('praxis.entries')}: ${logs.length}</span>
           <span style="font-size: 11px; color: var(--gray-500); font-weight: 600;">🔒 Gesichert & DSGVO-konform (Speicherdauer 90 Tage)</span>
         </div>
         <div style="overflow-x: auto;">
           <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: var(--font-size-sm);">
             <thead>
               <tr style="background: #F8FAFC; border-bottom: 2px solid var(--gray-200);">
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Zeitstempel</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Patienten-ID</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Termin-Code</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Status</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Aktivität / Beschreibung</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase;">Mitarbeiter</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; white-space: nowrap;">${t('praxis.timestamp')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; white-space: nowrap;">${t('praxis.patient_id')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; white-space: nowrap;">${t('praxis.appointment_code')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; white-space: nowrap;">${t('praxis.status')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; white-space: nowrap;">${t('praxis.activity_description')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; white-space: nowrap;">${t('praxis.staff')}</th>
               </tr>
             </thead>
             <tbody>

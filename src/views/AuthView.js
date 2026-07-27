@@ -1,6 +1,7 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
+import { t } from '../utils/i18n.js';
 
 export function renderAuthView() {
   return `
@@ -14,32 +15,47 @@ export function renderAuthView() {
         <div class="dl-auth-role-selector">
           <button class="dl-auth-role-btn active" data-role="patient" id="role-patient">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Als Patient
+            ${t('auth.as_patient')}
           </button>
           <button class="dl-auth-role-btn" data-role="praxis" id="role-praxis">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            Als Praxis
+            ${t('auth.as_praxis')}
+          </button>
+          <button class="dl-auth-role-btn" data-role="admin" id="role-admin">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/></svg>
+            ${t('auth.as_admin')}
           </button>
         </div>
 
         <!-- Tabs -->
         <div class="dl-auth-tabs">
-          <button class="dl-auth-tab active" data-tab="login" id="tab-login">Anmelden</button>
-          <button class="dl-auth-tab" data-tab="register" id="tab-register">Registrieren</button>
+          <button class="dl-auth-tab active" data-tab="login" id="tab-login">${t('auth.login')}</button>
+          <button class="dl-auth-tab" data-tab="register" id="tab-register">${t('auth.register')}</button>
         </div>
 
         <!-- Login Form (same for both roles) -->
         <form class="dl-auth-form" id="form-login">
           <div class="dl-auth-form-inner">
+            
+            <!-- Admin Info Box -->
+            <div id="admin-login-info" style="display: none; background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #0369A1;">
+              <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                ${t('auth.admin_title')}
+              </div>
+              ${t('auth.admin_desc')}
+              <div style="margin-top: 6px; font-family: monospace; font-size: 0.75rem; background: white; padding: 4px 8px; border-radius: 4px; border: 1px solid #E0F2FE;">
+                E-Mail: admin@doctolib.de | Passwort: admin
+              </div>
+            </div>
             <div class="form-group">
-              <label class="form-label" for="login-email">E-Mail-Adresse</label>
-              <input type="email" id="login-email" class="form-input" placeholder="ihre@email.de" autocomplete="email" required />
+              <label class="form-label" for="login-email">${t('auth.email')}</label>
+              <input type="email" id="login-email" class="form-input" placeholder="${t('auth.email_placeholder')}" autocomplete="email" required />
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="login-password">Passwort</label>
+              <label class="form-label" for="login-password">${t('auth.password')}</label>
               <div class="dl-auth-password-wrapper">
-                <input type="password" id="login-password" class="form-input" placeholder="Ihr Passwort" autocomplete="current-password" required />
+                <input type="password" id="login-password" class="form-input" placeholder="${t('auth.password')}" autocomplete="current-password" required />
                 <button type="button" class="dl-auth-toggle-pw" id="toggle-login-pw" tabindex="-1">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -49,7 +65,7 @@ export function renderAuthView() {
             <div class="dl-auth-error" id="login-error" style="display:none;"></div>
 
             <button type="submit" class="dl-auth-submit" id="btn-login">
-              <span class="dl-auth-submit-text">Anmelden</span>
+              <span class="dl-auth-submit-text">${t('auth.login_btn')}</span>
               <div class="dl-auth-spinner" style="display:none;"></div>
             </button>
           </div>
@@ -197,38 +213,56 @@ export function initAuthView() {
   const formRegisterPraxis = document.getElementById('form-register-praxis');
   const rolePatient = document.getElementById('role-patient');
   const rolePraxis = document.getElementById('role-praxis');
+  const roleAdmin = document.getElementById('role-admin');
+  const adminLoginInfo = document.getElementById('admin-login-info');
+  const loginEmail = document.getElementById('login-email');
+  const loginPassword = document.getElementById('login-password');
 
   // --- Role switching ---
   function setRole(role) {
     currentRole = role;
-    rolePatient.classList.toggle('active', role === 'patient');
-    rolePraxis.classList.toggle('active', role === 'praxis');
+    rolePatient?.classList.toggle('active', role === 'patient');
+    rolePraxis?.classList.toggle('active', role === 'praxis');
+    roleAdmin?.classList.toggle('active', role === 'admin');
 
-    // Update register form visibility if on register tab
-    if (tabRegister.classList.contains('active')) {
-      formRegister.style.display = role === 'patient' ? '' : 'none';
-      formRegisterPraxis.style.display = role === 'praxis' ? '' : 'none';
+    if (role === 'admin') {
+      if (adminLoginInfo) adminLoginInfo.style.display = 'block';
+      if (tabRegister) tabRegister.style.display = 'none';
+      switchTab('login');
+      if (loginEmail) loginEmail.value = 'admin@doctolib.de';
+      if (loginPassword) loginPassword.value = 'admin';
+    } else {
+      if (adminLoginInfo) adminLoginInfo.style.display = 'none';
+      if (tabRegister) tabRegister.style.display = '';
+      if (loginEmail && loginEmail.value === 'admin@doctolib.de') loginEmail.value = '';
+      if (loginPassword && loginPassword.value === 'admin') loginPassword.value = '';
+
+      if (tabRegister?.classList.contains('active')) {
+        formRegister.style.display = role === 'patient' ? '' : 'none';
+        formRegisterPraxis.style.display = role === 'praxis' ? '' : 'none';
+      }
     }
   }
   setRole('patient'); // init styles
 
   rolePatient?.addEventListener('click', () => setRole('patient'));
   rolePraxis?.addEventListener('click', () => setRole('praxis'));
+  roleAdmin?.addEventListener('click', () => setRole('admin'));
 
   // --- Tab switching ---
   function switchTab(tab) {
     if (tab === 'login') {
-      tabLogin.classList.add('active');
-      tabRegister.classList.remove('active');
-      formLogin.style.display = '';
-      formRegister.style.display = 'none';
-      formRegisterPraxis.style.display = 'none';
+      tabLogin?.classList.add('active');
+      tabRegister?.classList.remove('active');
+      if (formLogin) formLogin.style.display = '';
+      if (formRegister) formRegister.style.display = 'none';
+      if (formRegisterPraxis) formRegisterPraxis.style.display = 'none';
     } else {
-      tabRegister.classList.add('active');
-      tabLogin.classList.remove('active');
-      formLogin.style.display = 'none';
-      formRegister.style.display = currentRole === 'patient' ? '' : 'none';
-      formRegisterPraxis.style.display = currentRole === 'praxis' ? '' : 'none';
+      tabRegister?.classList.add('active');
+      tabLogin?.classList.remove('active');
+      if (formLogin) formLogin.style.display = 'none';
+      if (formRegister) formRegister.style.display = currentRole === 'patient' ? '' : 'none';
+      if (formRegisterPraxis) formRegisterPraxis.style.display = currentRole === 'praxis' ? '' : 'none';
     }
   }
 
@@ -244,7 +278,9 @@ export function initAuthView() {
 
   // Redirect helper based on role
   function redirectAfterAuth(user) {
-    if (user.role === 'praxis') {
+    if (user.role === 'admin') {
+      navigate('test-dashboard');
+    } else if (user.role === 'praxis') {
       navigate('praxis-dashboard');
     } else {
       navigate('landing');

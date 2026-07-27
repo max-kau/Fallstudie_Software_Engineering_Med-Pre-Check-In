@@ -6,6 +6,7 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
+import { t } from '../utils/i18n.js';
 
 let _pollInterval = null;
 
@@ -28,12 +29,12 @@ function adjustTime(timeStr, minutesOffset) {
 
 function getStatusLabel(status) {
   switch (status) {
-    case 'waiting': return 'Wartend';
-    case 'arrived': return 'Eingetroffen';
-    case 'in_treatment': return 'In Behandlung';
-    case 'treatment_finished': return 'Behandlung beendet';
-    case 'done': return 'Abgeschlossen';
-    case 'delayed': return 'Verzögert';
+    case 'waiting': return t('status.waiting');
+    case 'arrived': return t('status.appeared');
+    case 'in_treatment': return t('status.in_treatment');
+    case 'treatment_finished': return t('status.done');
+    case 'done': return t('status.done');
+    case 'delayed': return t('status.delayed');
     default: return status;
   }
 }

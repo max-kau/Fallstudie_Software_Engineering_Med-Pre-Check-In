@@ -1,9 +1,11 @@
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
+import { t, getLanguage, setLanguage } from '../utils/i18n.js';
 
 export function renderDlNav() {
   const loggedIn = auth.isLoggedIn();
   const user = auth.getUser();
+  const currentLang = getLanguage();
   
   return `
     <nav class="dl-nav">
@@ -16,42 +18,62 @@ export function renderDlNav() {
           </svg>
           <span class="dl-nav-name">Doctolib</span>
         </div>
-        <div class="dl-nav-links">
-          ${loggedIn ? `
-            <div style="display: flex; align-items: center; gap: var(--space-5);">
-              ${user.role !== 'praxis' ? `
-              <a href="#home" class="dl-nav-search-link" style="color: var(--gray-600); font-weight: 600; font-size: var(--font-size-sm); display: flex; align-items: center; gap: 6px; text-decoration: none; transition: color var(--transition-fast);">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Praxis suchen
-              </a>
-              ` : ''}
-              <div class="dl-nav-dropdown-wrapper">
-                <button class="dl-nav-dropdown-trigger" id="btn-user-dropdown">
-                  <div class="dl-nav-user-avatar">${user.role === 'praxis' ? '🏥' : `${(user.vorname || '')[0] || ''}${(user.nachname || '')[0] || ''}`}</div>
-                  <span class="dl-nav-user-name">${user.role === 'praxis' ? (user.praxis_name || 'Praxis') : `${user.vorname} ${user.nachname}`}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </button>
-              <div class="dl-nav-dropdown-menu" id="user-dropdown-menu" style="display: none;">
-                <button class="dl-dropdown-item" id="btn-menu-appointments">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  ${user.role === 'praxis' ? 'Dashboard' : 'Meine Termine'}
-                </button>
-                <div class="dl-dropdown-divider"></div>
-                <button class="dl-dropdown-item" id="btn-menu-profile">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  Profildaten
-                </button>
-                <div class="dl-dropdown-divider"></div>
-                <button class="dl-dropdown-item dl-dropdown-item--logout" id="btn-menu-logout">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                  Abmelden
-                </button>
+
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+          <!-- Language Switcher Dropdown -->
+          <div class="dl-nav-dropdown-wrapper" id="dl-lang-wrapper" style="position: relative;">
+            <button class="dl-lang-switch-btn" id="btn-lang-toggle" title="${t('common.select_lang')}" style="background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: var(--radius-full); padding: 5px 12px; font-size: var(--font-size-xs); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; color: var(--gray-700); transition: all 0.2s ease;">
+              <span>${currentLang === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dl-nav-dropdown-menu" id="lang-dropdown-menu" style="display: none; min-width: 140px; right: 0; top: calc(100% + 6px);">
+              <button class="dl-dropdown-item ${currentLang === 'de' ? 'active' : ''}" id="btn-lang-select-de" style="display: flex; align-items: center; gap: 8px; font-weight: ${currentLang === 'de' ? '700' : '500'}; color: ${currentLang === 'de' ? 'var(--primary)' : 'inherit'}; cursor: pointer;">
+                <span>🇩🇪</span> Deutsch
+              </button>
+              <button class="dl-dropdown-item ${currentLang === 'en' ? 'active' : ''}" id="btn-lang-select-en" style="display: flex; align-items: center; gap: 8px; font-weight: ${currentLang === 'en' ? '700' : '500'}; color: ${currentLang === 'en' ? 'var(--primary)' : 'inherit'}; cursor: pointer;">
+                <span>🇬🇧</span> English
+              </button>
+            </div>
+          </div>
+
+          <div class="dl-nav-links">
+            ${loggedIn ? `
+              <div style="display: flex; align-items: center; gap: var(--space-5);">
+                ${user.role === 'patient' ? `
+                <a href="#home" class="dl-nav-search-link" style="color: var(--gray-600); font-weight: 600; font-size: var(--font-size-sm); display: flex; align-items: center; gap: 6px; text-decoration: none; transition: color var(--transition-fast);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  ${t('nav.search_praxis')}
+                </a>
+                ` : ''}
+                <div class="dl-nav-dropdown-wrapper">
+                  <button class="dl-nav-dropdown-trigger" id="btn-user-dropdown">
+                    <div class="dl-nav-user-avatar">${user.role === 'admin' ? '🛡️' : (user.role === 'praxis' ? '🏥' : `${(user.vorname || '')[0] || ''}${(user.nachname || '')[0] || ''}`)}</div>
+                    <span class="dl-nav-user-name">${user.role === 'admin' ? t('nav.system_admin') : (user.role === 'praxis' ? (user.praxis_name || 'Praxis') : `${user.vorname} ${user.nachname}`)}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                <div class="dl-nav-dropdown-menu" id="user-dropdown-menu" style="display: none;">
+                  <button class="dl-dropdown-item" id="btn-menu-appointments">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    ${user.role === 'admin' ? t('nav.test_dashboard') : (user.role === 'praxis' ? t('nav.dashboard') : t('nav.my_appointments'))}
+                  </button>
+                  <div class="dl-dropdown-divider"></div>
+                  <button class="dl-dropdown-item" id="btn-menu-profile">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    ${t('nav.profile_data')}
+                  </button>
+                  <div class="dl-dropdown-divider"></div>
+                  <button class="dl-dropdown-item dl-dropdown-item--logout" id="btn-menu-logout">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    ${t('nav.logout')}
+                  </button>
+                </div>
               </div>
-            </div>
-            </div>
-          ` : `
-            <button class="dl-nav-auth-btn" id="btn-nav-login">Anmelden</button>
-          `}
+              </div>
+            ` : `
+              <button class="dl-nav-auth-btn" id="btn-nav-login">${t('nav.login')}</button>
+            `}
+          </div>
         </div>
       </div>
     </nav>
@@ -69,6 +91,40 @@ export function initDlNav() {
     });
   }
 
+  // Language Dropdown Logic (Independent of auth status)
+  const langWrapper = document.getElementById('dl-lang-wrapper');
+  if (langWrapper) {
+    const newLangWrapper = langWrapper.cloneNode(true);
+    langWrapper.replaceWith(newLangWrapper);
+
+    const langBtn = newLangWrapper.querySelector('#btn-lang-toggle');
+    const langMenu = newLangWrapper.querySelector('#lang-dropdown-menu');
+
+    if (langBtn) {
+      langBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (langMenu) {
+          const isHidden = langMenu.style.display === 'none';
+          langMenu.style.display = isHidden ? 'block' : 'none';
+        }
+      });
+    }
+
+    newLangWrapper.querySelector('#btn-lang-select-de')?.addEventListener('click', () => {
+      setLanguage('de');
+    });
+
+    newLangWrapper.querySelector('#btn-lang-select-en')?.addEventListener('click', () => {
+      setLanguage('en');
+    });
+  }
+
+  // Close language menu on outside click
+  document.addEventListener('click', () => {
+    const langMenu = document.getElementById('lang-dropdown-menu');
+    if (langMenu) langMenu.style.display = 'none';
+  });
+
   // Login button
   const loginBtn = document.getElementById('btn-nav-login');
   if (loginBtn) {
@@ -80,7 +136,7 @@ export function initDlNav() {
   }
 
   // Dropdown wrapper (strips duplicate listeners on trigger and menu items!)
-  const wrapper = document.querySelector('.dl-nav-dropdown-wrapper');
+  const wrapper = document.querySelector('.dl-nav-dropdown-wrapper:not(#dl-lang-wrapper)');
   if (wrapper) {
     const newWrapper = wrapper.cloneNode(true);
     wrapper.replaceWith(newWrapper);
@@ -118,7 +174,13 @@ export function initDlNav() {
 
     // Appointments / Dashboard button in dropdown
     newWrapper.querySelector('#btn-menu-appointments')?.addEventListener('click', () => {
-      navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
+      if (auth.isAdmin()) {
+        navigate('test-dashboard');
+      } else if (auth.isPraxis()) {
+        navigate('praxis-dashboard');
+      } else {
+        navigate('landing');
+      }
     });
 
     // Profile data button in dropdown
@@ -135,7 +197,7 @@ function openProfileModal() {
     <div class="dl-modal-backdrop" id="profile-modal">
       <div class="dl-modal-card fade-in-up" style="max-height: 90vh; display: flex; flex-direction: column;">
         <div class="dl-modal-header" style="flex-shrink: 0;">
-          <h3 class="dl-modal-title">Meine Profildaten</h3>
+          <h3 class="dl-modal-title">${t('profile.title')}</h3>
           <button class="dl-modal-close" id="btn-close-profile">&times;</button>
         </div>
         <div id="profile-modal-content" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
@@ -236,47 +298,68 @@ function openProfileModal() {
       return;
     }
 
-    const versicherungText = u.krankenversicherung === 'privat' ? 'Privat' : 'Gesetzlich';
+    const versicherungText = u.krankenversicherung === 'privat' ? t('auth.privat') : t('auth.gesetzlich');
     const addressFormatted = [u.strasse_hnr, u.plz_ort].filter(Boolean).join(', ');
 
     contentContainer.innerHTML = `
       <div class="dl-modal-body" style="overflow-y: auto; padding: var(--space-6); flex-grow: 1;">
-        <p class="text-muted" style="margin-bottom: var(--space-5); font-size: var(--font-size-sm); line-height: 1.4; color: var(--gray-500);">
-          Hier finden Sie die in Ihrem Doctolib-Konto hinterlegten Profildaten. Diese werden automatisch für den Pre-Check-In verwendet.
-        </p>
+        
+        <!-- Language Settings Card -->
+        <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 14px; margin-bottom: var(--space-5);">
+          <div style="font-weight: 700; font-size: var(--font-size-xs); color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            🌐 ${t('profile.lang_setting')}
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" id="btn-modal-lang-de" class="btn btn-sm ${getLanguage() === 'de' ? 'btn-primary' : 'btn-secondary'}" style="padding: 6px 16px; font-size: 0.82rem; border-radius: 8px; cursor: pointer;">
+              🇩🇪 Deutsch
+            </button>
+            <button type="button" id="btn-modal-lang-en" class="btn btn-sm ${getLanguage() === 'en' ? 'btn-primary' : 'btn-secondary'}" style="padding: 6px 16px; font-size: 0.82rem; border-radius: 8px; cursor: pointer;">
+              🇬🇧 English
+            </button>
+          </div>
+        </div>
 
         <div style="display: grid; grid-template-columns: 1fr; gap: var(--space-4); margin-bottom: var(--space-2);">
           <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
-            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Name</div>
+            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">${t('profile.name')}</div>
             <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.vorname || '—'} ${u.nachname || '—'}</div>
           </div>
 
           <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
-            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Geburtsdatum</div>
+            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">${t('profile.dob')}</div>
             <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.geburtsdatum || '—'}</div>
           </div>
 
           <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
-            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Telefonnummer</div>
+            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">${t('profile.phone')}</div>
             <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${u.telefonnummer || '—'}</div>
           </div>
 
           <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
-            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Adresse</div>
+            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">${t('profile.address')}</div>
             <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${addressFormatted || '—'}</div>
           </div>
 
           <div style="border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">
-            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Krankenversicherung</div>
+            <div style="font-weight: 600; font-size: var(--font-size-xs); color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">${t('profile.insurance')}</div>
             <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-weight: 500;">${versicherungText} ${u.krankenkasse ? `(${u.krankenkasse})` : ''}</div>
           </div>
         </div>
       </div>
       <div class="dl-modal-footer" style="flex-shrink: 0;">
-        <button type="button" class="btn btn-outline" id="btn-close-overview" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Schließen</button>
-        <button type="button" class="btn btn-primary" id="btn-edit-profile" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Ändern</button>
+        <button type="button" class="btn btn-outline" id="btn-close-overview" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">${t('common.close')}</button>
+        <button type="button" class="btn btn-primary" id="btn-edit-profile" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">${t('common.edit')}</button>
       </div>
     `;
+
+    document.getElementById('btn-modal-lang-de')?.addEventListener('click', () => {
+      setLanguage('de');
+      showOverview();
+    });
+    document.getElementById('btn-modal-lang-en')?.addEventListener('click', () => {
+      setLanguage('en');
+      showOverview();
+    });
 
     document.getElementById('btn-close-overview')?.addEventListener('click', closeModal);
     document.getElementById('btn-edit-profile')?.addEventListener('click', showEditForm);
