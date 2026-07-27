@@ -1,12 +1,14 @@
 import { t } from '../utils/i18n.js';
 
-const DEFAULT_HINTS = [
-  'Bitte erscheinen Sie nüchtern (nichts essen/trinken ab 22 Uhr am Vortag)',
-  'Bitte bringen Sie Ihren Impfpass mit',
-  'Bitte bringen Sie aktuelle Laborergebnisse mit',
-  'Bitte bringen Sie eine Überweisung mit',
-  'Bitte nehmen Sie Ihre Medikamente wie gewohnt ein'
-];
+function getDefaultHints() {
+  return [
+    t('hints.fasting', 'Bitte erscheinen Sie nüchtern (nichts essen/trinken ab 22 Uhr am Vortag)'),
+    t('hints.vaccination_pass', 'Bitte bringen Sie Ihren Impfpass mit'),
+    t('hints.lab_results', 'Bitte bringen Sie aktuelle Laborergebnisse mit'),
+    t('hints.referral', 'Bitte bringen Sie eine Überweisung mit'),
+    t('hints.meds_as_usual', 'Bitte nehmen Sie Ihre Medikamente wie gewohnt ein')
+  ];
+}
 
 let currentAiAssessments = null;
 
@@ -51,7 +53,7 @@ async function loadPatientDetails(terminCode) {
     const data = await res.json();
 
     if (!data.success || !data.details) {
-      body.innerHTML = '<p class="text-muted" style="text-align:center; padding: var(--space-8);">Keine Daten gefunden.</p>';
+      body.innerHTML = `<p class="text-muted" style="text-align:center; padding: var(--space-8);">${t('common.no_data', 'Keine Daten gefunden.')}</p>`;
       return;
     }
 
@@ -63,7 +65,7 @@ async function loadPatientDetails(terminCode) {
 
   } catch (err) {
     console.error('Error loading patient details:', err);
-    body.innerHTML = '<p class="text-muted" style="text-align:center; padding: var(--space-8);">Fehler beim Laden.</p>';
+    body.innerHTML = `<p class="text-muted" style="text-align:center; padding: var(--space-8);">${t('common.error_loading', 'Fehler beim Laden.')}</p>`;
   }
 }
 
@@ -95,21 +97,21 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     ? docList.map(file => `
         <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); background: var(--bg-gray); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
           <span style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 500;">📄 ${file.filename} (${formatBytes(file.fileSize)})</span>
-          <a href="/api/file/${file.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">Ansehen</a>
+          <a href="/api/file/${file.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">${t('praxis.view_doc', 'Ansehen')}</a>
         </div>
       `).join('')
-    : '<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Keine Dokumente hochgeladen</div>';
+    : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">${t('praxis.no_docs_uploaded', 'Keine Dokumente hochgeladen')}</div>`;
 
-  const symptoms = (b.chips || []).join(', ') || 'Keine Angabe';
-  const freitext = b.freitext || 'Keine Beschreibung';
-  const staerke = b.staerke != null ? `${b.staerke} / 10` : 'Keine Angabe';
-  const meds = m.keine ? 'Keine Medikamente' : (m.liste || []).join(', ') || 'Keine Angabe';
-  const allergien = a.keine ? 'Keine Allergien' : (a.liste || []).join(', ') || 'Keine Angabe';
+  const symptoms = (b.chips || []).join(', ') || t('common.none_given', 'Keine Angabe');
+  const freitext = b.freitext || t('common.no_description', 'Keine Beschreibung');
+  const staerke = b.staerke != null ? `${b.staerke} / 10` : t('common.none_given', 'Keine Angabe');
+  const meds = m.keine ? t('praxis.no_meds', 'Keine Medikamente') : (m.liste || []).join(', ') || t('common.none_given', 'Keine Angabe');
+  const allergien = a.keine ? t('praxis.no_allergies', 'Keine Allergien') : (a.liste || []).join(', ') || t('common.none_given', 'Keine Angabe');
   const allerAnm = a.anmerkungen || '';
 
   // Patient profile info
   const versicherung = patient
-    ? `${patient.krankenversicherung === 'privat' ? 'Privat' : 'Gesetzlich'}${patient.krankenkasse ? ' (' + patient.krankenkasse + ')' : ''}`
+    ? `${patient.krankenversicherung === 'privat' ? t('profile.private', 'Privat') : t('profile.statutory', 'Gesetzlich')}${patient.krankenkasse ? ' (' + patient.krankenkasse + ')' : ''}`
     : '–';
   const adresse = patient ? [patient.strasse_hnr, patient.plz_ort].filter(Boolean).join(', ') || '–' : '–';
 
@@ -121,10 +123,10 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
         return `
           <div class="pdm-hint-card" style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200); margin-bottom: var(--space-3);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
-              <span style="font-size: var(--font-size-xs); color: var(--gray-400); font-weight: 600;">Gesendet: ${sentDate}</span>
+              <span style="font-size: var(--font-size-xs); color: var(--gray-400); font-weight: 600;">${t('praxis.sent', 'Gesendet:')} ${sentDate}</span>
               <div style="display: flex; gap: var(--space-2); align-items: center;">
-                ${h.email_sent ? '<span style="font-size: 10px; color: #059669; font-weight: 700;">📧 E-Mail gesendet</span>' : '<span style="font-size: 10px; color: var(--gray-400);">Keine E-Mail</span>'}
-                <button class="btn-edit-hint" data-hint-id="${h.id}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 2px 10px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer;">Bearbeiten</button>
+                ${h.email_sent ? `<span style="font-size: 10px; color: #059669; font-weight: 700;">${t('praxis.email_sent', '📧 E-Mail gesendet')}</span>` : `<span style="font-size: 10px; color: var(--gray-400);">${t('praxis.no_email', 'Keine E-Mail')}</span>`}
+                <button class="btn-edit-hint" data-hint-id="${h.id}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 2px 10px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer;">${t('praxis.edit', 'Bearbeiten')}</button>
               </div>
             </div>
             ${hintList.length > 0 ? `<ul style="padding-left: 18px; margin: 0; font-size: var(--font-size-sm); color: var(--gray-700);">${hintList.map(ht => `<li style="margin-bottom: 4px;">${ht}</li>`).join('')}</ul>` : ''}
@@ -207,7 +209,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
           <div class="pdm-subsection-title">${t('praxis.additional_questions', 'Zusatzfragen')}</div>
           <div class="pdm-data-block">
             ${Object.entries(customAnswers).map(([q, a]) => {
-              const ansText = Array.isArray(a) ? a.join(', ') : (a || 'Keine Antwort');
+              const ansText = Array.isArray(a) ? a.join(', ') : (a || t('common.no_answer', 'Keine Antwort'));
               return `<div style="margin-bottom: var(--space-2);"><strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${q}</strong><br><span style="font-weight: 600;">${ansText}</span></div>`;
             }).join('')}
           </div>
@@ -216,13 +218,13 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
         ${hasAiQuestions ? `
         <div>
           <div class="pdm-subsection-title" style="display: flex; align-items: center; gap: 6px;">
-            ${termin.ai_consent === false ? '📋 Standardisierte Folgefragen' : '🤖 Spezifische Folgefragen (KI)'}
+            ${termin.ai_consent === false ? t('praxis.std_followup_questions', '📋 Standardisierte Folgefragen') : t('praxis.ai_followup_questions', '🤖 Spezifische Folgefragen (KI)')}
           </div>
           <div class="pdm-data-block">
             ${aiQuestions.map((q, idx) => `
               <div style="margin-bottom: var(--space-2); border-left: 2px solid var(--primary); padding-left: var(--space-2); padding-top: 2px; padding-bottom: 2px;">
                 <strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${idx + 1}. ${q.question}</strong><br>
-                <span style="font-weight: 600;">${q.answer || 'Keine Antwort'}</span>
+                <span style="font-weight: 600;">${q.answer || t('common.no_answer', 'Keine Antwort')}</span>
               </div>
             `).join('')}
           </div>
@@ -241,9 +243,9 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
             ${Object.entries(docConfirmations).map(([docId, conf]) => {
               const statusColor = conf.status === 'rejected' ? '#DC2626' : '#059669';
               const statusBg = conf.status === 'rejected' ? '#FEF2F2' : '#ECFDF5';
-              const statusLabel = conf.status === 'confirmed' ? '✓ Bestätigt' : conf.status === 'accepted' ? '✓ Akzeptiert' : conf.status === 'rejected' ? '✗ Abgelehnt' : '– Ausstehend';
+              const statusLabel = conf.status === 'confirmed' ? t('status.confirmed', '✓ Bestätigt') : conf.status === 'accepted' ? t('status.accepted', '✓ Akzeptiert') : conf.status === 'rejected' ? t('status.rejected', '✗ Abgelehnt') : t('status.pending', '– Ausstehend');
               const docItem = praxisDocuments.find(d => String(d.id) === String(docId));
-              const docTitle = docItem ? docItem.title : `Dokument #${docId}`;
+              const docTitle = docItem ? docItem.title : `${t('praxis.documents', 'Dokument')} #${docId}`;
               return `
                 <div style="display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: ${statusBg}; border-radius: var(--radius-md); margin-bottom: var(--space-2); border: 1px solid ${conf.status === 'rejected' ? '#FCA5A5' : '#A7F3D0'};">
                   <span style="font-size: var(--font-size-sm); font-weight: 700; color: ${statusColor}; white-space: nowrap;">${statusLabel}</span>
@@ -261,7 +263,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     <div class="pdm-section" style="margin-bottom: var(--space-5);">
       <h4 class="pdm-section-title">🩺 Pre-Check-In</h4>
       <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-5); text-align: center; border: 1px dashed var(--gray-300);">
-        <p style="font-size: var(--font-size-sm); color: var(--gray-500);">Der Pre-Check-In wurde noch nicht ausgefüllt.</p>
+        <p style="font-size: var(--font-size-sm); color: var(--gray-500);">${t('praxis.precheck_not_completed', 'Der Pre-Check-In wurde noch nicht ausgefüllt.')}</p>
       </div>
     </div>
     `}
@@ -274,7 +276,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
       </h4>
       <div style="font-size: var(--font-size-lg); font-weight: 700; color: #D97706; display: flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
         ${'★'.repeat(termin.rating)}${'☆'.repeat(5 - termin.rating)} 
-        <span style="font-size: var(--font-size-xs); color: var(--gray-600); font-weight: 600; margin-left: 4px;">(${termin.rating} von 5 Sternen)</span>
+        <span style="font-size: var(--font-size-xs); color: var(--gray-600); font-weight: 600; margin-left: 4px;">${t('praxis.rating_stars', '({rating} von 5 Sternen)').replace('{rating}', termin.rating)}</span>
       </div>
       ${termin.feedback_text ? `
         <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-style: italic; background: white; padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid #FEF3C7; line-height: 1.4;">
@@ -292,21 +294,21 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
       </h4>
       <div id="ai-assessments-container" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
         <div class="dl-auth-spinner" style="width: 24px; height: 24px; border-width: 2.5px; border-color: var(--primary) transparent transparent transparent;"></div>
-        <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">KI-Assistent wird geladen...</p>
+        <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">${t('praxis.ai_loading', 'KI-Assistent wird geladen...')}</p>
       </div>
       
       <!-- Diagnostic Anamnese Assessment Area -->
       <div id="anamnesis-assessment-section" style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid #e2e8f0; display: none;">
         <button id="btn-generate-diagnostics" class="btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: var(--font-size-sm); border: 1px solid var(--primary); color: var(--primary); background: white; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;">
-          🧠 Einschätzung aus Anamnese
+          ${t('praxis.ai_assessment_btn', '🧠 Einschätzung aus Anamnese')}
         </button>
         <div id="diagnostics-loading-container" style="display: none; flex-direction: column; align-items: center; margin-top: var(--space-3); gap: 6px;">
           <div class="dl-auth-spinner" style="width: 20px; height: 20px; border-width: 2px; border-color: var(--primary) transparent transparent transparent;"></div>
-          <span style="font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600;">Analysiere Anamnese und generiere Einschätzung...</span>
+          <span style="font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600;">${t('praxis.ai_analyzing', 'Analysiere Anamnese und generiere Einschätzung...')}</span>
         </div>
         <div id="diagnostics-result-box" style="display: none; margin-top: var(--space-3); padding: var(--space-3); background: #eff6ff; border-left: 4px solid var(--primary); border-radius: 0 var(--radius-md) var(--radius-md) 0;">
           <h5 style="font-size: var(--font-size-xs); font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: var(--space-1); display: flex; align-items: center; gap: 4px;">
-            📋 Medizinische Verdachtseinschätzung
+            ${t('praxis.medical_suspicion', '📋 Medizinische Verdachtseinschätzung')}
           </h5>
           <p id="diagnostics-result-text" style="font-size: var(--font-size-sm); color: #1e3a8a; margin: 0; line-height: 1.4; font-weight: 500;"></p>
         </div>
@@ -339,7 +341,7 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
     <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
       <h4 class="pdm-section-title">${t('praxis.share_docs_title', '📂 Dokumente für den Patienten bereitstellen (Laborberichte, Rezepte, etc.)')}</h4>
       <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
-        Hier hochgeladene Dateien werden für den Patienten in seinem Portal freigegeben und er erhält eine sofortige Benachrichtigung per E-Mail.
+        ${t('praxis.shared_docs_desc', 'Hier hochgeladene Dateien werden für den Patienten in seinem Portal freigegeben und er erhält eine sofortige Benachrichtigung per E-Mail.')}
       </p>
       
       <!-- List of already shared documents -->
@@ -350,12 +352,12 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); background: var(--bg-gray); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
                   <div>
                     <span style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 700;">📄 ${doc.filename} (${formatBytes(doc.file_size || doc.fileSize)})</span>
-                    <span style="font-size: 10px; color: var(--gray-400); display: block; font-weight: 600;">Kategorie: ${doc.doc_category || 'Sonstiges'}</span>
+                    <span style="font-size: 10px; color: var(--gray-400); display: block; font-weight: 600;">${t('documents.category', 'Kategorie')}: ${doc.doc_category || t('docs.type_other', 'Sonstiges')}</span>
                   </div>
-                  <a href="/api/file/${doc.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">Ansehen</a>
+                  <a href="/api/file/${doc.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">${t('praxis.view_doc', 'Ansehen')}</a>
                 </div>
               `).join('')
-            : '<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">Noch keine Dokumente freigegeben</div>'
+            : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">${t('praxis.no_shared_docs', 'Noch keine Dokumente freigegeben')}</div>`
         }
       </div>
       
@@ -365,30 +367,30 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: flex-end;">
           <div>
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Dokumententyp *</label>
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.doc_type_label', 'Dokumententyp *')}</label>
             <select id="praxis-upload-category" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: 6px; font-size: var(--font-size-xs); background: white; cursor: pointer; height: 32px;">
-              <option value="Laborbefund">Laborbefund</option>
-              <option value="Arztbrief">Arztbrief</option>
-              <option value="eRezept">eRezept</option>
-              <option value="Sonstiges">Sonstiges</option>
+              <option value="Laborbefund">${t('docs.type_lab', 'Laborbefund')}</option>
+              <option value="Arztbrief">${t('docs.type_letter', 'Arztbrief')}</option>
+              <option value="eRezept">${t('docs.type_erezept', 'eRezept')}</option>
+              <option value="Sonstiges">${t('docs.type_other', 'Sonstiges')}</option>
             </select>
           </div>
           <div>
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Datei auswählen *</label>
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.select_file', 'Datei auswählen *')}</label>
             <input type="file" id="praxis-upload-file-input" style="font-size: var(--font-size-xs); width: 100%;">
           </div>
         </div>
         <button id="btn-praxis-upload-doc" class="btn btn-primary" style="margin-top: var(--space-3); width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
-          📤 Dokument freigeben & Patient benachrichtigen
+          ${t('praxis.share_doc_btn', '📤 Dokument freigeben & Patient benachrichtigen')}
         </button>
       </div>
     </div>
 
     <!-- Section 6: Aftercare Instructions (Nachsorge) -->
     <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
-      <h4 class="pdm-section-title">🩺 Nachsorge-Hinweise (Post-Treatment)</h4>
+      <h4 class="pdm-section-title">${t('praxis.aftercare_title', '🩺 Nachsorge-Hinweise (Post-Treatment)')}</h4>
       <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
-        Senden Sie dem Patienten nach dem Termin wichtige Anweisungen (z. B. Schonung, Wundpflege, Kühlung) per E-Mail.
+        ${t('praxis.aftercare_desc', 'Senden Sie dem Patienten nach dem Termin wichtige Anweisungen (z. B. Schonung, Wundpflege, Kühlung) per E-Mail.')}
       </p>
 
       <!-- List of already sent aftercare instructions -->
@@ -398,12 +400,12 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
             ? aftercareInstructions.map(instr => `
                 <div style="padding: var(--space-3); background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2); box-shadow: var(--shadow-sm);">
                   <div style="font-size: 10px; color: var(--gray-400); margin-bottom: var(--space-1); font-weight: 600;">
-                    Gesendet am ${new Date(instr.sent_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr ${instr.email_sent ? '· 📧 E-Mail gesendet' : ''}
+                    ${t('praxis.sent_at_label', 'Gesendet am {date} Uhr').replace('{date}', new Date(instr.sent_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))} ${instr.email_sent ? `· ${t('praxis.email_sent', '📧 E-Mail gesendet')}` : ''}
                   </div>
                   <div style="font-size: var(--font-size-sm); color: var(--gray-700); font-style: italic; white-space: pre-wrap; line-height: 1.4;">"${instr.instructions}"</div>
                 </div>
               `).join('')
-            : '<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">Noch keine Nachsorge-Hinweise gesendet.</div>'
+            : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">${t('praxis.no_aftercare_sent', 'Noch keine Nachsorge-Hinweise gesendet.')}</div>`
         }
       </div>
 
@@ -411,10 +413,10 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
       <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
         <div id="praxis-aftercare-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
         
-        <textarea id="praxis-aftercare-input" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); min-height: 80px; margin-bottom: var(--space-2); background: white; resize: vertical;" placeholder="Z. B. Bitte denken Sie daran, die Wunde heute noch zu kühlen und keinen Sport zu treiben."></textarea>
+        <textarea id="praxis-aftercare-input" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); min-height: 80px; margin-bottom: var(--space-2); background: white; resize: vertical;" placeholder="${t('praxis.aftercare_ph', 'Z. B. Bitte denken Sie daran, die Wunde heute noch zu kühlen und keinen Sport zu treiben.')}"></textarea>
         
         <button id="btn-send-aftercare" class="btn btn-primary" style="width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
-          📨 Nachsorge-Hinweise per E-Mail senden
+          ${t('praxis.send_aftercare_btn', '📨 Nachsorge-Hinweise per E-Mail senden')}
         </button>
       </div>
     </div>
@@ -632,13 +634,13 @@ function openHintModal(terminCode, existingHint) {
     <div class="dl-modal-backdrop" id="hint-modal" style="z-index: 9500;">
       <div class="dl-modal-card fade-in-up" style="max-width: 560px; max-height: 85vh; display: flex; flex-direction: column;">
         <div class="dl-modal-header" style="flex-shrink: 0;">
-          <h3 class="dl-modal-title">${isEdit ? '✏️ Hinweis bearbeiten' : '📨 Hinweis an Patienten'}</h3>
+          <h3 class="dl-modal-title">${isEdit ? t('praxis.edit_hint_title', '✏️ Hinweis bearbeiten') : t('praxis.send_hint_title', '📨 Hinweis an Patienten')}</h3>
           <button class="dl-modal-close" id="btn-close-hint">&times;</button>
         </div>
         <div class="dl-modal-body" style="overflow-y: auto; padding: var(--space-6); flex-grow: 1;" id="hint-modal-body">
           <p style="font-size: var(--font-size-sm); color: var(--gray-500); margin-bottom: var(--space-5); line-height: 1.5;">
-            Wählen Sie Hinweise aus oder schreiben Sie eine individuelle Nachricht.
-            ${isEdit ? 'Nach der Bearbeitung können Sie erneut eine E-Mail senden.' : 'Der Hinweis wird per E-Mail zugestellt und im Pre-Check-In angezeigt.'}
+            ${t('praxis.custom_questions_desc', 'Wählen Sie Hinweise aus oder schreiben Sie eine individuelle Nachricht.')}
+            ${isEdit ? t('praxis.hint_modal_desc_edit', 'Nach der Bearbeitung können Sie erneut eine E-Mail senden.') : t('praxis.hint_modal_desc_new', 'Der Hinweis wird per E-Mail zugestellt und im Pre-Check-In angezeigt.')}
           </p>
 
           <div id="hint-options-container">
@@ -646,32 +648,32 @@ function openHintModal(terminCode, existingHint) {
           </div>
 
           <div style="margin-top: var(--space-5);">
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Individuelle Nachricht (optional)</label>
-            <textarea id="hint-custom-text" placeholder="Z.B.: Bitte rufen Sie uns vorher an, wenn Sie sich verspäten..."
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.custom_msg_label', 'Individuelle Nachricht (optional)')}</label>
+            <textarea id="hint-custom-text" placeholder="${t('praxis.custom_msg_ph', 'Z.B.: Bitte rufen Sie uns vorher an, wenn Sie sich verspäten...')}"
                       style="width: 100%; min-height: 80px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--font-size-sm); resize: vertical; font-family: var(--font-family);">${customText}</textarea>
           </div>
 
           <div style="margin-top: var(--space-4);">
             <button id="btn-hint-settings" type="button" style="background: none; border: none; color: var(--gray-500); font-size: var(--font-size-xs); cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: underline;">
-              ⚙️ Standard-Hinweise anpassen
+              ${t('praxis.edit_default_hints', '⚙️ Standard-Hinweise anpassen')}
             </button>
           </div>
 
           <!-- Settings area (hidden by default) -->
           <div id="hint-settings-area" style="display: none; margin-top: var(--space-4); background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
-            <h5 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-700); margin-bottom: var(--space-3);">Standard-Hinweise bearbeiten</h5>
+            <h5 style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-700); margin-bottom: var(--space-3);">${t('praxis.edit_default_hints_title', 'Standard-Hinweise bearbeiten')}</h5>
             <div id="hint-settings-list"></div>
             <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
-              <button id="btn-add-default-hint" type="button" style="background: var(--primary-lightest); color: var(--primary); border: 1px dashed var(--primary); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">+ Hinzufügen</button>
-              <button id="btn-save-default-hints" type="button" style="background: var(--primary); color: white; border: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">💾 Speichern</button>
+              <button id="btn-add-default-hint" type="button" style="background: var(--primary-lightest); color: var(--primary); border: 1px dashed var(--primary); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">${t('praxis.add_btn', '+ Hinzufügen')}</button>
+              <button id="btn-save-default-hints" type="button" style="background: var(--primary); color: white; border: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">${t('praxis.save_btn', '💾 Speichern')}</button>
             </div>
             <div id="hint-settings-status" style="font-size: var(--font-size-xs); color: var(--gray-400); margin-top: var(--space-2);"></div>
           </div>
         </div>
         <div class="dl-modal-footer" style="flex-shrink: 0; display: flex; gap: var(--space-3); justify-content: flex-end;">
-          <button type="button" class="btn btn-outline" id="btn-cancel-hint" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">Abbrechen</button>
+          <button type="button" class="btn btn-outline" id="btn-cancel-hint" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer;">${t('common.cancel', 'Abbrechen')}</button>
           <button type="button" class="btn btn-primary" id="btn-submit-hint" style="padding: var(--space-2) var(--space-5); border-radius: var(--radius-md); font-size: var(--font-size-sm); cursor: pointer; font-weight: 700;">
-            ${isEdit ? '📧 Hinweis aktualisieren & senden' : '📧 Hinweis versenden'}
+            ${isEdit ? t('praxis.update_hint_btn', '📧 Hinweis aktualisieren & senden') : t('praxis.submit_hint_btn', '📧 Hinweis versenden')}
           </button>
         </div>
       </div>
@@ -705,7 +707,7 @@ function openHintModal(terminCode, existingHint) {
     const custom = document.getElementById('hint-custom-text')?.value || '';
     const btn = document.getElementById('btn-submit-hint');
     btn.disabled = true;
-    btn.textContent = 'Wird gesendet...';
+    btn.textContent = t('common.sending', 'Wird gesendet...');
 
     try {
       if (isEdit) {
@@ -721,7 +723,7 @@ function openHintModal(terminCode, existingHint) {
           body: JSON.stringify({ hints: selectedOptions, custom_text: custom })
         });
       }
-      btn.textContent = '✓ Gesendet!';
+      btn.textContent = t('common.sent', '✓ Gesendet!');
       btn.style.background = '#059669';
       setTimeout(() => {
         close();
@@ -730,7 +732,7 @@ function openHintModal(terminCode, existingHint) {
       }, 1000);
     } catch (err) {
       console.error('Error submitting hint:', err);
-      btn.textContent = 'Fehler – erneut versuchen';
+      btn.textContent = t('common.error_retry', 'Fehler – erneut versuchen');
       btn.disabled = false;
     }
   });
@@ -741,7 +743,7 @@ async function loadHintOptions(selectedHints) {
   if (!container) return;
 
   // Try to load custom defaults from server
-  let options = [...DEFAULT_HINTS];
+  let options = getDefaultHints();
   try {
     const res = await fetch('/api/praxis/default-hints');
     const data = await res.json();
@@ -769,7 +771,7 @@ async function loadHintOptions(selectedHints) {
     aiHtml = `
       <div style="margin-bottom: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px dashed var(--gray-200);">
         <span style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; display: flex; align-items: center; gap: 4px;">
-          🤖 KI-Vorschläge (vorselektiert)
+          ${t('praxis.ai_suggestions_title', '🤖 KI-Vorschläge (vorselektiert)')}
         </span>
       </div>
     ` + aiPatientTodos.map(item => {
@@ -783,7 +785,7 @@ async function loadHintOptions(selectedHints) {
                  style="margin-top: 2px; width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0;">
           <div style="font-size: var(--font-size-sm); color: #1e3a8a; line-height: 1.4; display: flex; flex-direction: column;">
             <span style="font-weight: 600;">${val}</span>
-            <span style="font-size: 10px; color: var(--gray-500); margin-top: 2px; font-style: italic;">Basierend auf KI: "${item.text}"</span>
+            <span style="font-size: 10px; color: var(--gray-500); margin-top: 2px; font-style: italic;">${t('praxis.based_on_ai', 'Basierend auf KI:')} "${item.text}"</span>
           </div>
         </label>
       `;
@@ -817,7 +819,7 @@ async function loadHintSettings() {
   const list = document.getElementById('hint-settings-list');
   if (!list) return;
 
-  let options = [...DEFAULT_HINTS];
+  let options = getDefaultHints();
   try {
     const res = await fetch('/api/praxis/default-hints');
     const data = await res.json();
@@ -901,7 +903,7 @@ async function fetchAiAssessments(terminCode) {
       container.innerHTML = `
         <div style="width: 100%; padding: var(--space-4); background: #f8fafc; border: 1px dashed var(--gray-300); border-radius: var(--radius-md); text-align: center; color: var(--gray-500); font-size: var(--font-size-sm); line-height: 1.4;">
           <span style="font-size: 20px; display: block; margin-bottom: 4px;">📋</span>
-          Der Patient hat der KI-gestützten Auswertung widersprochen. Der KI-Assistent steht nicht zur Verfügung.
+          ${t('praxis.ai_declined_msg', 'Der Patient hat der KI-gestützten Auswertung widersprochen. Der KI-Assistent steht nicht zur Verfügung.')}
         </div>
       `;
       const diagSection = document.getElementById('anamnesis-assessment-section');
@@ -922,11 +924,11 @@ async function fetchAiAssessments(terminCode) {
         }
       }
     } else {
-      container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Keine Empfehlungen des KI-Assistenten verfügbar.</p>`;
+      container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">${t('praxis.no_ai_recommendations', 'Keine Empfehlungen des KI-Assistenten verfügbar.')}</p>`;
     }
   } catch (err) {
     console.error('Error fetching AI assessments:', err);
-    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">Fehler beim Laden des KI-Assistenten.</p>`;
+    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic;">${t('praxis.ai_error_loading', 'Fehler beim Laden des KI-Assistenten.')}</p>`;
   }
 }
 
@@ -938,7 +940,7 @@ function renderAiAssessments(terminCode) {
   const patientTodos = currentAiAssessments?.patientTodos || [];
 
   if (doctorTodos.length === 0 && patientTodos.length === 0) {
-    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; text-align: center; width: 100%;">Alle Einschätzungen wurden bearbeitet oder ausgeblendet.</p>`;
+    container.innerHTML = `<p style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; text-align: center; width: 100%;">${t('praxis.ai_all_processed', 'Alle Einschätzungen wurden bearbeitet oder ausgeblendet.')}</p>`;
     return;
   }
 
@@ -950,11 +952,11 @@ function renderAiAssessments(terminCode) {
         ${item.reasoning ? `<p style="font-size: 10px; color: var(--gray-500); margin: var(--space-1) 0 0 0; line-height: 1.3; font-style: italic;">💡 ${item.reasoning}</p>` : ''}
       </div>
       <div style="display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2);">
-        <button class="btn-ai-add" data-id="${item.id}" title="Zu Notizen hinzufügen" style="background: var(--primary); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; font-weight: 600; transition: transform 0.1s ease; outline: none;">
-          ➕ Zu Notizen
+        <button class="btn-ai-add" data-id="${item.id}" title="${t('praxis.add_to_notes', 'Zu Notizen hinzufügen')}" style="background: var(--primary); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; font-weight: 600; transition: transform 0.1s ease; outline: none;">
+          ${t('praxis.add_to_notes', '➕ Zu Notizen')}
         </button>
-        <button class="btn-ai-remove" data-id="${item.id}" title="Entfernen" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
-          ❌ Entfernen
+        <button class="btn-ai-remove" data-id="${item.id}" title="${t('praxis.remove', 'Entfernen')}" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
+          ${t('praxis.remove', '❌ Entfernen')}
         </button>
       </div>
     </div>
@@ -968,11 +970,11 @@ function renderAiAssessments(terminCode) {
         ${item.reasoning ? `<p style="font-size: 10px; color: var(--gray-500); margin: var(--space-1) 0 0 0; line-height: 1.3; font-style: italic;">💡 ${item.reasoning}</p>` : ''}
       </div>
       <div style="display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2);">
-        <button class="btn-ai-add" data-id="${item.id}" title="Zu Notizen hinzufügen" style="background: var(--primary); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; font-weight: 600; transition: transform 0.1s ease; outline: none;">
-          ➕ Zu Notizen
+        <button class="btn-ai-add" data-id="${item.id}" title="${t('praxis.add_to_notes', 'Zu Notizen hinzufügen')}" style="background: var(--primary); color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; font-weight: 600; transition: transform 0.1s ease; outline: none;">
+          ${t('praxis.add_to_notes', '➕ Zu Notizen')}
         </button>
-        <button class="btn-ai-remove" data-id="${item.id}" title="Entfernen" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
-          ❌ Entfernen
+        <button class="btn-ai-remove" data-id="${item.id}" title="${t('praxis.remove', 'Entfernen')}" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; outline: none;">
+          ${t('praxis.remove', '❌ Entfernen')}
         </button>
       </div>
     </div>

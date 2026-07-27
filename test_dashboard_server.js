@@ -90,15 +90,15 @@ function getSuiteName(filePath) {
   const base = path.basename(filePath, path.extname(filePath));
   const names = {
     'auth.test':             'Frontend Auth Utilities',
-    'praxen.test':           'Frontend Praxen Data API',
+    'praxen.test':           'Frontend Doctor\'s Offices Data API',
     'store.test':            'Frontend Store & State',
     'server_auth.test':      'Backend Auth API',
     'server_dashboard.test': 'Backend Dashboard & Queue API',
     'server_precheckin.test': 'Backend Pre-Check-In API',
     'server_termine.test':   'Backend Termine & Health API',
-    'precheckin.spec':       'Full Pre-Check-In & Praxis Flow (Playwright E2E)',
+    'precheckin.spec':       'Full Pre-Check-In & Doctor\'s Office Flow (Playwright E2E)',
     'landing_filters.spec':  'Landing Page Filter Tests (Playwright E2E)',
-    'patient_database.spec': 'Patientendatenbank Tests (Playwright E2E)',
+    'patient_database.spec': 'Patient Database Tests (Playwright E2E)',
   };
   return names[base] || base;
 }

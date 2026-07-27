@@ -1,11 +1,12 @@
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
-import { t } from '../utils/i18n.js';
+import { t, getLanguage } from '../utils/i18n.js';
 
 export function renderTestDashboardView() {
   const user = auth.getUser();
   const userName = user ? `${user.vorname || ''} ${user.nachname || ''}`.trim() : 'Admin';
+  const lang = getLanguage();
 
   return `
     ${renderDlNav()}
@@ -47,7 +48,7 @@ export function renderTestDashboardView() {
       <div style="flex-grow: 1; position: relative; width: 100%; min-height: calc(100vh - 130px);">
         <iframe 
           id="test-dashboard-frame" 
-          src="/test-dashboard.html" 
+          src="/test-dashboard.html?lang=${lang}" 
           style="width: 100%; height: 100%; min-height: calc(100vh - 130px); border: none; display: block; background: var(--surface);"
           title="Med-Pre-Check-In Interactive Test Dashboard"
         ></iframe>
