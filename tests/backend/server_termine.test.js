@@ -207,10 +207,12 @@ async function loginAsPraxis() {
     opening_hours: null
   };
 
-  // 1. Login query: find user
-  mockQuery.mockResolvedValueOnce({ rows: [mockPraxisUser] });
-  // 2. Auto-link appointments query
-  mockQuery.mockResolvedValueOnce({ rowCount: 0 });
+  mockQuery.mockImplementation(async (queryText) => {
+    if (typeof queryText === 'string' && queryText.includes('FROM users')) {
+      return { rows: [mockPraxisUser] };
+    }
+    return { rows: [], rowCount: 0 };
+  });
 
   const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
