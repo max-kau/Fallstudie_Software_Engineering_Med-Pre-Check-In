@@ -3,6 +3,7 @@
  * Opens a praxis document in a modal for the patient to view and confirm/accept/reject.
  */
 import { store } from '../utils/store.js';
+import { t } from '../utils/i18n.js';
 
 export function openDocumentViewerModal(doc, onStatusChange) {
   // Remove any existing modal
@@ -23,19 +24,19 @@ export function openDocumentViewerModal(doc, onStatusChange) {
     : isImage
       ? `<div style="display: flex; justify-content: center; align-items: center; height: 100%; overflow: auto; background: var(--gray-50); border-radius: var(--radius-md);"><img src="${fileUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${doc.title}" /></div>`
       : `<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: var(--gray-500); font-size: var(--font-size-sm);">
-           <a href="${fileUrl}" target="_blank" style="color: var(--primary); text-decoration: underline;">Dokument in neuem Tab öffnen</a>
+           <a href="${fileUrl}" target="_blank" style="color: var(--primary); text-decoration: underline;">${t('doc_modal.open_new_tab')}</a>
          </div>`;
 
   const actionButtons = isConfirmOnly
     ? `<button id="btn-doc-confirm" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; font-size: var(--font-size-sm); cursor: pointer; display: flex; align-items: center; gap: 8px;">
-         ✓ Dokument bestätigen
+         ${t('doc_modal.confirm')}
        </button>`
     : `<div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
          <button id="btn-doc-accept" class="btn" style="background: #059669; color: white; padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; font-size: var(--font-size-sm); cursor: pointer; display: flex; align-items: center; gap: 8px; border: none;">
-           ✓ Akzeptieren
+           ${t('doc_modal.accept')}
          </button>
          <button id="btn-doc-reject" class="btn" style="background: #DC2626; color: white; padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; font-size: var(--font-size-sm); cursor: pointer; display: flex; align-items: center; gap: 8px; border: none;">
-           ✗ Nicht akzeptieren
+           ${t('doc_modal.reject')}
          </button>
        </div>`;
 
@@ -57,9 +58,9 @@ export function openDocumentViewerModal(doc, onStatusChange) {
           <!-- Rejection Reason (hidden initially) -->
           <div id="doc-reject-area" style="display: ${currentStatus === 'rejected' ? 'block' : 'none'};">
             <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">
-              Begründung für die Ablehnung <span style="color: #DC2626;">*</span>
+              ${t('doc_modal.reject_reason_label')} <span style="color: #DC2626;">*</span>
             </label>
-            <textarea id="doc-reject-reason" placeholder="Bitte geben Sie eine Begründung ein..." 
+            <textarea id="doc-reject-reason" placeholder="${t('doc_modal.reject_reason_placeholder')}" 
                       style="width: 100%; min-height: 80px; border: 2px solid #DC2626; border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--font-size-sm); resize: vertical; font-family: var(--font-family); background: #FEF2F2;">${currentReason}</textarea>
           </div>
 
@@ -68,7 +69,7 @@ export function openDocumentViewerModal(doc, onStatusChange) {
                background: ${currentStatus === 'rejected' ? '#FEF2F2' : '#ECFDF5'};
                color: ${currentStatus === 'rejected' ? '#DC2626' : '#059669'};
                border: 1px solid ${currentStatus === 'rejected' ? '#FCA5A5' : '#A7F3D0'};">
-            <span>${currentStatus === 'rejected' ? '✗ Abgelehnt' : currentStatus === 'accepted' ? '✓ Akzeptiert' : currentStatus === 'confirmed' ? '✓ Bestätigt' : ''}</span>
+            <span>${currentStatus === 'rejected' ? t('doc_modal.rejected') : currentStatus === 'accepted' ? t('doc_modal.accepted') : currentStatus === 'confirmed' ? t('doc_modal.confirmed') : ''}</span>
             ${currentStatus === 'rejected' && currentReason ? `<span style="font-weight: 400; margin-left: 8px;">– ${currentReason}</span>` : ''}
           </div>
 
@@ -76,7 +77,7 @@ export function openDocumentViewerModal(doc, onStatusChange) {
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
             ${actionButtons}
             <button id="btn-doc-close-bottom" class="btn btn-secondary" style="padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-size: var(--font-size-sm); cursor: pointer;">
-              Schließen
+              ${t('doc_modal.close')}
             </button>
           </div>
         </div>
@@ -105,7 +106,7 @@ export function openDocumentViewerModal(doc, onStatusChange) {
       statusEl.style.background = status === 'rejected' ? '#FEF2F2' : '#ECFDF5';
       statusEl.style.color = status === 'rejected' ? '#DC2626' : '#059669';
       statusEl.style.borderColor = status === 'rejected' ? '#FCA5A5' : '#A7F3D0';
-      const label = status === 'rejected' ? '✗ Abgelehnt' : status === 'accepted' ? '✓ Akzeptiert' : '✓ Bestätigt';
+      const label = status === 'rejected' ? t('doc_modal.rejected') : status === 'accepted' ? t('doc_modal.accepted') : t('doc_modal.confirmed');
       statusEl.innerHTML = `<span>${label}</span>${status === 'rejected' && reason ? `<span style="font-weight: 400; margin-left: 8px;">– ${reason}</span>` : ''}`;
     }
 

@@ -14,7 +14,7 @@ describe('i18n Internationalization Utility', () => {
   it('should switch to English when setLanguage("en") is called', () => {
     setLanguage('en');
     expect(getLanguage()).toBe('en');
-    expect(t('nav.search_praxis')).toBe('Search Practice');
+    expect(t('nav.search_praxis')).toBe("Search Doctor's Office");
     expect(t('nav.my_appointments')).toBe('My Appointments');
   });
 

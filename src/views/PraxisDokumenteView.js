@@ -2,6 +2,7 @@ import { renderHeader } from '../components/Header.js';
 import { renderProgressBar } from '../components/ProgressBar.js';
 import { renderStepNavigation, initStepNavigation, updateNextButtonState } from '../components/StepNavigation.js';
 import { store } from '../utils/store.js';
+import { t } from '../utils/i18n.js';
 
 export function renderPraxisDokumenteView() {
   const docs = store.getPraxisDocuments();
@@ -22,7 +23,7 @@ export function renderPraxisDokumenteView() {
       : isImage
         ? `<div style="display: flex; justify-content: center; align-items: center; min-height: 100%; overflow: auto; background: var(--gray-50); border-radius: var(--radius-md);"><img src="${fileUrl}" style="max-width: 100%; height: auto; object-fit: contain;" alt="${doc.title}" /></div>`
         : `<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: var(--gray-500); font-size: var(--font-size-sm);">
-             <a href="${fileUrl}" target="_blank" style="color: var(--primary); text-decoration: underline;">Dokument in neuem Tab öffnen</a>
+             <a href="${fileUrl}" target="_blank" style="color: var(--primary); text-decoration: underline;">${t('praxis_docs.open_in_new_tab', 'Dokument in neuem Tab öffnen')}</a>
            </div>`;
 
     const isAlreadyScrolled = status !== null;
@@ -37,13 +38,13 @@ export function renderPraxisDokumenteView() {
           <label class="checkbox-group" style="display: flex; align-items: flex-start; gap: var(--space-2); cursor: ${isAlreadyScrolled ? 'pointer' : 'not-allowed'};">
             <input type="checkbox" class="doc-confirm-checkbox" data-id="${doc.id}" ${isChecked ? 'checked' : ''} ${disabledAttr} style="margin-top: 3px;" />
             <span class="checkbox-label" style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 600;">
-              Ich habe das Dokument gelesen und bestätige dies.
+              ${t('praxis_docs.read_confirm', 'Ich habe das Dokument gelesen und bestätige dies.')}
             </span>
           </label>
           <div class="scroll-helper-text" id="scroll-helper-${doc.id}" style="font-size: var(--font-size-xs); margin-top: var(--space-2); color: ${isAlreadyScrolled ? 'var(--success)' : 'var(--gray-500)'}; font-weight: 600; display: flex; align-items: center; gap: 4px;">
             ${isAlreadyScrolled 
-              ? '<span>✓ Dokument vollständig gelesen.</span>' 
-              : '<span>📖 Bitte scrollen Sie das Dokument ganz nach unten, um die Bestätigung freizuschalten.</span>'}
+              ? `<span>${t('praxis_docs.read_complete', '✓ Dokument vollständig gelesen.')}</span>` 
+              : `<span>${t('praxis_docs.scroll_instruction', '📖 Bitte scrollen Sie das Dokument ganz nach unten, um die Bestätigung freizuschalten.')}</span>`}
           </div>
         </div>
       `;
@@ -52,28 +53,28 @@ export function renderPraxisDokumenteView() {
       const isRejected = status === 'rejected';
       actionHtml = `
         <div class="form-group doc-choice-group doc-action-group" data-id="${doc.id}" style="margin-top: var(--space-4); ${fadedStyle}">
-          <p style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-700); margin-bottom: var(--space-2);">Bitte wählen Sie eine Option:</p>
+          <p style="font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-700); margin-bottom: var(--space-2);">${t('praxis_docs.choose_option', 'Bitte wählen Sie eine Option:')}</p>
           <div style="display: flex; flex-direction: column; gap: var(--space-2);">
             <label class="radio-group" style="display: flex; align-items: center; gap: var(--space-2); cursor: ${isAlreadyScrolled ? 'pointer' : 'not-allowed'};">
               <input type="radio" name="doc-choice-${doc.id}" class="doc-radio-input" data-id="${doc.id}" value="accepted" ${isAccepted ? 'checked' : ''} ${disabledAttr} />
-              <span style="font-size: var(--font-size-sm); color: var(--gray-700);">Ich akzeptiere das Dokument</span>
+              <span style="font-size: var(--font-size-sm); color: var(--gray-700);">${t('praxis_docs.accept_doc', 'Ich akzeptiere das Dokument')}</span>
             </label>
             <label class="radio-group" style="display: flex; align-items: center; gap: var(--space-2); cursor: ${isAlreadyScrolled ? 'pointer' : 'not-allowed'};">
               <input type="radio" name="doc-choice-${doc.id}" class="doc-radio-input" data-id="${doc.id}" value="rejected" ${isRejected ? 'checked' : ''} ${disabledAttr} />
-              <span style="font-size: var(--font-size-sm); color: var(--gray-700);">Ich akzeptiere das Dokument nicht (Ablehnung)</span>
+              <span style="font-size: var(--font-size-sm); color: var(--gray-700);">${t('praxis_docs.reject_doc', 'Ich akzeptiere das Dokument nicht (Ablehnung)')}</span>
             </label>
           </div>
           <div class="reject-reason-box" id="reject-reason-box-${doc.id}" style="display: ${isRejected ? 'block' : 'none'}; margin-top: var(--space-3);">
             <label class="form-label" style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">
-              Begründung für die Ablehnung <span style="color: #DC2626;">*</span>
+              ${t('praxis_docs.rejection_reason', 'Begründung für die Ablehnung')} <span style="color: #DC2626;">*</span>
             </label>
-            <textarea class="textarea reject-reason-input" data-id="${doc.id}" placeholder="Bitte geben Sie eine Begründung ein..." 
+            <textarea class="textarea reject-reason-input" data-id="${doc.id}" placeholder="${t('praxis_docs.rejection_reason_ph', 'Bitte geben Sie eine Begründung ein...')}" 
                       style="width: 100%; min-height: 80px; border: 2px solid #DC2626; border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--font-size-sm); resize: vertical; font-family: var(--font-family); background: #FEF2F2;" ${disabledAttr}>${reason}</textarea>
           </div>
           <div class="scroll-helper-text" id="scroll-helper-${doc.id}" style="font-size: var(--font-size-xs); margin-top: var(--space-3); color: ${isAlreadyScrolled ? 'var(--success)' : 'var(--gray-500)'}; font-weight: 600; display: flex; align-items: center; gap: 4px;">
             ${isAlreadyScrolled 
-              ? '<span>✓ Dokument vollständig gelesen.</span>' 
-              : '<span>📖 Bitte scrollen Sie das Dokument ganz nach unten, um die Bestätigung freizuschalten.</span>'}
+              ? `<span>${t('praxis_docs.read_complete', '✓ Dokument vollständig gelesen.')}</span>` 
+              : `<span>${t('praxis_docs.scroll_instruction', '📖 Bitte scrollen Sie das Dokument ganz nach unten, um die Bestätigung freizuschalten.')}</span>`}
           </div>
         </div>
       `;
@@ -98,14 +99,14 @@ export function renderPraxisDokumenteView() {
       ${renderProgressBar(6)}
       <div class="container container--form">
         <div class="view-content">
-          <h2 style="margin-bottom: var(--space-2);">Einwilligungen & Praxis-Dokumente</h2>
-          <p class="text-muted" style="margin-bottom: var(--space-6);">Bitte lesen und bestätigen Sie die folgenden Dokumente Ihrer Praxis, um den Pre-Check-In abzuschließen.</p>
+          <h2 style="margin-bottom: var(--space-2);">${t('praxis_docs.title', 'Einwilligungen & Praxis-Dokumente')}</h2>
+          <p class="text-muted" style="margin-bottom: var(--space-6);">${t('praxis_docs.subtitle', 'Bitte lesen und bestätigen Sie die folgenden Dokumente Ihrer Praxis, um den Pre-Check-In abzuschließen.')}</p>
 
           <div class="praxis-docs-container">
             ${docsHtml}
           </div>
 
-          ${renderStepNavigation('dokumente', 'zusammenfassung', 'Zur Zusammenfassung')}
+          ${renderStepNavigation('dokumente', 'zusammenfassung', t('praxis_docs.to_summary', 'Zur Zusammenfassung'))}
         </div>
       </div>
     </div>
@@ -154,7 +155,7 @@ export function initPraxisDokumenteView() {
     const helper = document.getElementById(`scroll-helper-${docId}`);
     if (helper) {
       helper.style.color = 'var(--success)';
-      helper.innerHTML = '<span>✓ Dokument vollständig gelesen.</span>';
+      helper.innerHTML = `<span>${t('praxis_docs.read_complete', '✓ Dokument vollständig gelesen.')}</span>`;
     }
   };
 

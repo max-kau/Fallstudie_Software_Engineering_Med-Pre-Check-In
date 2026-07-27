@@ -4,7 +4,7 @@ import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { renderCalendarView, initCalendarView } from '../components/CalendarView.js';
 import { openPatientDetailModal } from '../components/PatientDetailModal.js';
 import { openCreateAppointmentModal } from '../components/CreateAppointmentModal.js';
-import { t } from '../utils/i18n.js';
+import { t, getLanguage } from '../utils/i18n.js';
 
 export function renderPraxisDashboardView() {
   const user = auth.getUser() || {};
@@ -85,9 +85,9 @@ export function renderPraxisDashboardView() {
         <!-- Tab Content: Behandlungszeiten & Analyse -->
         <div id="tab-content-zeiten" class="dashboard-tab-content" style="display: none;">
           <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
-            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">⏱️ Datengestützte Behandlungszeiten & Verzugsschutz</h2>
+            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">${t('praxis.treatment_times_title')}</h2>
             <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-6); line-height: 1.5;">
-              Aktivieren Sie den <strong>Verzugsschutz (Automatik)</strong>, um neue Kalendertermine und Wartezeiten auf Basis der <strong>historisch berechneten Ist-Dauer</strong> zu planen. Bei Deaktivierung wird Ihre <strong>manuelle Soll-Dauer</strong> genutzt. Die jeweils aktive Spalte ist farblich hervorgehoben.
+              ${t('praxis.treatment_times_desc')}
             </p>
 
             <div id="praxis-duration-analysis-container">
@@ -131,34 +131,34 @@ export function renderPraxisDashboardView() {
 
             <!-- Modal for manual log entry (hidden by default) -->
             <div id="manual-log-modal-container" style="display: none; background: #F8FAFC; border: 1px solid var(--gray-300); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-6);">
-              <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800);">Aktivität manuell im Protokoll verzeichnen</h4>
+              <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800);">${t('praxis.manual_log_title')}</h4>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3);">
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Patienten-ID / Name *</label>
-                  <input type="text" id="manual-log-patient" placeholder="z. B. Max Mustermann (#12)" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.patient_id_label')}</label>
+                  <input type="text" id="manual-log-patient" placeholder="${t('praxis.patient_id_placeholder')}" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
                 </div>
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Termin-Code (optional)</label>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.code_label')}</label>
                   <input type="text" id="manual-log-code" placeholder="z. B. ABC1234" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
                 </div>
                 <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Status *</label>
+                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.status')} *</label>
                   <select id="manual-log-status" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
-                    <option value="erschienen">✓ Erschienen</option>
-                    <option value="in_treatment">🩺 In Behandlung</option>
-                    <option value="abgesagt">❌ Abgesagt</option>
-                    <option value="verzögert">⏱️ Verzögert</option>
-                    <option value="verschoben">📅 Verschoben</option>
+                    <option value="erschienen">✓ ${t('status.appeared')}</option>
+                    <option value="in_treatment">🩺 ${t('status.in_treatment')}</option>
+                    <option value="abgesagt">❌ ${t('status.cancelled')}</option>
+                    <option value="verzögert">⏱️ ${t('status.delayed')}</option>
+                    <option value="verschoben">📅 ${t('status.rescheduled')}</option>
                   </select>
                 </div>
               </div>
               <div style="margin-bottom: var(--space-3);">
-                <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Aktion / Notiz *</label>
-                <input type="text" id="manual-log-action" placeholder="z. B. Nachsorge-Dokumente im Empfang ausgehändigt" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
+                <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.action_note_label')}</label>
+                <input type="text" id="manual-log-action" placeholder="${t('praxis.action_note_placeholder')}" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
               </div>
               <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
-                <button id="btn-cancel-manual-log" class="btn btn-outline" style="padding: 4px 12px; font-size: 12px;">Abbrechen</button>
-                <button id="btn-save-manual-log" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px;">Speichern</button>
+                <button id="btn-cancel-manual-log" class="btn btn-outline" style="padding: 4px 12px; font-size: 12px;">${t('common.cancel')}</button>
+                <button id="btn-save-manual-log" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px;">${t('common.save')}</button>
               </div>
             </div>
 
@@ -166,7 +166,7 @@ export function renderPraxisDashboardView() {
             <div id="praxis-activity-logs-container">
               <div style="text-align: center; padding: var(--space-6) 0;">
                 <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
-                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">Aktivitätslog wird geladen...</p>
+                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
               </div>
             </div>
           </div>
@@ -175,10 +175,9 @@ export function renderPraxisDashboardView() {
         <!-- Tab Content: Gestaltung -->
         <div id="tab-content-gestaltung" class="dashboard-tab-content" style="display: none;">
           <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
-            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">🎨 Eigenen Fragebogen gestalten</h2>
+            <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">${t('praxis.custom_questions_title')}</h2>
             <p class="text-muted" style="font-size: var(--font-size-sm); margin-bottom: var(--space-4); line-height: 1.5;">
-              Fügen Sie hier eigene Fragen hinzu, die Patienten beim Ausfüllen des Pre-Check-Ins für Ihre Praxis beantworten müssen. 
-              Sie können Freitextfragen, Einzelauswahl oder Mehrfachauswahl-Fragen erstellen.
+              ${t('praxis.custom_questions_desc')}
             </p>
             
             <div id="questions-list-container" style="margin-top: var(--space-4);">
@@ -187,10 +186,10 @@ export function renderPraxisDashboardView() {
 
             <div style="display: flex; gap: var(--space-3); margin-top: var(--space-6); flex-wrap: wrap;">
               <button id="btn-add-question" type="button" class="btn" style="background: var(--primary-lightest); color: var(--primary); border: 1px dashed var(--primary); padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s;">
-                ➕ Neue Frage hinzufügen
+                ${t('praxis.add_question')}
               </button>
               <button id="btn-save-questions" type="button" class="btn btn-primary" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                💾 Fragebogen speichern
+                ${t('praxis.save_questionnaire')}
               </button>
             </div>
             <div id="questions-status-message" style="margin-top: var(--space-4); font-size: var(--font-size-sm); font-weight: 600; display: none;"></div>
@@ -249,10 +248,10 @@ export function renderPraxisDashboardView() {
 
 function renderStatsCards(stats) {
   const cards = [
-    { label: 'Termine gesamt', value: stats.totalTermine, icon: '📅', color: '#0063BE', bg: '#EBF5FF' },
-    { label: 'Pre-Check-Ins abgeschlossen', value: stats.prechecksCompleted, icon: '✅', color: '#059669', bg: '#ECFDF5' },
-    { label: 'Pre-Check-Ins offen', value: stats.prechecksOpen, icon: '⏳', color: '#D97706', bg: '#FFFBEB' },
-    { label: 'Patienten', value: stats.uniquePatients, icon: '👥', color: '#7C3AED', bg: '#F5F3FF' },
+    { label: t('praxis.total_appts', 'Termine gesamt'), value: stats.totalTermine, icon: '📅', color: '#0063BE', bg: '#EBF5FF' },
+    { label: t('praxis.prechecks_completed', 'Pre-Check-Ins abgeschlossen'), value: stats.prechecksCompleted, icon: '✅', color: '#059669', bg: '#ECFDF5' },
+    { label: t('praxis.prechecks_open', 'Pre-Check-Ins offen'), value: stats.prechecksOpen, icon: '⏳', color: '#D97706', bg: '#FFFBEB' },
+    { label: t('praxis.patients', 'Patienten'), value: stats.uniquePatients, icon: '👥', color: '#7C3AED', bg: '#F5F3FF' },
   ];
 
   return `
@@ -275,9 +274,9 @@ function renderTermineTable(termine) {
     return `
       <div class="dl-profile-card fade-in-up" style="text-align: center; padding: var(--space-10) var(--space-6); background: white; border-radius: var(--radius-xl); border: 1px dashed var(--gray-300);">
         <div style="font-size: var(--font-size-4xl); margin-bottom: var(--space-4);">📋</div>
-        <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">Keine Termine vorhanden</h3>
+        <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">${t('praxis.no_appts_title', 'Keine Termine vorhanden')}</h3>
         <p class="text-muted" style="max-width: 420px; margin: 0 auto; font-size: var(--font-size-sm); line-height: 1.5;">
-          Sobald Patienten Termine bei Ihrer Praxis buchen, erscheinen diese hier.
+          ${t('praxis.no_appts_desc', 'Sobald Patienten Termine bei Ihrer Praxis buchen, erscheinen diese hier.')}
         </p>
       </div>
     `;
@@ -286,39 +285,43 @@ function renderTermineTable(termine) {
   return `
     <div class="fade-in-up" style="background: white; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); overflow: hidden;">
       <div style="padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--gray-100); display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 0;">Terminübersicht</h2>
-        <span style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-400); text-transform: uppercase;">${termine.length} Termin${termine.length !== 1 ? 'e' : ''}</span>
+        <h2 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 0;">${t('praxis.appts_overview', 'Terminübersicht')}</h2>
+        <span style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-400); text-transform: uppercase;">${termine.length} ${t('praxis.appts_count', 'Termine')}</span>
       </div>
       <div style="overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse; font-size: var(--font-size-sm);">
           <thead>
             <tr style="background: var(--bg-gray); border-bottom: 2px solid var(--gray-200);">
-              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">Patient</th>
-              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">Datum</th>
-              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">Uhrzeit</th>
-              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">Art</th>
-              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">Pre-Check-In</th>
-              <th style="padding: var(--space-3) var(--space-4); text-align: center; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">Details</th>
+              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">${t('praxis.tbl_patient', 'Patient')}</th>
+              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">${t('praxis.tbl_date', 'Datum')}</th>
+              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">${t('praxis.tbl_time', 'Uhrzeit')}</th>
+              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">${t('praxis.tbl_type', 'Art')}</th>
+              <th style="padding: var(--space-3) var(--space-4); text-align: left; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">${t('praxis.tbl_precheck', 'Pre-Check-In')}</th>
+              <th style="padding: var(--space-3) var(--space-4); text-align: center; font-weight: 700; color: var(--gray-600); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em;">${t('praxis.tbl_details', 'Details')}</th>
             </tr>
           </thead>
           <tbody>
-            ${termine.map((t, i) => {
-              const patientName = `${t.patient_vorname || '–'} ${t.patient_nachname || ''}`.trim();
-              const statusHtml = t.precheck_submitted
-                ? `<span style="display: inline-flex; align-items: center; gap: 4px; background: #ECFDF5; color: #059669; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ Abgeschlossen</span>`
-                : t.precheck_step && t.precheck_step !== 'intro'
-                  ? `<span style="display: inline-flex; align-items: center; gap: 4px; background: #FFFBEB; color: #D97706; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏳ In Bearbeitung</span>`
-                  : `<span style="display: inline-flex; align-items: center; gap: 4px; background: var(--gray-100); color: var(--gray-500); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">– Ausstehend</span>`;
+            ${termine.map((tItem, i) => {
+              const patientName = `${tItem.patient_vorname || '–'} ${tItem.patient_nachname || ''}`.trim();
+              const statusHtml = tItem.precheck_submitted
+                ? `<span style="display: inline-flex; align-items: center; gap: 4px; background: #ECFDF5; color: #059669; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">✓ ${t('status.done', 'Abgeschlossen')}</span>`
+                : tItem.precheck_step && tItem.precheck_step !== 'intro'
+                  ? `<span style="display: inline-flex; align-items: center; gap: 4px; background: #FFFBEB; color: #D97706; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">⏳ ${t('status.in_progress', 'In Bearbeitung')}</span>`
+                  : `<span style="display: inline-flex; align-items: center; gap: 4px; background: var(--gray-100); color: var(--gray-500); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">– ${t('status.pending', 'Ausstehend')}</span>`;
+
+              const lang = getLanguage();
+              const timeDisplay = lang === 'en' ? tItem.time : `${tItem.time} Uhr`;
+              const artDisplay = t('appt_type.' + tItem.art, tItem.art);
 
               return `
                 <tr style="border-bottom: 1px solid var(--gray-100); transition: background 0.15s;" onmouseover="this.style.background='var(--bg-gray)'" onmouseout="this.style.background='white'">
                   <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${patientName}</td>
-                  <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${t.date}</td>
-                  <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${t.time} Uhr</td>
-                  <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${t.art}</td>
+                  <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${tItem.date}</td>
+                  <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${timeDisplay}</td>
+                  <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600);">${artDisplay}</td>
                   <td style="padding: var(--space-3) var(--space-4);">${statusHtml}</td>
                   <td style="padding: var(--space-3) var(--space-4); text-align: center;">
-                    <button class="btn-view-details" data-code="${t.code}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 12px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s;">Details</button>
+                    <button class="btn-view-details" data-code="${tItem.code}" style="background: none; border: 1px solid var(--primary); color: var(--primary); padding: 4px 12px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s;">${t('praxis.tbl_details', 'Details')}</button>
                   </td>
                 </tr>
               `;
@@ -335,7 +338,7 @@ function renderQuestions(questions) {
     return `
       <div style="text-align: center; padding: var(--space-8); border: 1px dashed var(--gray-300); border-radius: var(--radius-xl); background: var(--bg-gray);">
         <div style="font-size: var(--font-size-3xl); margin-bottom: var(--space-2);">📝</div>
-        <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0;">Noch keine spezifischen Fragen hinzugefügt. Klicken Sie auf "Neue Frage hinzufügen" oben.</p>
+        <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0;">${t('praxis.no_custom_questions', 'Noch keine spezifischen Fragen hinzugefügt. Klicken Sie auf "Neue Frage hinzufügen" oben.')}</p>
       </div>
     `;
   }
@@ -343,41 +346,43 @@ function renderQuestions(questions) {
   return questions.map((q, idx) => {
     const isText = q.question_type === 'text';
     const optionsVal = Array.isArray(q.options) ? q.options.join(', ') : (q.options || '');
+    const questionNumLabel = t('praxis.question_num', 'Frage #{num}').replace('{num}', idx + 1);
+
     return `
       <div class="dl-question-card fade-in-up" data-index="${idx}" style="background: var(--bg-gray); border-radius: var(--radius-xl); border: 1px solid var(--gray-200); padding: var(--space-5); margin-bottom: var(--space-4); position: relative; display: flex; flex-direction: column; gap: var(--space-4);">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
-          <span style="font-weight: 700; font-size: var(--font-size-sm); color: var(--primary);">Frage #${idx + 1}</span>
+          <span style="font-weight: 700; font-size: var(--font-size-sm); color: var(--primary);">${questionNumLabel}</span>
           <div style="display: flex; gap: var(--space-2); align-items: center;">
             <button type="button" class="btn-move-up" data-index="${idx}" style="background: white; border: 1px solid var(--gray-300); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--gray-600); font-weight: 700;" ${idx === 0 ? 'disabled style="opacity: 0.5; cursor: default;"' : ''}>▲</button>
             <button type="button" class="btn-move-down" data-index="${idx}" style="background: white; border: 1px solid var(--gray-300); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--gray-600); font-weight: 700;" ${idx === questions.length - 1 ? 'disabled style="opacity: 0.5; cursor: default;"' : ''}>▼</button>
-            <button type="button" class="btn-delete-question" data-index="${idx}" style="background: #FEE2E2; border: 1px solid #FCA5A5; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: #DC2626; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; margin-left: 8px;">🗑️ Löschen</button>
+            <button type="button" class="btn-delete-question" data-index="${idx}" style="background: #FEE2E2; border: 1px solid #FCA5A5; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: #DC2626; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; margin-left: 8px;">🗑️ ${t('praxis.delete', 'Löschen')}</button>
           </div>
         </div>
         
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4);">
           <div>
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Frage / Titel</label>
-            <input type="text" class="question-text-input" data-index="${idx}" value="${q.question_text || ''}" placeholder="Z.B.: Bitte beschreiben Sie Ihre Symptome genauer." style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.question_title', 'Frage / Titel')}</label>
+            <input type="text" class="question-text-input" data-index="${idx}" value="${q.question_text || ''}" placeholder="${t('praxis.question_title_ph', 'z.B.: Bitte beschreiben Sie Ihre Symptome genauer.')}" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
           </div>
           <div>
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Antwort-Typ</label>
+            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.answer_type', 'Antwort-Typ')}</label>
             <select class="question-type-select" data-index="${idx}" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white; cursor: pointer;">
-              <option value="text" ${q.question_type === 'text' ? 'selected' : ''}>Freitext (Textfeld)</option>
-              <option value="single" ${q.question_type === 'single' ? 'selected' : ''}>Einzelauswahl (Radio-Buttons)</option>
-              <option value="multiple" ${q.question_type === 'multiple' ? 'selected' : ''}>Mehrfachauswahl (Checkboxen)</option>
+              <option value="text" ${q.question_type === 'text' ? 'selected' : ''}>${t('praxis.type_text', 'Freitext (Textfeld)')}</option>
+              <option value="single" ${q.question_type === 'single' ? 'selected' : ''}>${t('praxis.type_single', 'Einzelauswahl (Radio-Buttons)')}</option>
+              <option value="multiple" ${q.question_type === 'multiple' ? 'selected' : ''}>${t('praxis.type_multiple', 'Mehrfachauswahl (Checkboxen)')}</option>
             </select>
           </div>
         </div>
 
         <div class="options-container" style="display: ${isText ? 'none' : 'block'};">
-          <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">Antwortmöglichkeiten (Komma-separiert)</label>
-          <input type="text" class="question-options-input" data-index="${idx}" value="${optionsVal}" placeholder="Z.B.: Ja, Nein, Unsicher" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
-          <span style="font-size: 10px; color: var(--gray-400); margin-top: 4px; display: block;">Geben Sie die Optionen durch Kommata getrennt ein.</span>
+          <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.options_label', 'Antwortmöglichkeiten (Komma-separiert)')}</label>
+          <input type="text" class="question-options-input" data-index="${idx}" value="${optionsVal}" placeholder="${t('praxis.options_ph', 'z.B.: Ja, Nein, Unsicher')}" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); background: white;">
+          <span style="font-size: 10px; color: var(--gray-400); margin-top: 4px; display: block;">${t('praxis.options_hint', 'Geben Sie die Optionen durch Kommata getrennt ein.')}</span>
         </div>
 
         <div style="display: flex; align-items: center; gap: 8px;">
           <input type="checkbox" class="question-required-checkbox" data-index="${idx}" id="req-${idx}" ${q.required ? 'checked' : ''} style="cursor: pointer; width: 15px; height: 15px;">
-          <label for="req-${idx}" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-600); cursor: pointer; user-select: none;">Antwort ist verpflichtend (Pflichtfeld)</label>
+          <label for="req-${idx}" style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-600); cursor: pointer; user-select: none;">${t('praxis.required_field', 'Antwort ist erforderlich (Pflichtfeld)')}</label>
         </div>
       </div>
     `;
@@ -665,43 +670,45 @@ export async function initPraxisDashboardView() {
           <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: var(--font-size-sm);">
             <thead>
               <tr style="background: var(--bg-gray); border-bottom: 1px solid var(--gray-200);">
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Besuchsgrund (Art)</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Soll-Dauer (manuell)</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Ist-Schnitt (historisch)</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Messungen</th>
-                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">Abweichung</th>
-                <th style="padding: var(--space-3) var(--space-4); text-align: center; font-weight: 700; color: var(--gray-700);">Verzugsschutz (Automatik)</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">${t('praxis.tbl_reason', 'Besuchsgrund (Art)')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">${t('praxis.tbl_target_duration', 'Soll-Dauer (manuell)')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">${t('praxis.tbl_actual_avg', 'Ist-Schnitt (historisch)')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">${t('praxis.tbl_measurements', 'Messungen')}</th>
+                <th style="padding: var(--space-3) var(--space-4); font-weight: 700; color: var(--gray-700);">${t('praxis.tbl_deviation', 'Abweichung')}</th>
+                <th style="padding: var(--space-3) var(--space-4); text-align: center; font-weight: 700; color: var(--gray-700);">${t('praxis.tbl_delay_protection', 'Verzugsschutz (Automatik)')}</th>
               </tr>
             </thead>
             <tbody>
       `;
 
       rows.forEach(item => {
+        const minUnit = t('create_appt.min_abbr', 'Min.');
         const trendBadge = item.diff > 2
-          ? `<span style="background: #FEE2E2; color: #DC2626; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔴 +${item.diff} Min.</span>`
+          ? `<span style="background: #FEE2E2; color: #DC2626; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔴 +${item.diff} ${minUnit}</span>`
           : (item.diff < -2
-            ? `<span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔵 ${item.diff} Min.</span>`
-            : `<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🟢 Im Soll</span>`);
+            ? `<span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔵 ${item.diff} ${minUnit}</span>`
+            : `<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🟢 ${t('praxis.on_target', 'Im Soll')}</span>`);
 
         const manualTdBg = !item.useAuto ? 'background: #FEF3C7; font-weight: 700;' : '';
         const avgTdBg = item.useAuto ? 'background: #E8F4FD; font-weight: 700; color: #0063BE;' : '';
+        const artDisplay = t('appt_type.' + item.art, item.art);
 
         html += `
           <tr style="border-bottom: 1px solid var(--gray-100);">
-            <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${item.art}</td>
+            <td style="padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--gray-800);">${artDisplay}</td>
             <td style="padding: var(--space-3) var(--space-4); ${manualTdBg}">
               <div style="display: flex; align-items: center; gap: 4px;">
                 <input type="number" class="manual-duration-input" data-art="${item.art}" value="${item.manualDuration}" min="5" max="180" style="width: 65px; padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
-                <span style="color: var(--gray-700); font-size: 12px; font-weight: 600;">Min.</span>
+                <span style="color: var(--gray-700); font-size: 12px; font-weight: 600;">${minUnit}</span>
               </div>
             </td>
-            <td style="padding: var(--space-3) var(--space-4); ${avgTdBg}">${item.calculatedAvg} Min.</td>
-            <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">${item.sampleCount} Behandlungen</td>
+            <td style="padding: var(--space-3) var(--space-4); ${avgTdBg}">${item.calculatedAvg} ${minUnit}</td>
+            <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">${item.sampleCount} ${t('praxis.treatments_count', 'Behandlungen')}</td>
             <td style="padding: var(--space-3) var(--space-4);">${trendBadge}</td>
             <td style="padding: var(--space-3) var(--space-4); text-align: center;">
               <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-700);">
                 <input type="checkbox" class="auto-duration-toggle" data-art="${item.art}" ${item.useAuto ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
-                <span>${item.useAuto ? '⚡ Automatik' : '📌 Manuell'}</span>
+                <span>${item.useAuto ? '⚡ ' + t('praxis.automatic', 'Automatik') : '📌 ' + t('praxis.manual', 'Manuell')}</span>
               </label>
             </td>
           </tr>
@@ -713,8 +720,8 @@ export async function initPraxisDashboardView() {
           </table>
         </div>
         <div style="margin-top: var(--space-4); display: flex; justify-content: space-between; align-items: center; font-size: var(--font-size-xs); color: var(--gray-500);">
-          <span>💡 Änderungen an den Vorgabewerten und Schaltern werden sofort gespeichert.</span>
-          <button id="btn-refresh-duration-analysis" class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--gray-300); cursor: pointer;">🔄 Daten aktualisieren</button>
+          <span>${t('praxis.changes_saved_immediately', '💡 Änderungen an den Vorgabewerten und Schaltern werden sofort gespeichert.')}</span>
+          <button id="btn-refresh-duration-analysis" class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--gray-300); cursor: pointer;">🔄 ${t('praxis.refresh_data', 'Daten aktualisieren')}</button>
         </div>
       `;
 
@@ -929,7 +936,7 @@ export async function initPraxisDashboardView() {
     if (statusMessage) {
       statusMessage.style.display = 'block';
       statusMessage.style.color = 'var(--gray-600)';
-      statusMessage.textContent = 'Speichert...';
+      statusMessage.textContent = t('common.saving', 'Speichert...');
     }
     try {
       const res = await fetch('/api/praxis/questions', {
@@ -940,14 +947,14 @@ export async function initPraxisDashboardView() {
       const data = await res.json();
       if (data.success) {
         statusMessage.style.color = 'var(--green-600)';
-        statusMessage.textContent = '✓ Fragebogen erfolgreich gespeichert!';
+        statusMessage.textContent = t('praxis.questionnaire_saved', '✓ Fragebogen erfolgreich gespeichert!');
         setTimeout(() => { statusMessage.style.display = 'none'; }, 3000);
       } else {
         throw new Error(data.error || 'Fehler beim Speichern');
       }
     } catch (err) {
       statusMessage.style.color = 'var(--red-600)';
-      statusMessage.textContent = '❌ Fehler beim Speichern: ' + err.message;
+      statusMessage.textContent = t('praxis.error_saving', '❌ Fehler beim Speichern: ') + err.message;
     }
   });
 

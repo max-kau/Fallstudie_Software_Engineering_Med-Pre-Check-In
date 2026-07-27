@@ -1,8 +1,4 @@
-/**
- * CalendarView Component
- * Outlook-style calendar for the Praxis Dashboard.
- * Supports day and week views with drag-to-resize appointment blocks.
- */
+import { t, getLanguage } from '../utils/i18n.js';
 
 const CALENDAR_START_HOUR = 7;
 const CALENDAR_END_HOUR = 24;
@@ -17,8 +13,17 @@ const MONTH_MAP = {
   'jul': 6, 'aug': 7, 'sep': 8, 'okt': 9, 'nov': 10, 'dez': 11
 };
 
-const WEEKDAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+function getWeekdayNames() {
+  return getLanguage() === 'en'
+    ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    : ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+}
+
+function getMonthNames() {
+  return getLanguage() === 'en'
+    ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    : ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+}
 
 function parseGermanDate(dateStr) {
   if (!dateStr) return null;
@@ -57,13 +62,22 @@ function parseTimeToMinutes(timeStr) {
 
 function formatDateHeader(date) {
   const d = new Date(date);
-  return `${WEEKDAY_NAMES[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  const weekdays = getWeekdayNames();
+  const months = getMonthNames();
+  if (getLanguage() === 'en') {
+    return `${weekdays[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+  return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}. ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function formatWeekHeader(startDate) {
   const end = new Date(startDate);
   end.setDate(end.getDate() + 6);
-  return `${String(startDate.getDate()).padStart(2, '0')}. ${MONTH_NAMES[startDate.getMonth()]} – ${String(end.getDate()).padStart(2, '0')}. ${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`;
+  const months = getMonthNames();
+  if (getLanguage() === 'en') {
+    return `${months[startDate.getMonth()]} ${startDate.getDate()} – ${months[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
+  }
+  return `${String(startDate.getDate()).padStart(2, '0')}. ${months[startDate.getMonth()]} – ${String(end.getDate()).padStart(2, '0')}. ${months[end.getMonth()]} ${end.getFullYear()}`;
 }
 
 function isSameDay(d1, d2) {
@@ -130,28 +144,28 @@ export function renderCalendarView() {
       <!-- Calendar Header -->
       <div class="cal-header">
         <div class="cal-nav">
-          <button class="cal-nav-btn" id="cal-prev" title="Zurück">
+          <button class="cal-nav-btn" id="cal-prev" title="${t('common.back', 'Zurück')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <button class="cal-nav-btn cal-today-btn" id="cal-today">Heute</button>
-          <button class="cal-nav-btn" id="cal-next" title="Vor">
+          <button class="cal-nav-btn cal-today-btn" id="cal-today">${t('calendar.today')}</button>
+          <button class="cal-nav-btn" id="cal-next" title="${t('common.next', 'Vor')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
         <h2 class="cal-title" id="cal-title"></h2>
         <div class="cal-view-toggle">
-          <button class="cal-toggle-btn active" id="cal-view-day" data-view="day">Tag</button>
-          <button class="cal-toggle-btn" id="cal-view-week" data-view="week">Woche</button>
-          <button class="cal-toggle-btn" id="cal-view-buffer" data-view="buffer" style="border-left: 1px solid var(--gray-300);">⏸️ Pufferzeiten</button>
+          <button class="cal-toggle-btn active" id="cal-view-day" data-view="day">${t('calendar.day')}</button>
+          <button class="cal-toggle-btn" id="cal-view-week" data-view="week">${t('calendar.week')}</button>
+          <button class="cal-toggle-btn" id="cal-view-buffer" data-view="buffer" style="border-left: 1px solid var(--gray-300);">⏸️ ${t('calendar.buffer_times')}</button>
         </div>
       </div>
 
       <!-- Legend -->
       <div class="cal-legend" id="cal-legend">
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>Pre-Check-In erledigt</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>Pre-Check-In offen</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94A3B8;"></span>Nicht freigeschaltet</span>
-        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#F59E0B;"></span>Pufferzeit</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#059669;"></span>${t('calendar.precheck_done')}</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#DC2626;"></span>${t('calendar.precheck_open')}</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94A3B8;"></span>${t('calendar.not_unlocked')}</span>
+        <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#F59E0B;"></span>${t('calendar.buffer_time')}</span>
       </div>
 
       <!-- Calendar Body -->
@@ -278,7 +292,7 @@ function renderCurrentTimeIndicator(date) {
          style="position: absolute; left: 0; right: 0; top: ${topPx}px; border-top: 2px solid #EF4444; z-index: 10; pointer-events: none;">
       <div style="position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: #EF4444; border-radius: 50%; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);"></div>
       <span style="position: absolute; right: 4px; top: -9px; background: #EF4444; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); letter-spacing: 0.3px;">
-        📍 ${timeStr} Uhr
+        📍 ${timeStr}${getLanguage() === 'en' ? '' : ' Uhr'}
       </span>
     </div>
   `;
@@ -287,6 +301,7 @@ function renderCurrentTimeIndicator(date) {
 function renderDayView(date, appointments, openingHours, bufferTimes) {
   const dayAppts = filterAppointmentsByDate(appointments, date);
   const isToday = isSameDay(date, new Date());
+  const weekdays = getWeekdayNames();
 
   return `
     <div class="cal-grid cal-grid--day">
@@ -301,7 +316,7 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
       </div>
       <div class="cal-day-col">
         <div class="cal-day-header ${isToday ? 'cal-day-header--today' : ''}">
-          <span class="cal-day-name">${WEEKDAY_NAMES[date.getDay()]}</span>
+          <span class="cal-day-name">${weekdays[date.getDay()]}</span>
           <span class="cal-day-num ${isToday ? 'cal-day-num--today' : ''}">${date.getDate()}</span>
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
@@ -318,6 +333,7 @@ function renderDayView(date, appointments, openingHours, bufferTimes) {
 
 function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
   const today = new Date();
+  const weekdays = getWeekdayNames();
   let cols = '';
   for (let i = 0; i < 7; i++) {
     const d = new Date(mondayDate);
@@ -327,7 +343,7 @@ function renderWeekView(mondayDate, appointments, openingHours, bufferTimes) {
     cols += `
       <div class="cal-day-col cal-week-col">
         <div class="cal-day-header ${isToday ? 'cal-day-header--today' : ''}">
-          <span class="cal-day-name">${WEEKDAY_NAMES[d.getDay()]}</span>
+          <span class="cal-day-name">${weekdays[d.getDay()]}</span>
           <span class="cal-day-num ${isToday ? 'cal-day-num--today' : ''}">${d.getDate()}</span>
         </div>
         <div class="cal-day-body" style="position: relative; height: ${(CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT_PX}px;">
@@ -383,7 +399,7 @@ function renderAppointmentBlock(appt) {
   const color = getAppointmentColor(appt);
   const cv = getAppointmentColorVars(color);
   const name = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
-  const timeLabel = appt.time ? `${appt.time} Uhr` : '';
+  const timeLabel = appt.time ? (getLanguage() === 'en' ? appt.time : `${appt.time} Uhr`) : '';
 
   // Check for conflicts
   const hasConflict = appt._hasConflict || false;
@@ -489,11 +505,13 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
   const calLegend = document.getElementById('cal-legend');
   if (!calBody || !calTitle) return;
 
-  const DAY_NAMES_FULL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const getFullWeekdayNames = () => getLanguage() === 'en'
+    ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    : ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
   function render() {
     if (viewMode === 'buffer') {
-      calTitle.textContent = 'Pufferzeiten verwalten';
+      calTitle.textContent = t('calendar.manage_buffers');
       calBody.style.display = 'none';
       if (calBufferPanel) {
         calBufferPanel.style.display = 'block';
@@ -521,40 +539,47 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
   function renderBufferPanel() {
     const recurringBts = allBufferTimes.filter(bt => bt.is_recurring);
     const onetimeBts = allBufferTimes.filter(bt => !bt.is_recurring);
+    const dayNamesFull = getFullWeekdayNames();
 
     const recurringHtml = recurringBts.length === 0
-      ? '<p style="color: var(--gray-400); font-size: var(--font-size-sm); text-align: center; padding: var(--space-4) 0;">Keine wiederkehrenden Pufferzeiten definiert.</p>'
-      : recurringBts.map(bt => `
+      ? `<p style="color: var(--gray-400); font-size: var(--font-size-sm); text-align: center; padding: var(--space-4) 0;">${t('calendar.no_recurring_buffers')}</p>`
+      : recurringBts.map(bt => {
+          const dayName = dayNamesFull[bt.day_of_week];
+          const timeSuffix = getLanguage() === 'en' ? '' : ' Uhr';
+          const everyPrefix = getLanguage() === 'en' ? 'Every' : 'Jeden';
+          return `
           <div class="buffer-card">
             <div class="buffer-card-info">
               <span class="buffer-card-icon">🔁</span>
               <div class="buffer-card-details">
-                <span class="buffer-card-title">${bt.title || 'Pufferzeit'}</span>
-                <span class="buffer-card-meta">Jeden ${DAY_NAMES_FULL[bt.day_of_week]}, ${bt.start_time} – ${bt.end_time} Uhr</span>
+                <span class="buffer-card-title">${bt.title || t('calendar.buffer_time')}</span>
+                <span class="buffer-card-meta">${everyPrefix} ${dayName}, ${bt.start_time} – ${bt.end_time}${timeSuffix}</span>
               </div>
             </div>
-            <button class="btn-delete-buffer" data-bt-id="${bt.id}" title="Pufferzeit löschen">🗑️</button>
+            <button class="btn-delete-buffer" data-bt-id="${bt.id}" title="${t('calendar.delete_buffer')}">🗑️</button>
           </div>
-        `).join('');
+        `;
+        }).join('');
 
     const onetimeHtml = onetimeBts.length === 0
-      ? '<p style="color: var(--gray-400); font-size: var(--font-size-sm); text-align: center; padding: var(--space-4) 0;">Keine einmaligen Pufferzeiten definiert.</p>'
+      ? `<p style="color: var(--gray-400); font-size: var(--font-size-sm); text-align: center; padding: var(--space-4) 0;">${t('calendar.no_onetime_buffers')}</p>`
       : onetimeBts.map(bt => {
           let displayDate = bt.specific_date || '';
           if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) {
             const parts = displayDate.split('-');
-            displayDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+            displayDate = getLanguage() === 'en' ? `${parts[1]}/${parts[2]}/${parts[0]}` : `${parts[2]}.${parts[1]}.${parts[0]}`;
           }
+          const timeSuffix = getLanguage() === 'en' ? '' : ' Uhr';
           return `
             <div class="buffer-card">
               <div class="buffer-card-info">
                 <span class="buffer-card-icon">📅</span>
                 <div class="buffer-card-details">
-                  <span class="buffer-card-title">${bt.title || 'Pufferzeit'}</span>
-                  <span class="buffer-card-meta">${displayDate}, ${bt.start_time} – ${bt.end_time} Uhr</span>
+                  <span class="buffer-card-title">${bt.title || t('calendar.buffer_time')}</span>
+                  <span class="buffer-card-meta">${displayDate}, ${bt.start_time} – ${bt.end_time}${timeSuffix}</span>
                 </div>
               </div>
-              <button class="btn-delete-buffer" data-bt-id="${bt.id}" title="Pufferzeit löschen">🗑️</button>
+              <button class="btn-delete-buffer" data-bt-id="${bt.id}" title="${t('calendar.delete_buffer')}">🗑️</button>
             </div>
           `;
         }).join('');
@@ -569,26 +594,24 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       }
     }
 
-    // Day-of-week options
-    const dowOptions = DAY_NAMES_FULL.map((name, i) => `<option value="${i}">${name}</option>`).join('');
-
     // Default date: tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const defaultDateStr = tomorrow.toISOString().split('T')[0];
+    const isEn = getLanguage() === 'en';
 
     return `
       <div class="buffer-panel">
         <!-- Existing Buffer Times -->
         <div class="buffer-section">
-          <h3 class="buffer-section-title">🔁 Wiederkehrende Pufferzeiten</h3>
+          <h3 class="buffer-section-title">${t('calendar.recurring_buffers')}</h3>
           <div class="buffer-list">
             ${recurringHtml}
           </div>
         </div>
 
         <div class="buffer-section">
-          <h3 class="buffer-section-title">📅 Einmalige Pufferzeiten</h3>
+          <h3 class="buffer-section-title">${t('calendar.onetime_buffers')}</h3>
           <div class="buffer-list">
             ${onetimeHtml}
           </div>
@@ -596,60 +619,60 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
 
         <!-- Create New Buffer Time -->
         <div class="buffer-section buffer-create-section">
-          <h3 class="buffer-section-title">➕ Neue Pufferzeit einplanen</h3>
+          <h3 class="buffer-section-title">${t('calendar.schedule_buffer')}</h3>
 
           <div class="buffer-form">
             <div class="buffer-type-toggle">
-              <button class="buffer-type-btn active" id="buf-type-recurring" data-type="recurring">🔁 Wiederkehrend</button>
-              <button class="buffer-type-btn" id="buf-type-onetime" data-type="onetime">📅 Einmalig</button>
+              <button class="buffer-type-btn active" id="buf-type-recurring" data-type="recurring">${t('calendar.recurring')}</button>
+              <button class="buffer-type-btn" id="buf-type-onetime" data-type="onetime">${t('calendar.onetime')}</button>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-4);">
               <div>
-                <label class="buffer-form-label">Titel (optional)</label>
-                <input type="text" id="buf-title" placeholder="z.B. Mittagspause" class="buffer-form-input">
+                <label class="buffer-form-label">${t('calendar.title_optional')}</label>
+                <input type="text" id="buf-title" placeholder="${isEn ? 'e.g. Lunch break' : 'z.B. Mittagspause'}" class="buffer-form-input">
               </div>
               <div id="buf-dow-container">
-                <label class="buffer-form-label">Wochentage (Mehrfachauswahl)</label>
+                <label class="buffer-form-label">${t('calendar.weekdays_multi')}</label>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="1" checked> Mo
+                    <input type="checkbox" class="buf-dow-checkbox" value="1" checked> ${isEn ? 'Mon' : 'Mo'}
                   </label>
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="2" checked> Di
+                    <input type="checkbox" class="buf-dow-checkbox" value="2" checked> ${isEn ? 'Tue' : 'Di'}
                   </label>
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="3" checked> Mi
+                    <input type="checkbox" class="buf-dow-checkbox" value="3" checked> ${isEn ? 'Wed' : 'Mi'}
                   </label>
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="4" checked> Do
+                    <input type="checkbox" class="buf-dow-checkbox" value="4" checked> ${isEn ? 'Thu' : 'Do'}
                   </label>
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="5" checked> Fr
+                    <input type="checkbox" class="buf-dow-checkbox" value="5" checked> ${isEn ? 'Fri' : 'Fr'}
                   </label>
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="6"> Sa
+                    <input type="checkbox" class="buf-dow-checkbox" value="6"> ${isEn ? 'Sat' : 'Sa'}
                   </label>
                   <label style="cursor: pointer; font-size: 11px; font-weight: 700; background: var(--bg-gray); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--gray-300); display: flex; align-items: center; gap: 4px;">
-                    <input type="checkbox" class="buf-dow-checkbox" value="0"> So
+                    <input type="checkbox" class="buf-dow-checkbox" value="0"> ${isEn ? 'Sun' : 'So'}
                   </label>
                 </div>
               </div>
               <div id="buf-date-container" style="display: none;">
-                <label class="buffer-form-label">Datum</label>
+                <label class="buffer-form-label">${t('calendar.date')}</label>
                 <input type="date" id="buf-specific-date" value="${defaultDateStr}" class="buffer-form-input">
               </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-4);">
               <div>
-                <label class="buffer-form-label">Startzeit</label>
+                <label class="buffer-form-label">${t('calendar.start_time')}</label>
                 <select id="buf-start-time" class="buffer-form-input">
                   ${timeOptions}
                 </select>
               </div>
               <div>
-                <label class="buffer-form-label">Endzeit</label>
+                <label class="buffer-form-label">${t('calendar.end_time')}</label>
                 <select id="buf-end-time" class="buffer-form-input">
                   ${timeOptions}
                 </select>
@@ -658,7 +681,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
 
             <div style="margin-top: var(--space-5); display: flex; gap: var(--space-3); align-items: center;">
               <button class="btn btn-primary" id="buf-create-btn" style="padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: var(--font-size-sm);">
-                ⏸️ Pufferzeit einplanen
+                ${t('calendar.schedule_btn')}
               </button>
               <span id="buf-status-msg" style="font-size: var(--font-size-sm); font-weight: 600; display: none;"></span>
             </div>
@@ -727,25 +750,25 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
         if (statusMsg) {
           statusMsg.style.display = 'inline';
           statusMsg.style.color = '#DC2626';
-          statusMsg.textContent = 'Startzeit muss vor der Endzeit liegen.';
+          statusMsg.textContent = t('calendar.start_before_end');
         }
         return;
       }
 
       if (isRecurring && selectedDays.length === 0) {
-        showStatusError('Bitte mindestens einen Wochentag auswählen.');
+        showStatusError(t('calendar.select_weekday_error'));
         return;
       }
 
       if (!isRecurring && !specificDate) {
-        showStatusError('Bitte ein Datum für die einmalige Pufferzeit wählen.');
+        showStatusError(t('calendar.select_date_error'));
         return;
       }
 
       // Helper function to format errors nicely
       function showStatusError(msg) {
         if (!statusMsg) return;
-        const cleanMsg = String(msg || 'Fehler beim Erstellen.')
+        const cleanMsg = String(msg || (getLanguage() === 'en' ? 'Error creating buffer time.' : 'Fehler beim Erstellen.'))
           .replace(/[\{\}\"\[\]]/g, '')
           .replace(/^error:\s*/i, '')
           .trim();
@@ -790,17 +813,19 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
 
         if (apptStartMin < newEndMin && apptEndMin > newStartMin) {
           const patientName = `${appt.patient_vorname || ''} ${appt.patient_nachname || ''}`.trim() || 'Patient';
-          apptConflicts.push(`${patientName} (${appt.date} um ${appt.time} Uhr)`);
+          const atWord = getLanguage() === 'en' ? 'at' : 'um';
+          const uhrWord = getLanguage() === 'en' ? '' : ' Uhr';
+          apptConflicts.push(`${patientName} (${appt.date} ${atWord} ${appt.time}${uhrWord})`);
         }
       }
 
       if (apptConflicts.length > 0) {
-        showStatusError('Kollision mit bestehendem Patiententermin: ' + apptConflicts.join(', '));
+        showStatusError(t('calendar.collision_error') + apptConflicts.join(', '));
         return;
       }
 
       createBtn.disabled = true;
-      createBtn.innerHTML = '<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> Wird erstellt...';
+      createBtn.innerHTML = `<div class="dl-auth-spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block;"></div> ${t('calendar.creating')}`;
 
       let lastError = null;
       let createdCount = 0;
@@ -811,7 +836,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              title: title || 'Pufferzeit',
+              title: title || t('calendar.buffer_time'),
               isRecurring,
               dayOfWeek: isRecurring ? dayOfWeek : null,
               specificDate: !isRecurring ? specificDate : null,
@@ -824,10 +849,10 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
             allBufferTimes.push(data.bufferTime);
             createdCount++;
           } else {
-            lastError = data.error || 'Fehler beim Erstellen der Pufferzeit.';
+            lastError = data.error || (getLanguage() === 'en' ? 'Error creating buffer time.' : 'Fehler beim Erstellen der Pufferzeit.');
           }
         } catch (err) {
-          lastError = err.message || 'Fehler beim Erstellen.';
+          lastError = err.message || (getLanguage() === 'en' ? 'Error creating buffer time.' : 'Fehler beim Erstellen.');
         }
       }
 
@@ -841,7 +866,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
           statusMsg.style.borderRadius = '8px';
           statusMsg.style.fontSize = '12px';
           statusMsg.style.fontWeight = '600';
-          statusMsg.textContent = `✓ ${createdCount} Pufferzeit(en) erstellt!`;
+          statusMsg.textContent = getLanguage() === 'en' ? `✓ ${createdCount} ${t('calendar.buffers_created')}` : `✓ ${createdCount} Pufferzeit(en) erstellt!`;
           setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
         }
         allAppointments.forEach(a => { a._hasConflict = false; });
@@ -850,7 +875,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       } else {
         showStatusError(lastError);
         createBtn.disabled = false;
-        createBtn.innerHTML = '⏸️ Pufferzeit einplanen';
+        createBtn.innerHTML = t('calendar.schedule_btn');
       }
     });
 
@@ -858,7 +883,7 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
     document.querySelectorAll('.btn-delete-buffer').forEach(btn => {
       btn.addEventListener('click', async () => {
         const btId = parseInt(btn.dataset.btId);
-        if (!confirm('Pufferzeit wirklich löschen?')) return;
+        if (!confirm(t('calendar.confirm_delete_buffer'))) return;
         btn.disabled = true;
         btn.textContent = '...';
         try {

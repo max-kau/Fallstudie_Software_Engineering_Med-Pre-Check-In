@@ -6,12 +6,18 @@ import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { openDelayModal } from '../components/DelayModal.js';
-import { t } from '../utils/i18n.js';
+import { t, getLanguage } from '../utils/i18n.js';
 
 let _pollInterval = null;
 
 function getGermanDateToday() {
   const now = new Date();
+  const lang = getLanguage();
+  if (lang === 'en') {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+  }
   const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   return `${days[now.getDay()]}, ${now.getDate()}. ${months[now.getMonth()]} ${now.getFullYear()}`;
@@ -29,12 +35,12 @@ function adjustTime(timeStr, minutesOffset) {
 
 function getStatusLabel(status) {
   switch (status) {
-    case 'waiting': return t('status.waiting');
-    case 'arrived': return t('status.appeared');
-    case 'in_treatment': return t('status.in_treatment');
-    case 'treatment_finished': return t('status.done');
-    case 'done': return t('status.done');
-    case 'delayed': return t('status.delayed');
+    case 'waiting': return t('status.waiting', 'Wartend');
+    case 'arrived': return t('status.appeared', 'Erschienen');
+    case 'in_treatment': return t('status.in_treatment', 'In Behandlung');
+    case 'treatment_finished': return t('status.done', 'Fertig');
+    case 'done': return t('status.done', 'Fertig');
+    case 'delayed': return t('status.delayed', 'Verzögert');
     default: return status;
   }
 }
@@ -72,20 +78,20 @@ export function renderLiveQueueDoctorView() {
         <!-- Back Button -->
         <button class="queue-back-btn" id="queue-back-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-          Zurück zum Dashboard
+          ${t('queue.back_dashboard')}
         </button>
 
         <!-- Header -->
         <div class="live-queue-header">
           <div class="live-queue-header-left">
             <h1 class="live-queue-title">
-              📋 Live-Warteschlange
+              📋 ${t('queue.title')}
               <span class="live-indicator">
                 <span class="live-indicator-dot"></span>
                 LIVE
               </span>
             </h1>
-            <p class="live-queue-subtitle">${user.praxis_name || 'Meine Praxis'} – Heutige Termine</p>
+            <p class="live-queue-subtitle">${user.praxis_name || t('profile.my_praxis', 'Meine Praxis')} – ${t('queue.today_appts')}</p>
           </div>
           <div class="live-queue-header-right">
             <div class="live-queue-clock" id="queue-clock">--:--:--</div>
@@ -99,21 +105,21 @@ export function renderLiveQueueDoctorView() {
             <div class="queue-stat-icon queue-stat-icon--waiting">🕐</div>
             <div>
               <div class="queue-stat-value" id="stat-waiting">-</div>
-              <div class="queue-stat-label">Wartend</div>
+              <div class="queue-stat-label">${t('queue.waiting')}</div>
             </div>
           </div>
           <div class="queue-stat">
             <div class="queue-stat-icon queue-stat-icon--active">🩺</div>
             <div>
               <div class="queue-stat-value" id="stat-active">-</div>
-              <div class="queue-stat-label">In Behandlung</div>
+              <div class="queue-stat-label">${t('queue.in_treatment')}</div>
             </div>
           </div>
           <div class="queue-stat">
             <div class="queue-stat-icon queue-stat-icon--done">✅</div>
             <div>
               <div class="queue-stat-value" id="stat-done">-</div>
-              <div class="queue-stat-label">Abgeschlossen</div>
+              <div class="queue-stat-label">${t('queue.completed')}</div>
             </div>
           </div>
         </div>
@@ -127,14 +133,14 @@ export function renderLiveQueueDoctorView() {
         <div id="queue-cards-container">
           <div style="text-align: center; padding: var(--space-8) 0;">
             <div class="dl-auth-spinner" style="display: inline-block; width: 40px; height: 40px; border-width: 3px;"></div>
-            <p class="text-muted" style="margin-top: var(--space-4); font-size: var(--font-size-sm);">Warteschlange wird geladen...</p>
+            <p class="text-muted" style="margin-top: var(--space-4); font-size: var(--font-size-sm);">${t('common.loading')}</p>
           </div>
         </div>
 
         <!-- Refresh Indicator -->
         <div class="queue-refresh-indicator">
           <span class="queue-refresh-dot"></span>
-          Automatische Aktualisierung alle 5 Sekunden
+          ${t('queue.auto_refresh_5s')}
         </div>
       </div>
     </div>
@@ -146,8 +152,8 @@ function renderQueueCards(queue) {
     return `
       <div class="queue-empty">
         <div class="queue-empty-icon">📋</div>
-        <div class="queue-empty-text">Keine Termine heute</div>
-        <div class="queue-empty-desc">Es sind heute keine Termine für Ihre Praxis eingetragen.</div>
+        <div class="queue-empty-text">${t('queue.no_appts_today')}</div>
+        <div class="queue-empty-desc">${t('queue.no_appts_today_desc')}</div>
       </div>
     `;
   }
@@ -171,36 +177,36 @@ function renderQueueCards(queue) {
 
       actionsHtml = `
         <button class="queue-btn queue-btn--arrived" data-code="${item.code}" data-action="status-update" data-target-status="arrived" style="background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: white; border: none; font-weight: 700;">
-          👤 Patient eingetroffen
+          ${t('queue.patient_arrived')}
         </button>
         <button class="queue-btn queue-btn--delay" data-code="${item.code}" data-action="delay" data-name="${item.patient_vorname} ${item.patient_nachname}">
-          ⏰ Termin verzögern
+          ${t('queue.delay_appt')}
         </button>
         <button class="queue-btn" data-code="${item.code}" data-action="no-show" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FCA5A5; font-weight: 700;">
-          ❌ Nicht erschienen
+          ${t('queue.no_show')}
         </button>
         ${!hasActivePatient && isBeforeTime ? `
         <button class="queue-btn queue-btn--early" data-code="${item.code}" data-action="early-request">
-          🕐 Frühere Behandlung beantragen
+          ${t('queue.request_early')}
         </button>
         ` : ''}
       `;
     } else if (item.status === 'arrived') {
       actionsHtml = `
         <button class="queue-btn queue-btn--start-treatment" data-code="${item.code}" data-action="status-update" data-target-status="in_treatment" style="background: linear-gradient(135deg, #10B981, #059669); color: white; border: none; font-weight: 700;">
-          🩺 Behandlung begonnen
+          ${t('queue.treatment_started')}
         </button>
       `;
     } else if (item.status === 'in_treatment') {
       actionsHtml = `
         <button class="queue-btn queue-btn--finish-treatment" data-code="${item.code}" data-action="status-update" data-target-status="treatment_finished" style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white; border: none; font-weight: 700;">
-          🩹 Behandlung beendet
+          ${t('queue.treatment_finished')}
         </button>
       `;
     } else if (item.status === 'treatment_finished') {
       actionsHtml = `
         <button class="queue-btn queue-btn--left-practice" data-code="${item.code}" data-action="status-update" data-target-status="done" style="background: linear-gradient(135deg, #6B7280, #4B5563); color: white; border: none; font-weight: 700;">
-          🚪 Praxis verlassen
+          ${t('queue.left_practice')}
         </button>
       `;
     }
@@ -208,30 +214,32 @@ function renderQueueCards(queue) {
     // Early request badge
     let earlyBadgeHtml = '';
     if (item.early_request_status === 'pending') {
-      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--pending">🕐 Frühere Behandlung angefragt</span>`;
+      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--pending">${t('queue.early_requested')}</span>`;
     } else if (item.early_request_status === 'accepted') {
-      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--accepted">✅ Patient hat zugesagt</span>`;
+      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--accepted">${t('queue.early_accepted')}</span>`;
     } else if (item.early_request_status === 'declined') {
-      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--declined">❌ Patient hat abgelehnt</span>`;
+      earlyBadgeHtml = `<span class="queue-early-badge queue-early-badge--declined">${t('queue.early_declined')}</span>`;
     }
 
     // Delay info
     let delayInfoHtml = '';
+    const uhrStr = getLanguage() === 'en' ? '' : ' Min.';
     if (item.status === 'delayed' && item.delay_minutes > 0) {
       delayInfoHtml = `
         <div class="queue-delay-info">
-          ⏰ Verzögert um ${item.delay_minutes} Min.${item.delay_reason ? ` – ${item.delay_reason}` : ''}
+          ⏰ ${t('status.delayed')} um ${item.delay_minutes}${uhrStr}${item.delay_reason ? ` – ${item.delay_reason}` : ''}
         </div>
       `;
     }
 
-    let timeHtml = `${item.time} Uhr`;
+    const timeSuffix = getLanguage() === 'en' ? '' : ' Uhr';
+    let timeHtml = `${item.time}${timeSuffix}`;
     if (item.status === 'delayed' && item.delay_minutes > 0) {
       const newTime = adjustTime(item.time, item.delay_minutes);
-      timeHtml = `<span style="text-decoration: line-through; color: #EF4444; margin-right: 6px;">${item.time}</span><span style="font-weight: 800; color: #EF4444;">${newTime} Uhr</span>`;
+      timeHtml = `<span style="text-decoration: line-through; color: #EF4444; margin-right: 6px;">${item.time}</span><span style="font-weight: 800; color: #EF4444;">${newTime}${timeSuffix}</span>`;
     } else if (item.early_request_status === 'accepted' && item.early_minutes > 0) {
       const newTime = adjustTime(item.time, -item.early_minutes);
-      timeHtml = `<span style="text-decoration: line-through; color: #3B82F6; margin-right: 6px;">${item.time}</span><span style="font-weight: 800; color: #3B82F6;">${newTime} Uhr</span>`;
+      timeHtml = `<span style="text-decoration: line-through; color: #3B82F6; margin-right: 6px;">${item.time}</span><span style="font-weight: 800; color: #3B82F6;">${newTime}${timeSuffix}</span>`;
     }
 
     return `
@@ -247,7 +255,7 @@ function renderQueueCards(queue) {
             <div class="queue-card-name">${item.patient_vorname} ${item.patient_nachname}</div>
             ${item.patient_geburtsdatum ? `<div class="queue-card-birthday">🎂 ${item.patient_geburtsdatum}</div>` : ''}
             <div class="queue-card-time">
-              🕐 ${timeHtml} · ${item.art || 'Termin'} · ${item.duration} Min.
+              🕐 ${timeHtml} · ${item.art || t('landing.your_appointment', 'Termin')} · ${item.duration} ${t('create_appt.min_abbr', 'Min.')}
             </div>
             ${delayInfoHtml}
             ${earlyBadgeHtml}

@@ -2,6 +2,7 @@ import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { praxen, fetchPraxen } from '../data/praxen.js';
+import { t } from '../utils/i18n.js';
 
 export function renderSearchView() {
   const val = (sessionStorage.getItem('search_query_name') || '').trim().toLowerCase();
@@ -25,12 +26,12 @@ export function renderSearchView() {
     resultsHtml = `
       <div class="dl-profile-card fade-in-up" style="text-align: center; padding: var(--space-12) var(--space-6); background: white; border-radius: var(--radius-xl); border: 1px dashed var(--gray-300); max-width: 600px; margin: var(--space-6) auto 0 auto;">
         <div style="font-size: var(--font-size-4xl); margin-bottom: var(--space-4);">🔍</div>
-        <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">Kein Ergebnis gefunden</h3>
+        <h3 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-2);">${t('search.no_results', 'Kein Ergebnis gefunden')}</h3>
         <p class="text-muted" style="max-width: 440px; margin: 0 auto var(--space-4) auto; font-size: var(--font-size-sm); line-height: 1.5;">
-          Für Ihre Suche nach ${val ? `<strong>"${val}"</strong>` : ''} ${val && loc ? 'in' : ''} ${loc ? `<strong>"${loc}"</strong>` : ''} konnten wir leider keine passende Arztpraxis finden.
+          ${t('search.no_results_desc', 'Für Ihre Suche konnte leider keine passende Arztpraxis gefunden werden.')}
         </p>
         <p class="text-muted" style="font-size: var(--font-size-xs); font-style: italic;">
-          Tipp: Versuchen Sie es mit allgemeineren Suchbegriffen oder prüfen Sie die Schreibweise der Stadt.
+          ${t('search.tip', 'Tipp: Versuchen Sie es mit allgemeineren Suchbegriffen oder prüfen Sie die Schreibweise der Stadt.')}
         </p>
       </div>
     `;
@@ -48,7 +49,7 @@ export function renderSearchView() {
               <div class="practice-card-body">
                 <div style="display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); flex-wrap: wrap;">
                   <span class="practice-card-specialty" style="margin-bottom: 0;">${praxis.fachbereich}</span>
-                  <span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600; font-size: 10px; padding: 2px 6px; border-radius: 4px; display: inline-block;">⚠️ Demo-Praxis</span>
+                  <span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600; font-size: 10px; padding: 2px 6px; border-radius: 4px; display: inline-block;">⚠️ ${t('praxis.demo_badge', 'Demo-Praxis')}</span>
                 </div>
                 <h3 class="practice-card-name">${praxis.name}</h3>
                 
@@ -70,7 +71,7 @@ export function renderSearchView() {
                 </div>
               </div>
               <div class="practice-card-footer">
-                <button class="practice-card-btn">Termin vereinbaren</button>
+                <button class="practice-card-btn">${t('home.book_appointment', 'Termin vereinbaren')}</button>
               </div>
             </div>
           `;
@@ -87,12 +88,12 @@ export function renderSearchView() {
         
         <!-- Search Bar Section -->
         <div style="background: white; border-radius: var(--radius-2xl); padding: var(--space-6); box-shadow: var(--shadow-md); border: 1px solid var(--gray-200); margin-bottom: var(--space-8);">
-          <h2 style="font-size: var(--font-size-md); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-4);">Praxis- und Ortssuche</h2>
+          <h2 style="font-size: var(--font-size-md); font-weight: 700; color: var(--gray-800); margin-bottom: var(--space-4);">${t('search.title', 'Praxis- und Ortssuche')}</h2>
           
           <div class="dl-home-search" style="box-shadow: none; border: 1px solid var(--gray-200); padding: 6px;">
             <div class="dl-home-search-field" style="flex: 1.5; position: relative;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="search-praxis-input" placeholder="Arztpraxis, Fachbereich oder Name..." class="dl-home-search-input" value="${val}" autocomplete="off" />
+              <input type="text" id="search-praxis-input" placeholder="${t('home.search_input', 'Arztpraxis, Fachbereich oder Name...')}" class="dl-home-search-input" value="${val}" autocomplete="off" />
               
               <!-- Autocomplete Dropdown for Praxis -->
               <div class="search-autocomplete-menu" id="search-autocomplete" style="display: none; top: 105%; left: 0; right: 0;">
@@ -102,7 +103,7 @@ export function renderSearchView() {
 
             <div class="dl-home-search-field" style="position: relative;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              <input type="text" id="search-location-input" placeholder="Düsseldorf, Köln, Essen..." class="dl-home-search-input" value="${loc}" autocomplete="off" />
+              <input type="text" id="search-location-input" placeholder="${t('home.location_input', 'Düsseldorf, Köln, Essen...')}" class="dl-home-search-input" value="${loc}" autocomplete="off" />
               
               <!-- Autocomplete Dropdown for Location -->
               <div class="search-autocomplete-menu" id="location-autocomplete" style="display: none; top: 105%; left: 0; right: 0;">
@@ -112,16 +113,16 @@ export function renderSearchView() {
 
             <button class="dl-home-search-btn" id="btn-search-submit">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              Suchen
+              ${t('home.search_btn', 'Suchen')}
             </button>
           </div>
         </div>
 
         <!-- Header Results Title -->
         <div class="fade-in-up">
-          <span style="font-weight: 700; font-size: var(--font-size-xs); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">Suchergebnisse</span>
+          <span style="font-weight: 700; font-size: var(--font-size-xs); color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 2px;">${t('search.results_header', 'Suchergebnisse')}</span>
           <h1 style="font-size: var(--font-size-xl); font-weight: 800; color: var(--gray-800); letter-spacing: -0.02em;">
-            ${matches.length} ${matches.length === 1 ? 'Praxis' : 'Praxen'} gefunden
+            ${matches.length} ${matches.length === 1 ? t('search.praxis_singular', 'Praxis') : t('search.praxis_plural', 'Praxen')} ${t('search.found', 'gefunden')}
             ${val ? `für <span style="color: var(--primary); font-weight: 700;">"${val}"</span>` : ''}
             ${loc ? `in <span style="color: var(--primary); font-weight: 700;">"${loc}"</span>` : ''}
           </h1>

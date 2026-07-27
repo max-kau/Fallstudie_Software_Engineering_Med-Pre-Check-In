@@ -2,6 +2,7 @@ import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
 import { praxen, fetchPraxen } from '../data/praxen.js';
+import { t } from '../utils/i18n.js';
 
 export function renderHomeView() {
   return `
@@ -11,15 +12,15 @@ export function renderHomeView() {
     <div class="dl-home">
       <div class="dl-home-hero">
         <div class="dl-home-hero-inner">
-          <h1 class="dl-home-title">Buchen Sie Ihren <span class="dl-home-highlight">Arzttermin</span> online</h1>
-          <p class="dl-home-subtitle">Einfach. Sicher. Kostenlos.</p>
+          <h1 class="dl-home-title">${t('home.hero_title_1', 'Buchen Sie Ihren')} <span class="dl-home-highlight">${t('home.hero_title_2', 'Arzttermin')}</span> ${t('home.hero_title_3', 'online')}</h1>
+          <p class="dl-home-subtitle">${t('home.hero_sub', 'Einfach. Sicher. Kostenlos.')}</p>
 
           <!-- Search bar active -->
           <div class="dl-home-search">
             <!-- Praxis Search Field with its relative container and dropdown -->
             <div class="dl-home-search-field" style="flex: 1.5; position: relative;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="search-praxis-input" placeholder="Arztpraxis, Fachbereich oder Name..." class="dl-home-search-input" autocomplete="off" />
+              <input type="text" id="search-praxis-input" placeholder="${t('home.search_input', 'Arztpraxis, Fachbereich oder Name...')}" class="dl-home-search-input" autocomplete="off" />
               
               <!-- Autocomplete Dropdown for Praxis -->
               <div class="search-autocomplete-menu" id="search-autocomplete" style="display: none; top: 105%; left: 0; right: 0;">
@@ -30,7 +31,7 @@ export function renderHomeView() {
             <!-- Location Search Field with its relative container and dropdown -->
             <div class="dl-home-search-field" style="position: relative;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              <input type="text" id="search-location-input" placeholder="Düsseldorf, Köln, Essen..." class="dl-home-search-input" autocomplete="off" />
+              <input type="text" id="search-location-input" placeholder="${t('home.location_input', 'Düsseldorf, Köln, Essen...')}" class="dl-home-search-input" autocomplete="off" />
               
               <!-- Autocomplete Dropdown for Location -->
               <div class="search-autocomplete-menu" id="location-autocomplete" style="display: none; top: 105%; left: 0; right: 0;">
@@ -40,7 +41,7 @@ export function renderHomeView() {
 
             <button class="dl-home-search-btn" id="btn-search-submit">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              Suchen
+              ${t('home.search_btn', 'Suchen')}
             </button>
           </div>
         </div>
@@ -53,24 +54,24 @@ export function renderHomeView() {
             <div class="dl-home-feature-icon" style="background: #EBF5FF; color: #0063BE;">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
-            <h3 class="dl-home-feature-title">Termine online buchen</h3>
-            <p class="dl-home-feature-desc">Buchen Sie rund um die Uhr Termine bei Ihrem Arzt – ohne Wartezeit am Telefon.</p>
+            <h3 class="dl-home-feature-title">${t('home.feat1_title', 'Termine online buchen')}</h3>
+            <p class="dl-home-feature-desc">${t('home.feat1_desc', 'Buchen Sie rund um die Uhr Termine bei Ihrem Arzt – ohne Wartezeit am Telefon.')}</p>
           </div>
 
           <div class="dl-home-feature-card fade-in-up" style="animation-delay: 0.2s">
             <div class="dl-home-feature-icon" style="background: #ECFDF5; color: #059669;">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </div>
-            <h3 class="dl-home-feature-title">Digitaler Pre-Check-In</h3>
-            <p class="dl-home-feature-desc">Bereiten Sie Ihren Termin vorab vor – Beschwerden, Medikamente und Allergien digital erfassen.</p>
+            <h3 class="dl-home-feature-title">${t('home.feat2_title', 'Digitaler Pre-Check-In')}</h3>
+            <p class="dl-home-feature-desc">${t('home.feat2_desc', 'Bereiten Sie Ihren Termin vorab vor – Beschwerden, Medikamente und Allergien digital erfassen.')}</p>
           </div>
 
           <div class="dl-home-feature-card fade-in-up" style="animation-delay: 0.3s">
             <div class="dl-home-feature-icon" style="background: #FEF3C7; color: #D97706;">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             </div>
-            <h3 class="dl-home-feature-title">Erinnerungen & Benachrichtigungen</h3>
-            <p class="dl-home-feature-desc">Erhalten Sie automatische Erinnerungen per E-Mail oder SMS, damit Sie keinen Termin verpassen.</p>
+            <h3 class="dl-home-feature-title">${t('home.feat3_title', 'Erinnerungen & Benachrichtigungen')}</h3>
+            <p class="dl-home-feature-desc">${t('home.feat3_desc', 'Erhalten Sie automatische Erinnerungen per E-Mail oder SMS, damit Sie keinen Termin verpassen.')}</p>
           </div>
         </div>
       </div>
@@ -80,15 +81,15 @@ export function renderHomeView() {
         <div class="dl-home-trust-inner">
           <div class="dl-home-trust-item">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            DSGVO-konform
+            ${t('home.trust_gdpr', 'DSGVO-konform')}
           </div>
           <div class="dl-home-trust-item">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            Über 80 Mio. Nutzer in Europa
+            ${t('home.trust_users', 'Über 80 Mio. Nutzer in Europa')}
           </div>
           <div class="dl-home-trust-item">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            Ende-zu-Ende-Verschlüsselung
+            ${t('home.trust_encryption', 'Ende-zu-Ende-Verschlüsselung')}
           </div>
         </div>
       </div>
@@ -98,12 +99,12 @@ export function renderHomeView() {
         <div class="dl-home-footer-inner">
           <div class="dl-home-footer-brand">
             <span class="dl-nav-name" style="color: var(--gray-400);">Doctolib</span>
-            <span class="dl-home-footer-copy">© 2026 – Demo für Studienzwecke</span>
+            <span class="dl-home-footer-copy">${t('home.footer_demo', '© 2026 – Demo für Studienzwecke')}</span>
           </div>
           <div class="dl-home-footer-links">
-            <a href="#">Impressum</a>
-            <a href="#">Datenschutz</a>
-            <a href="#">AGB</a>
+            <a href="#">${t('home.imprint', 'Impressum')}</a>
+            <a href="#">${t('home.privacy', 'Datenschutz')}</a>
+            <a href="#">${t('home.terms', 'AGB')}</a>
           </div>
         </div>
       </footer>
