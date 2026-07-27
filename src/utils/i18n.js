@@ -589,7 +589,29 @@ export const translations = {
     'home.privacy': 'Datenschutz',
     'home.terms': 'AGB',
     'home.no_praxen': 'Keine Arztpraxen gefunden',
-    'home.no_locations': 'Keine Orte gefunden'
+    'home.no_locations': 'Keine Orte gefunden',
+
+    // Search & Praxis View
+    'search.title': 'Praxis- und Ortssuche',
+    'search.no_results': 'Kein Ergebnis gefunden',
+    'search.tip': 'Tipp: Versuchen Sie es mit allgemeineren Suchbegriffen oder prüfen Sie die Schreibweise der Stadt.',
+    'search.results_header': 'Suchergebnisse',
+    'search.praxis_singular': 'Praxis',
+    'search.praxis_plural': 'Praxen',
+    'search.found': 'gefunden',
+    'praxis.demo_badge': 'Demo-Praxis',
+    'praxis.not_found_title': 'Praxis nicht gefunden',
+    'praxis.not_found_desc': 'Die gesuchte Praxis existiert leider nicht oder die Adresse ist fehlerhaft.',
+    'praxis.about_us': 'Über uns',
+    'praxis.label_address': 'Adresse',
+    'praxis.label_phone': 'Telefon',
+    'praxis.label_insurance': 'Versicherung',
+    'praxis.appt_booked': 'Termin gebucht!',
+    'praxis.appt_booked_desc': 'Ihr Termin wurde erfolgreich gespeichert. Sie werden nun zu Ihrem Profil weitergeleitet...',
+    'praxis.login_required_desc': 'Um einen Termin bei dieser Praxis zu buchen, müssen Sie in Ihrem Doctolib-Konto angemeldet sein.',
+    'praxis.office_closed': 'Praxis geschlossen',
+    'praxis.booking_in_progress': 'Wird gebucht…',
+    'common.confirm_appt': 'Termin bestätigen'
   },
 
   en: {
@@ -1176,7 +1198,29 @@ export const translations = {
     'home.privacy': 'Privacy Policy',
     'home.terms': 'Terms of Service',
     'home.no_praxen': 'No doctor\'s offices found',
-    'home.no_locations': 'No locations found'
+    'home.no_locations': 'No locations found',
+
+    // Search & Praxis View
+    'search.title': 'Doctor\'s Office & Location Search',
+    'search.no_results': 'No results found',
+    'search.tip': 'Tip: Try more general search terms or check the spelling of the city.',
+    'search.results_header': 'Search Results',
+    'search.praxis_singular': 'doctor\'s office',
+    'search.praxis_plural': 'doctor\'s offices',
+    'search.found': 'found',
+    'praxis.demo_badge': 'Demo Doctor\'s Office',
+    'praxis.not_found_title': 'Doctor\'s Office Not Found',
+    'praxis.not_found_desc': 'The requested doctor\'s office does not exist or the URL is invalid.',
+    'praxis.about_us': 'About Us',
+    'praxis.label_address': 'Address',
+    'praxis.label_phone': 'Phone',
+    'praxis.label_insurance': 'Insurance',
+    'praxis.appt_booked': 'Appointment Booked!',
+    'praxis.appt_booked_desc': 'Your appointment has been successfully booked. Redirecting to your profile...',
+    'praxis.login_required_desc': 'To book an appointment with this doctor\'s office, you must be logged into your Doctolib account.',
+    'praxis.office_closed': 'Doctor\'s office closed',
+    'praxis.booking_in_progress': 'Booking…',
+    'common.confirm_appt': 'Confirm Appointment'
   }
 };
 

@@ -2,6 +2,7 @@ import { praxen } from '../data/praxen.js';
 import { auth } from '../utils/auth.js';
 import { navigate } from '../utils/router.js';
 import { renderDlNav, initDlNav } from '../components/DlNav.js';
+import { t, getLanguage } from '../utils/i18n.js';
 
 let selectedDate = null;
 let selectedTime = null;
@@ -120,11 +121,11 @@ async function fetchBlockedSlots(praxisName) {
 function renderCalendarHtml() {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth(); // 0-indexed
+  const lang = getLanguage();
   
-  const monthNames = [
-    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
-  ];
+  const monthNames = lang === 'en'
+    ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    : ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   
   // First day of the month
   const firstDay = new Date(year, month, 1);
@@ -176,9 +177,9 @@ function renderCalendarHtml() {
     const disabledAttr = isDisabled ? 'disabled' : '';
     let titleAttr = '';
     if (isPast) {
-      titleAttr = 'title="In der Vergangenheit"';
+      titleAttr = `title="${t('reschedule.past_date', 'In der Vergangenheit')}"`;
     } else if (isDayClosed) {
-      titleAttr = `title="${dayName}s geschlossen"`;
+      titleAttr = `title="${t('reschedule.sunday_closed', 'Geschlossen')}"`;
     }
     
     daysHtml += `
@@ -191,6 +192,10 @@ function renderCalendarHtml() {
   const isCurrentMonth = (month === today.getMonth() && year === today.getFullYear());
   const prevDisabled = isCurrentMonth ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : '';
   
+  const weekdaysHtml = lang === 'en'
+    ? '<span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>'
+    : '<span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>';
+
   return `
     <div class="dl-calendar">
       <div class="dl-calendar-header">
@@ -199,7 +204,7 @@ function renderCalendarHtml() {
         <button type="button" class="dl-calendar-btn" id="btn-next-month">&gt;</button>
       </div>
       <div class="dl-calendar-weekdays">
-        <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+        ${weekdaysHtml}
       </div>
       <div class="dl-calendar-days">
         ${daysHtml}
@@ -217,9 +222,9 @@ export function renderPraxisView() {
       ${renderDlNav()}
       <div class="dl-page">
         <div class="dl-page-inner" style="text-align: center; padding: var(--space-12) 0;">
-          <h2 style="color: var(--danger); margin-bottom: var(--space-4);">Praxis nicht gefunden</h2>
-          <p class="text-muted" style="margin-bottom: var(--space-6);">Die gesuchte Praxis existiert leider nicht oder die Adresse ist fehlerhaft.</p>
-          <button class="btn btn-primary" id="btn-error-back">Zurück zur Startseite</button>
+          <h2 style="color: var(--danger); margin-bottom: var(--space-4);">${t('praxis.not_found_title', 'Praxis nicht gefunden')}</h2>
+          <p class="text-muted" style="margin-bottom: var(--space-6);">${t('praxis.not_found_desc', 'Die gesuchte Praxis existiert leider nicht oder die Adresse ist fehlerhaft.')}</p>
+          <button class="btn btn-primary" id="btn-error-back">${t('summary.back_home', 'Zurück zur Startseite')}</button>
         </div>
       </div>
     `;
@@ -257,7 +262,7 @@ export function renderPraxisView() {
                     ${praxis.fachbereich}
                   </span>
                   <span class="dl-tag" style="background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); font-weight: 600; display: inline-block; margin: 0;">
-                    ⚠️ Demo-Praxis
+                    ⚠️ ${t('praxis.demo_badge', 'Demo-Praxis')}
                   </span>
                 </div>
                 <h1 class="praxis-title">${praxis.name}</h1>
@@ -265,7 +270,7 @@ export function renderPraxisView() {
 
               <div class="praxis-body">
                 <div class="praxis-info-section">
-                  <h3>Über uns</h3>
+                  <h3>${t('praxis.about_us', 'Über uns')}</h3>
                   <p class="praxis-desc">${praxis.beschreibung}</p>
                 </div>
 
@@ -273,7 +278,7 @@ export function renderPraxisView() {
                   <div class="praxis-detail-item">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     <div>
-                      <strong>Adresse</strong>
+                      <strong>${t('praxis.label_address', 'Adresse')}</strong>
                       <span>${praxis.adresse}</span>
                     </div>
                   </div>
@@ -281,7 +286,7 @@ export function renderPraxisView() {
                   <div class="praxis-detail-item">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                     <div>
-                      <strong>Telefon</strong>
+                      <strong>${t('praxis.label_phone', 'Telefon')}</strong>
                       <span>${praxis.telefon}</span>
                     </div>
                   </div>
@@ -289,7 +294,7 @@ export function renderPraxisView() {
                   <div class="praxis-detail-item">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     <div>
-                      <strong>Versicherung</strong>
+                      <strong>${t('praxis.label_insurance', 'Versicherung')}</strong>
                       <span>${praxis.behandlungsarten}</span>
                     </div>
                   </div>
@@ -305,33 +310,33 @@ export function renderPraxisView() {
                     <div style="background: rgba(16, 185, 129, 0.1); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-4) auto; color: #10B981;">
                       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </div>
-                    <h3 style="color: #10B981; font-weight: 700; margin-bottom: var(--space-2);">Termin gebucht!</h3>
+                    <h3 style="color: #10B981; font-weight: 700; margin-bottom: var(--space-2);">${t('praxis.appt_booked', 'Termin gebucht!')}</h3>
                     <p style="font-size: var(--font-size-sm); color: var(--gray-600); line-height: 1.4;">
-                      Ihr Termin wurde erfolgreich gespeichert. Sie werden nun zu Ihrem Profil weitergeleitet...
+                      ${t('praxis.appt_booked_desc', 'Ihr Termin wurde erfolgreich gespeichert. Sie werden nun zu Ihrem Profil weitergeleitet...')}
                     </p>
                   </div>
                 ` : `
-                  <h3 class="booking-widget-title">Termin buchen</h3>
+                  <h3 class="booking-widget-title">${t('home.book_appointment', 'Termin buchen')}</h3>
 
                   ${!loggedIn ? `
                     <div class="booking-login-teaser" style="text-align: center; padding: var(--space-4) 0;">
                       <p class="text-muted" style="font-size: var(--font-size-sm); line-height: 1.4; margin-bottom: var(--space-4);">
-                        Um einen Termin bei <strong>${praxis.name}</strong> zu buchen, müssen Sie in Ihrem Doctolib-Konto angemeldet sein.
+                        ${t('praxis.login_required_desc', 'Um einen Termin bei dieser Praxis zu buchen, müssen Sie in Ihrem Doctolib-Konto angemeldet sein.')}
                       </p>
                       <button class="dl-home-search-btn" id="btn-booking-login" style="width: 100%; justify-content: center; height: 42px;">
-                        Jetzt anmelden
+                        ${t('auth.login_btn', 'Jetzt anmelden')}
                       </button>
                     </div>
                   ` : `
                     <!-- Date Selection -->
                     <div class="booking-section">
-                      <label class="booking-section-label">1. Datum wählen</label>
+                      <label class="booking-section-label">${t('reschedule.select_date', '1. Datum wählen')}</label>
                       <div id="calendar-container"></div>
                     </div>
 
                     <!-- Time Selection -->
                     <div class="booking-section" style="margin-top: var(--space-4);">
-                      <label class="booking-section-label">2. Uhrzeit wählen</label>
+                      <label class="booking-section-label">${t('reschedule.select_time', '2. Uhrzeit wählen')}</label>
                       <div class="booking-time-grid" id="time-grid-container"></div>
                     </div>
 
@@ -339,7 +344,7 @@ export function renderPraxisView() {
                     <div class="booking-action-section" style="margin-top: var(--space-6);">
                       <div class="dl-auth-error" id="booking-error" style="display:none; margin-bottom: var(--space-3); color: var(--danger); font-size: var(--font-size-xs);"></div>
                       <button class="dl-home-search-btn" id="btn-booking-confirm" style="width: 100%; justify-content: center; height: 46px;" ${(!selectedDate || !selectedTime) ? 'disabled' : ''}>
-                        <span class="btn-text">Termin bestätigen</span>
+                        <span class="btn-text">${t('common.confirm_appt', 'Termin bestätigen')}</span>
                         <div class="dl-auth-spinner" style="display:none; margin-left: 8px;"></div>
                       </button>
                     </div>
@@ -470,14 +475,14 @@ export function initPraxisView() {
         container.innerHTML = `
           <div style="grid-column: span 3; text-align: center; padding: var(--space-4) 0;">
             <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid var(--danger); color: var(--danger); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); font-weight: 600;">
-              Praxis geschlossen
+              ${t('praxis.office_closed', 'Praxis geschlossen')}
             </div>
           </div>
         `;
       } else {
         container.innerHTML = `
           <div style="grid-column: span 3; text-align: center; font-size: var(--font-size-xs); color: var(--gray-400); padding: var(--space-4) 0;">
-            Keine Termine verfügbar
+            ${t('reschedule.no_slots', 'Keine Termine verfügbar')}
           </div>
         `;
       }
@@ -487,7 +492,7 @@ export function initPraxisView() {
     container.innerHTML = slots.map(time => {
       const blocked = blockedSlots.includes(time);
       const activeClass = selectedTime === time ? 'active' : '';
-      const disabledAttr = blocked ? 'disabled title="Bereits belegt"' : '';
+      const disabledAttr = blocked ? `disabled title="${t('reschedule.slot_occupied', 'Bereits belegt')}"` : '';
       return `
         <button class="booking-time-slot ${activeClass}" data-time="${time}" ${disabledAttr}>
           ${time}
@@ -526,7 +531,7 @@ export function initPraxisView() {
     if (errorEl) errorEl.style.display = 'none';
 
     btnConfirm.disabled = true;
-    btnConfirm.querySelector('.btn-text').textContent = 'Wird gebucht…';
+    btnConfirm.querySelector('.btn-text').textContent = t('praxis.booking_in_progress', 'Wird gebucht…');
     btnConfirm.querySelector('.dl-auth-spinner').style.display = 'inline-block';
 
     try {
