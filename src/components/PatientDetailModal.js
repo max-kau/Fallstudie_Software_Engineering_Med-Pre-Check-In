@@ -10,15 +10,16 @@ function getDefaultHints() {
   ];
 }
 
-let currentAiAssessments = null;
+let currentActiveTab = 'patient';
 
 export function openPatientDetailModal(terminCode) {
+  currentActiveTab = 'patient';
   // Remove any existing modal
   document.getElementById('patient-detail-modal')?.remove();
 
   const html = `
     <div class="dl-modal-backdrop" id="patient-detail-modal" style="z-index: 9000;">
-      <div class="dl-modal-card fade-in-up" style="max-width: 680px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="dl-modal-card fade-in-up" style="max-width: 720px; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="dl-modal-header" style="flex-shrink: 0;">
           <h3 class="dl-modal-title">${t('praxis.appt_details', 'Termindetails')}</h3>
           <button class="dl-modal-close" id="btn-close-patient-detail">&times;</button>
@@ -71,6 +72,7 @@ async function loadPatientDetails(terminCode) {
 
 function renderDetailContent(termin, patient, note, hints, terminCode, praxisDocuments = [], sharedDocuments = [], aftercareInstructions = []) {
   const patientName = `${termin.patient_vorname || ''} ${termin.patient_nachname || ''}`.trim() || 'Patient';
+  const activeTab = currentActiveTab || 'patient';
 
   // Parse precheck data
   const b = termin.beschwerden ? (typeof termin.beschwerden === 'string' ? JSON.parse(termin.beschwerden) : termin.beschwerden) : {};
@@ -136,9 +138,14 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
       }).join('')
     : '';
 
+  const tabBtnStyle = (tabKey) => {
+    const isActive = activeTab === tabKey;
+    return `background: ${isActive ? 'white' : 'transparent'}; color: ${isActive ? 'var(--primary)' : 'var(--gray-600)'}; border: 1px solid ${isActive ? 'var(--gray-200)' : 'transparent'}; border-bottom: 3px solid ${isActive ? 'var(--primary)' : 'transparent'}; border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 8px 4px; font-size: 12px; font-weight: ${isActive ? '700' : '600'}; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; text-align: center; margin-bottom: -1px; transition: all 0.15s; width: 100%; box-sizing: border-box;`;
+  };
+
   return `
-    <!-- Termin Info Bar -->
-    <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--primary-lightest); border-radius: var(--radius-lg); margin-bottom: var(--space-5); border: 1px solid rgba(16,122,202,0.15);">
+    <!-- Termin Info Bar (Always Visible) -->
+    <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--primary-lightest); border-radius: var(--radius-lg); margin-bottom: var(--space-4); border: 1px solid rgba(16,122,202,0.15);">
       <span style="font-size: var(--font-size-lg);">📅</span>
       <div>
         <span style="font-size: var(--font-size-sm); font-weight: 700; color: var(--primary);">${termin.date} · ${termin.time}</span>
@@ -152,278 +159,346 @@ function renderDetailContent(termin, patient, note, hints, terminCode, praxisDoc
       </div>
     </div>
 
-    <!-- Section 1: Patient Info -->
-    <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">${t('praxis.patient_info', '👤 Patienteninformationen')}</h4>
-      <div class="pdm-info-grid">
-        <div class="pdm-info-row">
-          <span class="pdm-info-label">${t('profile.name', 'Name')}</span>
-          <span class="pdm-info-value">${patientName}</span>
-        </div>
-        <div class="pdm-info-row">
-          <span class="pdm-info-label">${t('profile.dob', 'Geburtsdatum')}</span>
-          <span class="pdm-info-value">${patient?.geburtsdatum || '–'}</span>
-        </div>
-        <div class="pdm-info-row">
-          <span class="pdm-info-label">${t('profile.phone', 'Telefon')}</span>
-          <span class="pdm-info-value">${patient?.telefonnummer || '–'}</span>
-        </div>
-        <div class="pdm-info-row">
-          <span class="pdm-info-label">${t('profile.address', 'Adresse')}</span>
-          <span class="pdm-info-value">${adresse}</span>
-        </div>
-        <div class="pdm-info-row">
-          <span class="pdm-info-label">${t('profile.insurance', 'Versicherung')}</span>
-          <span class="pdm-info-value">${versicherung}</span>
-        </div>
-        <div class="pdm-info-row">
-          <span class="pdm-info-label">${t('profile.email', 'E-Mail')}</span>
-          <span class="pdm-info-value">${patient?.email || '–'}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section 2: PreCheck Summary -->
-    ${termin.precheck_submitted ? `
-    <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">${t('praxis.precheck_summary', '🩺 Pre-Check-In Zusammenfassung')}</h4>
-      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
-        <div>
-          <div class="pdm-subsection-title">${t('praxis.complaints', 'Beschwerden')}</div>
-          <div class="pdm-data-block">
-            <div><strong>${t('praxis.symptoms', 'Symptome')}:</strong> ${symptoms}</div>
-            <div style="margin-top: var(--space-1);"><strong>${t('praxis.description', 'Beschreibung')}:</strong> ${freitext}</div>
-            <div style="margin-top: var(--space-1);"><strong>${t('praxis.pain_level', 'Schmerzstärke')}:</strong> ${staerke}</div>
-          </div>
-        </div>
-        <div>
-          <div class="pdm-subsection-title">${t('praxis.medications', 'Medikamente')}</div>
-          <div class="pdm-data-block">${meds}</div>
-        </div>
-        <div>
-          <div class="pdm-subsection-title">${t('praxis.allergies', 'Allergien')}</div>
-          <div class="pdm-data-block">${allergien}${allerAnm ? `<div style="margin-top: var(--space-1);"><strong>${t('praxis.notes', 'Anmerkungen')}:</strong> ${allerAnm}</div>` : ''}</div>
-        </div>
-        ${hasCustomAnswers ? `
-        <div>
-          <div class="pdm-subsection-title">${t('praxis.additional_questions', 'Zusatzfragen')}</div>
-          <div class="pdm-data-block">
-            ${Object.entries(customAnswers).map(([q, a]) => {
-              const ansText = Array.isArray(a) ? a.join(', ') : (a || t('common.no_answer', 'Keine Antwort'));
-              return `<div style="margin-bottom: var(--space-2);"><strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${q}</strong><br><span style="font-weight: 600;">${ansText}</span></div>`;
-            }).join('')}
-          </div>
-        </div>
-        ` : ''}
-        ${hasAiQuestions ? `
-        <div>
-          <div class="pdm-subsection-title" style="display: flex; align-items: center; gap: 6px;">
-            ${termin.ai_consent === false ? t('praxis.std_followup_questions', '📋 Standardisierte Folgefragen') : t('praxis.ai_followup_questions', '🤖 Spezifische Folgefragen (KI)')}
-          </div>
-          <div class="pdm-data-block">
-            ${aiQuestions.map((q, idx) => `
-              <div style="margin-bottom: var(--space-2); border-left: 2px solid var(--primary); padding-left: var(--space-2); padding-top: 2px; padding-bottom: 2px;">
-                <strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${idx + 1}. ${q.question}</strong><br>
-                <span style="font-weight: 600;">${q.answer || t('common.no_answer', 'Keine Antwort')}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-        ` : ''}
-        <div>
-          <div class="pdm-subsection-title">${t('praxis.uploaded_docs', 'Hochgeladene Dokumente')}</div>
-          <div class="pdm-data-block" style="padding: var(--space-3);">
-            ${docsHtml}
-          </div>
-        </div>
-        ${Object.keys(docConfirmations).length > 0 ? `
-        <div>
-          <div class="pdm-subsection-title">${t('praxis.doc_confirmations', 'Dokumentenbestätigungen')}</div>
-          <div class="pdm-data-block" style="padding: var(--space-3);">
-            ${Object.entries(docConfirmations).map(([docId, conf]) => {
-              const statusColor = conf.status === 'rejected' ? '#DC2626' : '#059669';
-              const statusBg = conf.status === 'rejected' ? '#FEF2F2' : '#ECFDF5';
-              const statusLabel = conf.status === 'confirmed' ? t('status.confirmed', '✓ Bestätigt') : conf.status === 'accepted' ? t('status.accepted', '✓ Akzeptiert') : conf.status === 'rejected' ? t('status.rejected', '✗ Abgelehnt') : t('status.pending', '– Ausstehend');
-              const docItem = praxisDocuments.find(d => String(d.id) === String(docId));
-              const docTitle = docItem ? docItem.title : `${t('praxis.documents', 'Dokument')} #${docId}`;
-              return `
-                <div style="display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: ${statusBg}; border-radius: var(--radius-md); margin-bottom: var(--space-2); border: 1px solid ${conf.status === 'rejected' ? '#FCA5A5' : '#A7F3D0'};">
-                  <span style="font-size: var(--font-size-sm); font-weight: 700; color: ${statusColor}; white-space: nowrap;">${statusLabel}</span>
-                  <span style="font-size: var(--font-size-sm); color: var(--gray-600); font-weight: 500;">${docTitle}</span>
-                  ${conf.status === 'rejected' && conf.reason ? `<span style="font-size: var(--font-size-xs); color: var(--gray-500); font-style: italic; margin-left: auto;">"${conf.reason}"</span>` : ''}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-        ` : ''}
-      </div>
-    </div>
-    ` : `
-    <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">🩺 Pre-Check-In</h4>
-      <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-5); text-align: center; border: 1px dashed var(--gray-300);">
-        <p style="font-size: var(--font-size-sm); color: var(--gray-500);">${t('praxis.precheck_not_completed', 'Der Pre-Check-In wurde noch nicht ausgefüllt.')}</p>
-      </div>
-    </div>
-    `}
-
-    <!-- Section 1.5: Patient Feedback -->
-    ${termin.rating != null ? `
-    <div class="pdm-section" style="margin-bottom: var(--space-5); background: #FFFBEB; border: 1px solid #FCD34D; padding: var(--space-4); border-radius: var(--radius-lg);">
-      <h4 class="pdm-section-title" style="color: #D97706; margin-bottom: var(--space-2); font-weight: 800; display: flex; align-items: center; gap: 6px;">
-        ${t('praxis.patient_feedback', '⭐ Patienten-Feedback & Bewertung')}
-      </h4>
-      <div style="font-size: var(--font-size-lg); font-weight: 700; color: #D97706; display: flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
-        ${'★'.repeat(termin.rating)}${'☆'.repeat(5 - termin.rating)} 
-        <span style="font-size: var(--font-size-xs); color: var(--gray-600); font-weight: 600; margin-left: 4px;">${t('praxis.rating_stars', '({rating} von 5 Sternen)').replace('{rating}', termin.rating)}</span>
-      </div>
-      ${termin.feedback_text ? `
-        <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-style: italic; background: white; padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid #FEF3C7; line-height: 1.4;">
-          "${termin.feedback_text}"
-        </div>
-      ` : ''}
-    </div>
-    ` : ''}
-
-    <!-- Section 2.5: KI-Assistent -->
-    ${termin.precheck_submitted ? `
-    <div class="pdm-section" id="ai-assessments-section" style="margin-bottom: var(--space-5); background: #f8fafc; border: 1px solid #e2e8f0; padding: var(--space-4); border-radius: var(--radius-lg);">
-      <h4 class="pdm-section-title" style="color: var(--primary); margin-bottom: var(--space-3); font-weight: 800; display: flex; align-items: center; gap: 6px;">
-        ${t('praxis.ai_assistant', '🤖 KI-Assistent')}
-      </h4>
-      <div id="ai-assessments-container" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
-        <div class="dl-auth-spinner" style="width: 24px; height: 24px; border-width: 2.5px; border-color: var(--primary) transparent transparent transparent;"></div>
-        <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">${t('praxis.ai_loading', 'KI-Assistent wird geladen...')}</p>
-      </div>
-      
-      <!-- Diagnostic Anamnese Assessment Area -->
-      <div id="anamnesis-assessment-section" style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid #e2e8f0; display: none;">
-        <button id="btn-generate-diagnostics" class="btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: var(--font-size-sm); border: 1px solid var(--primary); color: var(--primary); background: white; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;">
-          ${t('praxis.ai_assessment_btn', '🧠 Einschätzung aus Anamnese')}
-        </button>
-        <div id="diagnostics-loading-container" style="display: none; flex-direction: column; align-items: center; margin-top: var(--space-3); gap: 6px;">
-          <div class="dl-auth-spinner" style="width: 20px; height: 20px; border-width: 2px; border-color: var(--primary) transparent transparent transparent;"></div>
-          <span style="font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600;">${t('praxis.ai_analyzing', 'Analysiere Anamnese und generiere Einschätzung...')}</span>
-        </div>
-        <div id="diagnostics-result-box" style="display: none; margin-top: var(--space-3); padding: var(--space-3); background: #eff6ff; border-left: 4px solid var(--primary); border-radius: 0 var(--radius-md) var(--radius-md) 0;">
-          <h5 style="font-size: var(--font-size-xs); font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: var(--space-1); display: flex; align-items: center; gap: 4px;">
-            ${t('praxis.medical_suspicion', '📋 Medizinische Verdachtseinschätzung')}
-          </h5>
-          <p id="diagnostics-result-text" style="font-size: var(--font-size-sm); color: #1e3a8a; margin: 0; line-height: 1.4; font-weight: 500;"></p>
-        </div>
-      </div>
-    </div>
-    ` : ''}
-
-    <!-- Section 3: Doctor Notes -->
-    <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">${t('praxis.doctor_notes', '📝 Eigene Notizen (nur für Sie sichtbar)')}</h4>
-      <textarea id="doctor-note-input" class="pdm-note-textarea" placeholder="${t('praxis.notes_placeholder', 'Notizen zum Termin eingeben...')}">${note?.note_text || ''}</textarea>
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-2);">
-        <span id="doctor-note-status" style="font-size: var(--font-size-xs); color: var(--gray-400);"></span>
-        <button id="btn-save-note" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
-          ${t('praxis.save_note', '💾 Notiz speichern')}
-        </button>
-      </div>
-    </div>
-
-    <!-- Section 4: Patient Hints -->
-    <div class="pdm-section" style="margin-bottom: var(--space-5);">
-      <h4 class="pdm-section-title">${t('praxis.patient_hints', '💡 Hinweise an den Patienten')}</h4>
-      ${hintsHtml || `<p style="font-size: var(--font-size-sm); color: var(--gray-400); margin-bottom: var(--space-3);">${t('praxis.no_hints_sent', 'Noch keine Hinweise gesendet.')}</p>`}
-      <button id="btn-send-hint" class="btn" style="background: var(--primary); color: white; padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: var(--space-3); font-size: var(--font-size-sm);">
-        ${t('praxis.send_hint', '📨 Hinweis schicken')}
+    <!-- Tab Navigation Bar (Grid template fits all 4 tabs seamlessly without horizontal scrolling) -->
+    <div class="pdm-tabs-header" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--bg-gray); padding: 6px 6px 0 6px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg) var(--radius-lg) 0 0; margin-bottom: var(--space-4); flex-shrink: 0;">
+      <button class="pdm-tab-btn ${activeTab === 'patient' ? 'active' : ''}" data-tab="patient" style="${tabBtnStyle('patient')}">
+        👤 ${t('praxis.tab_patient')}
+      </button>
+      <button class="pdm-tab-btn ${activeTab === 'precheck' ? 'active' : ''}" data-tab="precheck" style="${tabBtnStyle('precheck')}">
+        🩺 ${t('praxis.tab_precheck')}
+      </button>
+      <button class="pdm-tab-btn ${activeTab === 'ai' ? 'active' : ''}" data-tab="ai" style="${tabBtnStyle('ai')}">
+        🤖 ${t('praxis.tab_ai')}
+      </button>
+      <button class="pdm-tab-btn ${activeTab === 'hints' ? 'active' : ''}" data-tab="hints" style="${tabBtnStyle('hints')}">
+        💡 ${t('praxis.tab_hints')}
       </button>
     </div>
 
-    <!-- Section 5: Documents for Patient -->
-    <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
-      <h4 class="pdm-section-title">${t('praxis.share_docs_title', '📂 Dokumente für den Patienten bereitstellen (Laborberichte, Rezepte, etc.)')}</h4>
-      <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
-        ${t('praxis.shared_docs_desc', 'Hier hochgeladene Dateien werden für den Patienten in seinem Portal freigegeben und er erhält eine sofortige Benachrichtigung per E-Mail.')}
-      </p>
-      
-      <!-- List of already shared documents -->
-      <div id="praxis-shared-docs-list" style="margin-bottom: var(--space-4);">
-        ${
-          sharedDocuments && sharedDocuments.length > 0
-            ? sharedDocuments.map(doc => `
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); background: var(--bg-gray); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
-                  <div>
-                    <span style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 700;">📄 ${doc.filename} (${formatBytes(doc.file_size || doc.fileSize)})</span>
-                    <span style="font-size: 10px; color: var(--gray-400); display: block; font-weight: 600;">${t('documents.category', 'Kategorie')}: ${doc.doc_category || t('docs.type_other', 'Sonstiges')}</span>
-                  </div>
-                  <a href="/api/file/${doc.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">${t('praxis.view_doc', 'Ansehen')}</a>
-                </div>
-              `).join('')
-            : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">${t('praxis.no_shared_docs', 'Noch keine Dokumente freigegeben')}</div>`
-        }
-      </div>
-      
-      <!-- Upload form -->
-      <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
-        <div id="praxis-upload-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: flex-end;">
-          <div>
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.doc_type_label', 'Dokumententyp *')}</label>
-            <select id="praxis-upload-category" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: 6px; font-size: var(--font-size-xs); background: white; cursor: pointer; height: 32px;">
-              <option value="Laborbefund">${t('docs.type_lab', 'Laborbefund')}</option>
-              <option value="Arztbrief">${t('docs.type_letter', 'Arztbrief')}</option>
-              <option value="eRezept">${t('docs.type_erezept', 'eRezept')}</option>
-              <option value="Sonstiges">${t('docs.type_other', 'Sonstiges')}</option>
-            </select>
+    <!-- TAB 1: Patient, Notizen & Freigegebene Dokumente -->
+    <div id="pdm-tab-content-patient" class="pdm-tab-content" style="display: ${activeTab === 'patient' ? 'block' : 'none'};">
+      <!-- Section 1: Patient Info -->
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">${t('praxis.patient_info', '👤 Patienteninformationen')}</h4>
+        <div class="pdm-info-grid">
+          <div class="pdm-info-row">
+            <span class="pdm-info-label">${t('profile.name', 'Name')}</span>
+            <span class="pdm-info-value">${patientName}</span>
           </div>
-          <div>
-            <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.select_file', 'Datei auswählen *')}</label>
-            <input type="file" id="praxis-upload-file-input" style="font-size: var(--font-size-xs); width: 100%;">
+          <div class="pdm-info-row">
+            <span class="pdm-info-label">${t('profile.dob', 'Geburtsdatum')}</span>
+            <span class="pdm-info-value">${patient?.geburtsdatum || '–'}</span>
+          </div>
+          <div class="pdm-info-row">
+            <span class="pdm-info-label">${t('profile.phone', 'Telefon')}</span>
+            <span class="pdm-info-value">${patient?.telefonnummer || '–'}</span>
+          </div>
+          <div class="pdm-info-row">
+            <span class="pdm-info-label">${t('profile.address', 'Adresse')}</span>
+            <span class="pdm-info-value">${adresse}</span>
+          </div>
+          <div class="pdm-info-row">
+            <span class="pdm-info-label">${t('profile.insurance', 'Versicherung')}</span>
+            <span class="pdm-info-value">${versicherung}</span>
+          </div>
+          <div class="pdm-info-row">
+            <span class="pdm-info-label">${t('profile.email', 'E-Mail')}</span>
+            <span class="pdm-info-value">${patient?.email || '–'}</span>
           </div>
         </div>
-        <button id="btn-praxis-upload-doc" class="btn btn-primary" style="margin-top: var(--space-3); width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
-          ${t('praxis.share_doc_btn', '📤 Dokument freigeben & Patient benachrichtigen')}
-        </button>
       </div>
+
+      <!-- Section 2: Doctor Notes -->
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">${t('praxis.doctor_notes', '📝 Eigene Notizen (nur für Sie sichtbar)')}</h4>
+        <textarea id="doctor-note-input" class="pdm-note-textarea" placeholder="${t('praxis.notes_placeholder', 'Notizen zum Termin eingeben...')}">${note?.note_text || ''}</textarea>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-2);">
+          <span id="doctor-note-status" style="font-size: var(--font-size-xs); color: var(--gray-400);"></span>
+          <button id="btn-save-note" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
+            ${t('praxis.save_note', '💾 Notiz speichern')}
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 3: Shared Documents -->
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">${t('praxis.share_docs_title', '📂 Dokumente für den Patienten bereitstellen (Laborberichte, Rezepte, etc.)')}</h4>
+        <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
+          ${t('praxis.shared_docs_desc', 'Hier hochgeladene Dateien werden für den Patienten in seinem Portal freigegeben und er erhält eine sofortige Benachrichtigung per E-Mail.')}
+        </p>
+        
+        <div id="praxis-shared-docs-list" style="margin-bottom: var(--space-4);">
+          ${
+            sharedDocuments && sharedDocuments.length > 0
+              ? sharedDocuments.map(doc => `
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); background: var(--bg-gray); border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                    <div>
+                      <span style="font-size: var(--font-size-sm); color: var(--gray-700); font-weight: 700;">📄 ${doc.filename} (${formatBytes(doc.file_size || doc.fileSize)})</span>
+                      <span style="font-size: 10px; color: var(--gray-400); display: block; font-weight: 600;">${t('documents.category', 'Kategorie')}: ${doc.doc_category || t('docs.type_other', 'Sonstiges')}</span>
+                    </div>
+                    <a href="/api/file/${doc.id}" target="_blank" class="btn btn-outline" style="padding: 2px 10px; font-size: 11px; font-weight: 600; text-decoration: none; border-color: var(--primary); color: var(--primary); background: white;">${t('praxis.view_doc', 'Ansehen')}</a>
+                  </div>
+                `).join('')
+              : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">${t('praxis.no_shared_docs', 'Noch keine Dokumente freigegeben')}</div>`
+          }
+        </div>
+        
+        <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
+          <div id="praxis-upload-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); align-items: flex-end;">
+            <div>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.doc_type_label', 'Dokumententyp *')}</label>
+              <select id="praxis-upload-category" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: 6px; font-size: var(--font-size-xs); background: white; cursor: pointer; height: 32px;">
+                <option value="Laborbefund">${t('docs.type_lab', 'Laborbefund')}</option>
+                <option value="Arztbrief">${t('docs.type_letter', 'Arztbrief')}</option>
+                <option value="eRezept">${t('docs.type_erezept', 'eRezept')}</option>
+                <option value="Sonstiges">${t('docs.type_other', 'Sonstiges')}</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 6px;">${t('praxis.select_file', 'Datei auswählen *')}</label>
+              <input type="file" id="praxis-upload-file-input" style="font-size: var(--font-size-xs); width: 100%;">
+            </div>
+          </div>
+          <button id="btn-praxis-upload-doc" class="btn btn-primary" style="margin-top: var(--space-3); width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
+            ${t('praxis.share_doc_btn', '📤 Dokument freigeben & Patient benachrichtigen')}
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 4: Patient Feedback -->
+      ${termin.rating != null ? `
+      <div class="pdm-section" style="margin-bottom: var(--space-5); background: #FFFBEB; border: 1px solid #FCD34D; padding: var(--space-4); border-radius: var(--radius-lg);">
+        <h4 class="pdm-section-title" style="color: #D97706; margin-bottom: var(--space-2); font-weight: 800; display: flex; align-items: center; gap: 6px;">
+          ${t('praxis.patient_feedback', '⭐ Patienten-Feedback & Bewertung')}
+        </h4>
+        <div style="font-size: var(--font-size-lg); font-weight: 700; color: #D97706; display: flex; align-items: center; gap: 4px; margin-bottom: var(--space-2);">
+          ${'★'.repeat(termin.rating)}${'☆'.repeat(5 - termin.rating)} 
+          <span style="font-size: var(--font-size-xs); color: var(--gray-600); font-weight: 600; margin-left: 4px;">${t('praxis.rating_stars', '({rating} von 5 Sternen)').replace('{rating}', termin.rating)}</span>
+        </div>
+        ${termin.feedback_text ? `
+          <div style="font-size: var(--font-size-sm); color: var(--gray-800); font-style: italic; background: white; padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid #FEF3C7; line-height: 1.4;">
+            "${termin.feedback_text}"
+          </div>
+        ` : ''}
+      </div>
+      ` : ''}
     </div>
 
-    <!-- Section 6: Aftercare Instructions (Nachsorge) -->
-    <div class="pdm-section" style="margin-bottom: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-5);">
-      <h4 class="pdm-section-title">${t('praxis.aftercare_title', '🩺 Nachsorge-Hinweise (Post-Treatment)')}</h4>
-      <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
-        ${t('praxis.aftercare_desc', 'Senden Sie dem Patienten nach dem Termin wichtige Anweisungen (z. B. Schonung, Wundpflege, Kühlung) per E-Mail.')}
-      </p>
-
-      <!-- List of already sent aftercare instructions -->
-      <div id="praxis-aftercare-list" style="margin-bottom: var(--space-4);">
-        ${
-          aftercareInstructions && aftercareInstructions.length > 0
-            ? aftercareInstructions.map(instr => `
-                <div style="padding: var(--space-3); background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2); box-shadow: var(--shadow-sm);">
-                  <div style="font-size: 10px; color: var(--gray-400); margin-bottom: var(--space-1); font-weight: 600;">
-                    ${t('praxis.sent_at_label', 'Gesendet am {date} Uhr').replace('{date}', new Date(instr.sent_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))} ${instr.email_sent ? `· ${t('praxis.email_sent', '📧 E-Mail gesendet')}` : ''}
+    <!-- TAB 2: Pre-Check-In -->
+    <div id="pdm-tab-content-precheck" class="pdm-tab-content" style="display: ${activeTab === 'precheck' ? 'block' : 'none'};">
+      ${termin.precheck_submitted ? `
+      <!-- Section: PreCheck Summary -->
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">${t('praxis.precheck_summary', '🩺 Pre-Check-In Zusammenfassung')}</h4>
+        <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+          <div>
+            <div class="pdm-subsection-title">${t('praxis.complaints', 'Beschwerden')}</div>
+            <div class="pdm-data-block">
+              <div><strong>${t('praxis.symptoms', 'Symptome')}:</strong> ${symptoms}</div>
+              <div style="margin-top: var(--space-1);"><strong>${t('praxis.description', 'Beschreibung')}:</strong> ${freitext}</div>
+              <div style="margin-top: var(--space-1);"><strong>${t('praxis.pain_level', 'Schmerzstärke')}:</strong> ${staerke}</div>
+            </div>
+          </div>
+          <div>
+            <div class="pdm-subsection-title">${t('praxis.medications', 'Medikamente')}</div>
+            <div class="pdm-data-block">${meds}</div>
+          </div>
+          <div>
+            <div class="pdm-subsection-title">${t('praxis.allergies', 'Allergien')}</div>
+            <div class="pdm-data-block">${allergien}${allerAnm ? `<div style="margin-top: var(--space-1);"><strong>${t('praxis.notes', 'Anmerkungen')}:</strong> ${allerAnm}</div>` : ''}</div>
+          </div>
+          ${hasCustomAnswers ? `
+          <div>
+            <div class="pdm-subsection-title">${t('praxis.additional_questions', 'Zusatzfragen')}</div>
+            <div class="pdm-data-block">
+              ${Object.entries(customAnswers).map(([q, a]) => {
+                const ansText = Array.isArray(a) ? a.join(', ') : (a || t('common.no_answer', 'Keine Antwort'));
+                return `<div style="margin-bottom: var(--space-2);"><strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${q}</strong><br><span style="font-weight: 600;">${ansText}</span></div>`;
+              }).join('')}
+            </div>
+          </div>
+          ` : ''}
+          <div>
+            <div class="pdm-subsection-title">${t('praxis.uploaded_docs', 'Hochgeladene Dokumente')}</div>
+            <div class="pdm-data-block" style="padding: var(--space-3);">
+              ${docsHtml}
+            </div>
+          </div>
+          ${Object.keys(docConfirmations).length > 0 ? `
+          <div>
+            <div class="pdm-subsection-title">${t('praxis.doc_confirmations', 'Dokumentenbestätigungen')}</div>
+            <div class="pdm-data-block" style="padding: var(--space-3);">
+              ${Object.entries(docConfirmations).map(([docId, conf]) => {
+                const statusColor = conf.status === 'rejected' ? '#DC2626' : '#059669';
+                const statusBg = conf.status === 'rejected' ? '#FEF2F2' : '#ECFDF5';
+                const statusLabel = conf.status === 'confirmed' ? t('status.confirmed', '✓ Bestätigt') : conf.status === 'accepted' ? t('status.accepted', '✓ Akzeptiert') : conf.status === 'rejected' ? t('status.rejected', '✗ Abgelehnt') : t('status.pending', '– Ausstehend');
+                const docItem = praxisDocuments.find(d => String(d.id) === String(docId));
+                const docTitle = docItem ? docItem.title : `${t('praxis.documents', 'Dokument')} #${docId}`;
+                return `
+                  <div style="display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: ${statusBg}; border-radius: var(--radius-md); margin-bottom: var(--space-2); border: 1px solid ${conf.status === 'rejected' ? '#FCA5A5' : '#A7F3D0'};">
+                    <span style="font-size: var(--font-size-sm); font-weight: 700; color: ${statusColor}; white-space: nowrap;">${statusLabel}</span>
+                    <span style="font-size: var(--font-size-sm); color: var(--gray-600); font-weight: 500;">${docTitle}</span>
+                    ${conf.status === 'rejected' && conf.reason ? `<span style="font-size: var(--font-size-xs); color: var(--gray-500); font-style: italic; margin-left: auto;">"${conf.reason}"</span>` : ''}
                   </div>
-                  <div style="font-size: var(--font-size-sm); color: var(--gray-700); font-style: italic; white-space: pre-wrap; line-height: 1.4;">"${instr.instructions}"</div>
-                </div>
-              `).join('')
-            : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">${t('praxis.no_aftercare_sent', 'Noch keine Nachsorge-Hinweise gesendet.')}</div>`
-        }
+                `;
+              }).join('')}
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      ` : `
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">🩺 Pre-Check-In</h4>
+        <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-5); text-align: center; border: 1px dashed var(--gray-300);">
+          <p style="font-size: var(--font-size-sm); color: var(--gray-500);">${t('praxis.precheck_not_completed', 'Der Pre-Check-In wurde noch nicht ausgefüllt.')}</p>
+        </div>
+      </div>
+      `}
+    </div>
+
+    <!-- TAB 3: Separated KI-Assistent -->
+    <div id="pdm-tab-content-ai" class="pdm-tab-content" style="display: ${activeTab === 'ai' ? 'block' : 'none'};">
+      ${termin.precheck_submitted ? `
+      <div class="pdm-section" id="ai-assessments-section" style="margin-bottom: var(--space-5); background: #f8fafc; border: 1px solid #e2e8f0; padding: var(--space-4); border-radius: var(--radius-lg);">
+        <h4 class="pdm-section-title" style="color: var(--primary); margin-bottom: var(--space-3); font-weight: 800; display: flex; align-items: center; gap: 6px;">
+          ${t('praxis.ai_assistant', '🤖 KI-Assistent')}
+        </h4>
+        <div id="ai-assessments-container" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;">
+          <div class="dl-auth-spinner" style="width: 24px; height: 24px; border-width: 2.5px; border-color: var(--primary) transparent transparent transparent;"></div>
+          <p class="text-muted" style="margin-top: var(--space-1); font-size: var(--font-size-xs); font-weight: 600;">${t('praxis.ai_loading', 'KI-Assistent wird geladen...')}</p>
+        </div>
+        
+        <!-- Diagnostic Anamnese Assessment Area -->
+        <div id="anamnesis-assessment-section" style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid #e2e8f0; display: none;">
+          <button id="btn-generate-diagnostics" class="btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: var(--font-size-sm); border: 1px solid var(--primary); color: var(--primary); background: white; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;">
+            ${t('praxis.ai_assessment_btn', '🧠 Einschätzung aus Anamnese')}
+          </button>
+          <div id="diagnostics-loading-container" style="display: none; flex-direction: column; align-items: center; margin-top: var(--space-3); gap: 6px;">
+            <div class="dl-auth-spinner" style="width: 20px; height: 20px; border-width: 2px; border-color: var(--primary) transparent transparent transparent;"></div>
+            <span style="font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600;">${t('praxis.ai_analyzing', 'Analysiere Anamnese und generiere Einschätzung...')}</span>
+          </div>
+          <div id="diagnostics-result-box" style="display: none; margin-top: var(--space-3); padding: var(--space-3); background: #eff6ff; border-left: 4px solid var(--primary); border-radius: 0 var(--radius-md) var(--radius-md) 0;">
+            <h5 style="font-size: var(--font-size-xs); font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: var(--space-1); display: flex; align-items: center; gap: 4px;">
+              ${t('praxis.medical_suspicion', '📋 Medizinische Verdachtseinschätzung')}
+            </h5>
+            <p id="diagnostics-result-text" style="font-size: var(--font-size-sm); color: #1e3a8a; margin: 0; line-height: 1.4; font-weight: 500;"></p>
+          </div>
+        </div>
       </div>
 
-      <!-- Send new aftercare instructions -->
-      <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
-        <div id="praxis-aftercare-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
-        
-        <textarea id="praxis-aftercare-input" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); min-height: 80px; margin-bottom: var(--space-2); background: white; resize: vertical;" placeholder="${t('praxis.aftercare_ph', 'Z. B. Bitte denken Sie daran, die Wunde heute noch zu kühlen und keinen Sport zu treiben.')}"></textarea>
-        
-        <button id="btn-send-aftercare" class="btn btn-primary" style="width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
-          ${t('praxis.send_aftercare_btn', '📨 Nachsorge-Hinweise per E-Mail senden')}
+      ${hasAiQuestions ? `
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title" style="display: flex; align-items: center; gap: 6px;">
+          ${termin.ai_consent === false ? t('praxis.std_followup_questions', '📋 Standardisierte Folgefragen') : t('praxis.ai_followup_questions', '🤖 Spezifische Folgefragen (KI)')}
+        </h4>
+        <div class="pdm-data-block">
+          ${aiQuestions.map((q, idx) => `
+            <div style="margin-bottom: var(--space-2); border-left: 2px solid var(--primary); padding-left: var(--space-2); padding-top: 2px; padding-bottom: 2px;">
+              <strong style="font-size: 11px; text-transform: uppercase; color: var(--gray-500);">${idx + 1}. ${q.question}</strong><br>
+              <span style="font-weight: 600;">${q.answer || t('common.no_answer', 'Keine Antwort')}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+      ` : `
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">🤖 KI-Assistent</h4>
+        <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-5); text-align: center; border: 1px dashed var(--gray-300);">
+          <p style="font-size: var(--font-size-sm); color: var(--gray-500);">${t('praxis.precheck_not_completed', 'Der Pre-Check-In wurde noch nicht ausgefüllt.')}</p>
+        </div>
+      </div>
+      `}
+    </div>
+
+    <!-- TAB 4: Hinweise & Nachsorge -->
+    <div id="pdm-tab-content-hints" class="pdm-tab-content" style="display: ${activeTab === 'hints' ? 'block' : 'none'};">
+      <!-- Section: Patient Hints -->
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">${t('praxis.patient_hints', '💡 Hinweise an den Patienten')}</h4>
+        ${hintsHtml || `<p style="font-size: var(--font-size-sm); color: var(--gray-400); margin-bottom: var(--space-3);">${t('praxis.no_hints_sent', 'Noch keine Hinweise gesendet.')}</p>`}
+        <button id="btn-send-hint" class="btn" style="background: var(--primary); color: white; padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: var(--space-3); font-size: var(--font-size-sm);">
+          ${t('praxis.send_hint', '📨 Hinweis schicken')}
         </button>
+      </div>
+
+      <!-- Section: Aftercare Instructions -->
+      <div class="pdm-section" style="margin-bottom: var(--space-5);">
+        <h4 class="pdm-section-title">${t('praxis.aftercare_title', '🩺 Nachsorge-Hinweise (Post-Treatment)')}</h4>
+        <p style="font-size: var(--font-size-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
+          ${t('praxis.aftercare_desc', 'Senden Sie dem Patienten nach dem Termin wichtige Anweisungen (z. B. Schonung, Wundpflege, Kühlung) per E-Mail.')}
+        </p>
+
+        <div id="praxis-aftercare-list" style="margin-bottom: var(--space-4);">
+          ${
+            aftercareInstructions && aftercareInstructions.length > 0
+              ? aftercareInstructions.map(instr => `
+                  <div style="padding: var(--space-3); background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2); box-shadow: var(--shadow-sm);">
+                    <div style="font-size: 10px; color: var(--gray-400); margin-bottom: var(--space-1); font-weight: 600;">
+                      ${t('praxis.sent_at_label', 'Gesendet am {date} Uhr').replace('{date}', new Date(instr.sent_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))} ${instr.email_sent ? `· ${t('praxis.email_sent', '📧 E-Mail gesendet')}` : ''}
+                    </div>
+                    <div style="font-size: var(--font-size-sm); color: var(--gray-700); font-style: italic; white-space: pre-wrap; line-height: 1.4;">"${instr.instructions}"</div>
+                  </div>
+                `).join('')
+              : `<div style="font-size: var(--font-size-sm); color: var(--gray-400); font-style: italic; margin-bottom: var(--space-3);">${t('praxis.no_aftercare_sent', 'Noch keine Nachsorge-Hinweise gesendet.')}</div>`
+          }
+        </div>
+
+        <div style="background: var(--bg-gray); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid var(--gray-200);">
+          <div id="praxis-aftercare-error" style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #DC2626; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-xs); display: none; font-weight: 600; margin-bottom: var(--space-3);"></div>
+          
+          <textarea id="praxis-aftercare-input" style="width: 100%; border: 1px solid var(--gray-300); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); min-height: 80px; margin-bottom: var(--space-2); background: white; resize: vertical;" placeholder="${t('praxis.aftercare_ph', 'Z. B. Bitte denken Sie daran, die Wunde heute noch zu kühlen und keinen Sport zu treiben.')}"></textarea>
+          
+          <button id="btn-send-aftercare" class="btn btn-primary" style="width: 100%; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer;">
+            ${t('praxis.send_aftercare_btn', '📨 Nachsorge-Hinweise per E-Mail senden')}
+          </button>
+        </div>
       </div>
     </div>
   `;
 }
 
 function attachDetailListeners(terminCode, existingNote, existingHints, sharedDocuments = [], aftercareInstructions = []) {
+  // Tab switching listener
+  const tabBtns = document.querySelectorAll('.pdm-tab-btn');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tabKey = e.currentTarget.getAttribute('data-tab');
+      currentActiveTab = tabKey;
+
+      tabBtns.forEach(b => {
+        const isActive = b.getAttribute('data-tab') === tabKey;
+        if (isActive) {
+          b.classList.add('active');
+          b.style.background = 'white';
+          b.style.color = 'var(--primary)';
+          b.style.border = '1px solid var(--gray-200)';
+          b.style.borderBottom = '3px solid var(--primary)';
+          b.style.fontWeight = '700';
+        } else {
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+          b.style.color = 'var(--gray-600)';
+          b.style.border = '1px solid transparent';
+          b.style.borderBottom = '3px solid transparent';
+          b.style.fontWeight = '600';
+        }
+      });
+
+      document.querySelectorAll('.pdm-tab-content').forEach(el => {
+        el.style.display = 'none';
+      });
+
+      const activeEl = document.getElementById(`pdm-tab-content-${tabKey}`);
+      if (activeEl) {
+        activeEl.style.display = 'block';
+      }
+    });
+  });
+
   // Load AI assessments if the container exists
   if (document.getElementById('ai-assessments-container')) {
     fetchAiAssessments(terminCode);
