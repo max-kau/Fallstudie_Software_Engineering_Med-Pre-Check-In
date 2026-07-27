@@ -69,7 +69,11 @@ function isLoggedIn() {
 }
 
 function isPraxis() {
-  return _currentUser && _currentUser.role === 'praxis';
+  return Boolean(_currentUser && _currentUser.role === 'praxis');
+}
+
+function isAdmin() {
+  return Boolean(_currentUser && _currentUser.role === 'admin');
 }
 
 export const auth = {
@@ -79,5 +83,6 @@ export const auth = {
   logout,
   getUser,
   isLoggedIn,
-  isPraxis
+  isPraxis,
+  isAdmin
 };

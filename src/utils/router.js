@@ -21,7 +21,7 @@ export function navigate(hash) {
   window.location.hash = hash;
 }
 
-async function handleRoute() {
+export async function handleRoute() {
   // Clean up any remaining modals/overlays in document.body
   const modalSelectors = [
     '#profile-modal',
@@ -69,8 +69,26 @@ async function handleRoute() {
 
   // If logged in and trying to access auth, redirect based on role
   if (loggedIn && routeKey === 'auth') {
-    navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
+    if (auth.isAdmin()) {
+      navigate('test-dashboard');
+    } else if (auth.isPraxis()) {
+      navigate('praxis-dashboard');
+    } else {
+      navigate('landing');
+    }
     return;
+  }
+
+  // Admin access guard for test-dashboard
+  if (routeKey === 'test-dashboard') {
+    if (!loggedIn) {
+      navigate('auth');
+      return;
+    }
+    if (!auth.isAdmin()) {
+      navigate(auth.isPraxis() ? 'praxis-dashboard' : 'landing');
+      return;
+    }
   }
 
   // If praxis user tries to access patient-only routes, redirect to praxis dashboard
@@ -81,13 +99,13 @@ async function handleRoute() {
   }
 
   // If patient user tries to access praxis-only routes, redirect to landing
-  if (loggedIn && !auth.isPraxis() && (routeKey === 'praxis-dashboard' || routeKey === 'live-queue')) {
+  if (loggedIn && !auth.isPraxis() && !auth.isAdmin() && (routeKey === 'praxis-dashboard' || routeKey === 'live-queue')) {
     navigate('landing');
     return;
   }
 
-  // For protected patient routes, ensure data is loaded (skip queue views and landing view which have their own data loading)
-  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'landing' && routeKey !== 'praxis-dashboard' && routeKey !== 'live-queue' && routeKey !== 'warteschlange') {
+  // For protected patient routes, ensure data is loaded (skip queue views, admin dashboard and landing view which have their own data loading)
+  if (!PUBLIC_ROUTES.includes(routeKey) && routeKey !== 'landing' && routeKey !== 'praxis-dashboard' && routeKey !== 'live-queue' && routeKey !== 'warteschlange' && routeKey !== 'test-dashboard') {
     await store.loadData();
 
     const isSubmitted = store.get('submitted');
