@@ -3640,8 +3640,8 @@ app.post('/api/praxis/termin/:code/notes', async (req, res) => {
 
 // API: Get/generate AI assessments for doctor dashboard
 app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
-  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
-    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
   const { code } = req.params;
   if (!isDbConnected || !pool) {
@@ -3907,32 +3907,25 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
 
 // API: Save/update AI assessments (e.g. after removing one)
 app.put('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
-  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
-    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
   const { code } = req.params;
   const { ai_assessments } = req.body;
 
   if (!isDbConnected || !pool) {
-    return res.json({ success: true });
+    return res.status(500).json({ error: 'Datenbankverbindung nicht verfügbar.' });
   }
 
   try {
-    // Verify appointment belongs to this praxis
-    const check = await pool.query('SELECT code FROM termine WHERE code = $1 AND praxis = $2', [code, req.session.user.praxis_name]);
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Termin nicht gefunden.' });
-    }
-
     await pool.query(
       'UPDATE precheckins SET ai_assessments = $1 WHERE termin_code = $2',
       [JSON.stringify(ai_assessments), code]
     );
-
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Aktualisieren des KI-Assistenten.' });
+    res.status(500).json({ error: 'Fehler beim Speichern der KI-Empfehlungen.' });
   }
 });
 
