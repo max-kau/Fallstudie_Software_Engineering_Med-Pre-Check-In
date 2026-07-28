@@ -495,6 +495,9 @@ function attachDetailListeners(terminCode, existingNote, existingHints, sharedDo
       const activeEl = document.getElementById(`pdm-tab-content-${tabKey}`);
       if (activeEl) {
         activeEl.style.display = 'block';
+        if (tabKey === 'ai' && document.getElementById('ai-assessments-container')) {
+          fetchAiAssessments(terminCode);
+        }
       }
     });
   });
