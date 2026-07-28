@@ -19,8 +19,8 @@ async function callGeminiWithFallback(prompt) {
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  // Try newer models first, fall back to older/alternative flash models if quota hit
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.6-flash', 'gemini-pro'];
+  // Try active models first: gemini-3.5-flash and gemini-3.5-flash-lite have full quota
+  const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
 
   let lastError = null;
   for (const modelName of models) {
