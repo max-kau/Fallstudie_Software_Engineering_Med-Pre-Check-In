@@ -3930,7 +3930,33 @@ app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
     let anamnesis_assessment = '';
 
     try {
-      let anamnesis_assessment = await callGeminiWithFallback(prompt);
+      const prompt = `
+Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
+
+Achtung: Dies dient ausschließlich der Vorbereitung des behandelnden Arztes im internen Dashboard.
+Formuliere die Einschätzung professionell, präzise und übersichtlich in deutscher Sprache (ca. 3-4 Sätze).
+
+Praxis- & Termin-Kontext:
+- Fachrichtung: ${termin.fachrichtung}
+- Termin-Art: ${termin.art}
+- Praxis-Name: ${termin.praxis}
+- Arzt: ${termin.doctor}
+
+Patienten-Angaben (Pre-Check-In):
+- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
+- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
+- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
+- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
+- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
+- Medikamente: ${JSON.stringify(medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.list || [])}
+- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
+- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
+
+Erstelle eine präzise Einschätzung mit möglichen Verdachtsdiagnosen oder Empfehlungen. Antworte direkt als Fließtext ohne Markdown-Formatierungen, HTML-Tags oder Begleittext.
+`;
+
+      anamnesis_assessment = await callGeminiWithFallback(prompt);
     } catch (aiErr) {
       console.warn('Gemini API call failed for anamnesis-assessment, falling back to rule-based generation:', aiErr.message);
       // Fallback rule-based generation
