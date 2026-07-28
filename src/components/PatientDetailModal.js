@@ -11,6 +11,7 @@ function getDefaultHints() {
 }
 
 let currentActiveTab = 'patient';
+let currentAiAssessments = null;
 
 export function openPatientDetailModal(terminCode) {
   currentActiveTab = 'patient';
