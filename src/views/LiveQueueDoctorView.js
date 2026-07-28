@@ -275,25 +275,58 @@ function renderQueueCards(queue) {
 }
 
 async function loadQueue() {
-  const user = auth.getUser();
-  if (!user || !user.praxis_name) return;
+  let user = auth.getUser();
+  if (!user || !user.praxis_name) {
+    try {
+      const meRes = await fetch('/api/auth/me');
+      const meData = await meRes.json();
+      if (meData.loggedIn && meData.user) {
+        user = meData.user;
+      }
+    } catch (e) {}
+  }
+
+  const praxisName = user?.praxis_name || user?.praxisName;
+  const container = document.getElementById('queue-cards-container');
+
+  if (!praxisName) {
+    if (container) {
+      container.innerHTML = `
+        <div class="queue-empty">
+          <div class="queue-empty-icon">⚠️</div>
+          <div class="queue-empty-text">Keine Praxis angemeldet</div>
+          <div class="queue-empty-desc">Bitte melden Sie sich als Praxis an, um die Warteschlange zu sehen.</div>
+        </div>
+      `;
+    }
+    return;
+  }
 
   try {
-    const res = await fetch(`/api/queue/${encodeURIComponent(user.praxis_name)}`);
+    const res = await fetch(`/api/queue/${encodeURIComponent(praxisName)}`);
     const data = await res.json();
 
-    if (!data.success) return;
-
-    const container = document.getElementById('queue-cards-container');
     if (!container) return;
 
-    container.innerHTML = renderQueueCards(data.queue);
+    if (!data.success) {
+      container.innerHTML = `
+        <div class="queue-empty">
+          <div class="queue-empty-icon">⚠️</div>
+          <div class="queue-empty-text">Fehler beim Laden der Warteschlange</div>
+          <div class="queue-empty-desc">${data.error || 'Serverfehler'}</div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = renderQueueCards(data.queue || []);
 
     // Update stats
-    const waiting = data.queue.filter(q => q.status === 'waiting' || q.status === 'delayed').length;
-    const active = data.queue.filter(q => q.status === 'in_treatment').length;
-    const done = data.queue.filter(q => q.status === 'done').length;
-    const total = data.queue.length;
+    const queue = data.queue || [];
+    const waiting = queue.filter(q => q.status === 'waiting' || q.status === 'delayed').length;
+    const active = queue.filter(q => q.status === 'in_treatment').length;
+    const done = queue.filter(q => q.status === 'done').length;
+    const total = queue.length;
 
     const statWaiting = document.getElementById('stat-waiting');
     const statActive = document.getElementById('stat-active');
@@ -309,6 +342,15 @@ async function loadQueue() {
     attachQueueActions();
   } catch (err) {
     console.error('Error loading queue:', err);
+    if (container) {
+      container.innerHTML = `
+        <div class="queue-empty">
+          <div class="queue-empty-icon">⚠️</div>
+          <div class="queue-empty-text">Verbindungsfehler</div>
+          <div class="queue-empty-desc">${err.message || 'Warteschlange konnte nicht geladen werden.'}</div>
+        </div>
+      `;
+    }
   }
 }
 

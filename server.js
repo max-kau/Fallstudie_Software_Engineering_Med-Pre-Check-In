@@ -4537,11 +4537,49 @@ app.put('/api/praxis/terminarten/einstellungen', (req, res) => {
   res.json({ success: true, settings: praxisTerminartSettingsStore[key] });
 });
 
+// Helper: Check if an appointment date corresponds to today
+function isTerminToday(dateVal) {
+  if (!dateVal) return true;
+  try {
+    const now = new Date();
+    const todayY = now.getFullYear();
+    const todayM = now.getMonth();
+    const todayD = now.getDate();
+
+    if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+      const parts = dateVal.split('T')[0].split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return y === todayY && m === todayM && d === todayD;
+    }
+
+    if (typeof dateVal === 'string' && /^\d{1,2}\.\d{1,2}\.\d{4}/.test(dateVal)) {
+      const parts = dateVal.split('.');
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      return y === todayY && m === todayM && d === todayD;
+    }
+
+    const parsed = new Date(dateVal);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.getFullYear() === todayY && parsed.getMonth() === todayM && parsed.getDate() === todayD;
+    }
+
+    const match = String(dateVal).match(/(\d{1,2})\./);
+    if (match) {
+      const d = parseInt(match[1], 10);
+      return d === todayD;
+    }
+  } catch (err) {
+    console.warn('isTerminToday check failed:', err);
+  }
+  return true;
+}
+
 // API: Get queue status for a praxis (today only)
 app.get('/api/queue/:praxisName', async (req, res) => {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ error: 'Nicht angemeldet.' });
-  }
   const { praxisName } = req.params;
   const decodedPraxisName = decodeURIComponent(praxisName);
 
@@ -4589,13 +4627,14 @@ app.get('/api/queue/:praxisName', async (req, res) => {
     }
 
     // Determine if caller is praxis or patient
-    const isPraxis = req.session.user?.role === 'praxis';
+    const isPraxis = req.session?.user?.role === 'praxis';
+    const currentUserId = req.session?.userId;
 
     // Calculate dynamic wait times per patient based on effective duration of front queue items
     let cumulativeWait = 0;
 
     const queue = todayAppointments.map((appt, idx) => {
-      const isOwnAppointment = appt.user_id === req.session.userId;
+      const isOwnAppointment = currentUserId ? appt.user_id === currentUserId : false;
       const status = appt.queue_status || 'waiting';
       const effectiveDuration = getEffectiveDurationForArt(decodedPraxisName, appt.art);
 

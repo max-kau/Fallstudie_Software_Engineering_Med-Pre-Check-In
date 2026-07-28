@@ -392,6 +392,12 @@ function renderQuestions(questions) {
 export async function initPraxisDashboardView() {
   initDlNav();
 
+  const currentUser = auth.getUser();
+  if (currentUser && currentUser.praxis_name) {
+    const h1 = document.querySelector('.landing-header h1');
+    if (h1) h1.textContent = currentUser.praxis_name;
+  }
+
   if (window._dashboardAuthListener) {
     window.removeEventListener('authChanged', window._dashboardAuthListener);
   }

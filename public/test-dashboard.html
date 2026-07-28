@@ -1014,9 +1014,24 @@
       const hostname = window.location.hostname;
       const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
       const banner = document.getElementById('prodNoticeBanner');
-      if (banner && !isLocal) {
-        banner.style.display = 'block';
+      if (!isLocal) {
+        if (banner) banner.style.display = 'block';
+        disableTestButtons();
       }
+    }
+
+    function disableTestButtons() {
+      const runBtnIds = ['btnRunAll', 'btnRunUnit', 'btnRunIntegration', 'btnRunE2E'];
+      runBtnIds.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.4';
+          btn.style.cursor = 'not-allowed';
+          btn.style.pointerEvents = 'none';
+          btn.title = 'Test-Ausführung in Produktion deaktiviert (lokales npm run dev erforderlich)';
+        }
+      });
     }
 
     // ─── Initial Load ─────────────────────────────────────────────
@@ -1364,10 +1379,22 @@
 
     // ─── Run Tests ────────────────────────────────────────────────
     function setButtonsDisabled(disabled) {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+      if (!isLocal) {
+        disableTestButtons();
+        return;
+      }
       document.querySelectorAll('.btn').forEach(b => b.disabled = disabled);
     }
 
     function runTests(category) {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+      if (!isLocal) {
+        alert('Die Test-Ausführung ist auf der Produktiv-Umgebung deaktiviert. Führen Sie "npm run dev" lokal aus, um Tests zu starten.');
+        return;
+      }
       if (isRunning) return;
       isRunning = true;
       setButtonsDisabled(true);

@@ -11,7 +11,7 @@ let currentView = null;
 const appEl = () => document.getElementById('app');
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['home', 'auth', 'praxis', 'suche', 'feedback'];
+const PUBLIC_ROUTES = ['home', 'auth', 'praxis', 'suche', 'feedback', 'live-queue', 'warteschlange'];
 
 export function registerRoute(hash, renderFn) {
   routes[hash] = renderFn;

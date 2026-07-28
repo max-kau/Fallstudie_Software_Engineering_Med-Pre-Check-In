@@ -399,9 +399,9 @@ test.describe('Praxis-Dashboard E2E Tests (Arzt-Ansicht)', () => {
     // Prüfe, dass wir auf dem Praxis-Dashboard sind (nicht weitergeleitet)
     await expect(page).toHaveURL(/.*#praxis-dashboard/);
 
-    // Praxis-Name muss sichtbar sein
+    // Praxis-Name und Kalender-Tab müssen sichtbar sein
     await expect(page.locator('h1')).toContainText('Musterpraxis München');
-    await expect(page.locator('body')).toContainText('Praxis-Dashboard');
+    await expect(page.locator('#tab-dashboard-kalender')).toBeVisible();
   });
 
   test('Praxis-Dashboard hat alle drei Tabs (Kalender, Statistik, Gestaltung)', async ({ page }) => {
