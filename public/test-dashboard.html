@@ -749,6 +749,21 @@
   <div class="container">
     <div class="main-content">
 
+      <!-- Production Environment Notice Banner -->
+      <div id="prodNoticeBanner" style="display: none; background: #FFFBEB; border: 1px solid #FCD34D; border-radius: var(--radius-lg); padding: 1.1rem 1.3rem; margin-bottom: 1.25rem; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: flex-start; gap: 0.85rem;">
+          <div style="font-size: 1.5rem; line-height: 1;">⚠️</div>
+          <div>
+            <h4 style="font-size: 0.95rem; font-weight: 700; color: #92400E; margin-bottom: 0.35rem;">
+              Hinweis: Testausführung auf der Produktiv-Umgebung
+            </h4>
+            <p style="font-size: 0.85rem; color: #B45309; line-height: 1.45; margin: 0;">
+              Die interaktive Live-Ausführung von Backend- & Playwright E2E-Tests erfordert eine aktive lokale Entwicklungsumgebung. Führen Sie auf Ihrem Rechner <code style="background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-weight: 700; font-family: monospace;">npm run dev</code> aus, um alle Test-Suiten vollständig lokal aufzuführen.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Progress Card -->
       <div class="progress-card">
         <div class="progress-header">
@@ -995,8 +1010,18 @@
       return '';
     }
 
+    function checkEnvironmentNotice() {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+      const banner = document.getElementById('prodNoticeBanner');
+      if (banner && !isLocal) {
+        banner.style.display = 'block';
+      }
+    }
+
     // ─── Initial Load ─────────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', async () => {
+      checkEnvironmentNotice();
       applyStaticTranslations();
       await Promise.all([fetchSuites(), fetchHistory()]);
       renderTabs();
