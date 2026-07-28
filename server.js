@@ -13,6 +13,32 @@ import { testRouter } from './test_dashboard_server.js';
 
 dotenv.config();
 
+// Helper function to call Gemini with model fallback chain
+async function callGeminiWithFallback(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  // Try newer models first, fall back to older/alternative flash models if quota hit
+  const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.6-flash', 'gemini-pro'];
+
+  let lastError = null;
+  for (const modelName of models) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      if (text) {
+        return text;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`Gemini model ${modelName} call failed:`, err.message);
+    }
+  }
+  throw lastError || new Error('All Gemini model attempts failed');
+}
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
@@ -2570,11 +2596,6 @@ app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) =
 
     // Attempt Gemini API call
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(apiKey);
-      // As requested, using the flash model
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-
       const prompt = `
 Du bist ein erfahrener medizinischer Assistent. Deine Aufgabe ist es, für einen Patienten, der einen Pre-Check-In ausfüllt, genau 2 bis 3 gezielte, medizinisch sinnvolle und nachvollziehbare Folgefragen (Anamnese-Fragen) zu generieren.
 Nutze die bereitgestellten Angaben zu Beschwerden (Hauptsymptome, Details, Stärke, Dauer), Medikamenten und Allergien des Patienten.
@@ -2602,8 +2623,7 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format (ein Array von Objekten mit de
 Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das rohe JSON.
       `;
 
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
+      let text = await callGeminiWithFallback(prompt);
 
       // Strip markdown code blocks if any
       if (text.startsWith('```')) {
@@ -3730,69 +3750,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     let ai_assessments = null;
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY is not defined');
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-
-      const prompt = `
-Du bist ein hochqualifizierter medizinischer Experte und klinischer Assistent. Deine Aufgabe ist es, auf Basis der Angaben aus dem Patienten-Pre-Check-In und dem Praxis-Kontext eine tiefgehende, klinisch fundierte und patientenindividuelle medizinische Einschätzung zu generieren.
-Die Einschätzung muss zwischen ToDos für den Arzt (doctorTodos) und ToDos für den Patienten (patientTodos) unterscheiden.
-
-Praxis- & Termin-Kontext:
-- Fachrichtung: ${termin.fachrichtung}
-- Termin-Art: ${termin.art}
-- Praxis-Name: ${termin.praxis}
-- Arzt: ${termin.doctor}
-
-Patienten-Angaben (Pre-Check-In):
-- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
-- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
-- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
-- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
-- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
-- Medikamente: ${JSON.stringify(medikamente.list || [])}
-- Allergien: ${JSON.stringify(allergien.list || [])}
-- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
-- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
-
-Anforderungen an die Generierung (Sehr wichtig für Qualität und Umfang):
-1. **Maximale Anzahl an Einschätzungen**: Die Gesamtzahl der Empfehlungen (doctorTodos und patientTodos zusammen) darf insgesamt **maximal 5** betragen. Generiere z.B. 2-3 doctorTodos und 2-3 patientTodos.
-2. **Kurz und Prägnant**: Jede Empfehlung ("text" und "patientText") muss **exakt 1 Satz mit maximal 12 Wörtern** sein. Halte dich extrem kurz und direkt.
-3. **Fokus auf Symptome**: Richte die Empfehlungen direkt an den individuellen Beschwerden des Patienten aus.
-4. **Begründung ("reasoning")**: Begründe kurz in 1 Satz, worauf diese Einschätzung basiert (wie die KI darauf gekommen ist).
-
-Generiere:
-1. "doctorTodos" (Array von Objekten): Einschätzungen für den Arzt.
-   Jedes Objekt muss folgende Struktur haben:
-   - "id": Eine eindeutige ID (z.B. "doc_1", "doc_2", ...)
-   - "category": Kategorie als kurzes Wort (z.B. "Diagnostik", "Risiko")
-   - "text": Der extrem kurze, klinische Text für den Arzt (1 Satz, max. 12 Wörter).
-   - "reasoning": Kurzer Satz, wie die KI darauf gekommen ist.
-2. "patientTodos" (Array von Objekten): Vorbereitungen oder ToDos für den Patienten.
-   Jedes Objekt muss folgende Struktur haben:
-   - "id": Eine eindeutige ID (z.B. "pat_1", "pat_2", ...)
-   - "category": Kategorie als kurzes Wort (z.B. "Vorbereitung", "Medikation")
-   - "text": Der extrem kurze Text für den Arzt im Dashboard (1 Satz, max. 12 Wörter).
-   - "patientText": Die sehr höfliche Bitte an den Patienten (1 Satz, max. 12 Wörter).
-   - "reasoning": Kurzer Satz, wie die KI darauf gekommen ist.
-
-Antworte AUSSCHLIESSLICH im folgenden JSON-Format:
-{
-  "doctorTodos": [
-    { "id": "doc_1", "category": "Kategorie", "text": "...", "reasoning": "..." }
-  ],
-  "patientTodos": [
-    { "id": "pat_1", "category": "Kategorie", "text": "...", "patientText": "...", "reasoning": "..." }
-  ]
-}
-Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das rohe JSON.
-`;
-
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
+      let text = await callGeminiWithFallback(prompt);
 
       // Strip markdown code blocks if any
       if (text.startsWith('```')) {
@@ -3972,41 +3930,7 @@ app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
     let anamnesis_assessment = '';
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY is not defined');
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-
-      const prompt = `
-Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
-
-Achtung: Dies dient ausschließlich der Vorbereitung des behandelnden Arztes im internen Dashboard.
-Formuliere die Einschätzung professionell, präzise und übersichtlich in deutscher Sprache (ca. 3-4 Sätze).
-
-Praxis- & Termin-Kontext:
-- Fachrichtung: ${termin.fachrichtung}
-- Termin-Art: ${termin.art}
-- Praxis-Name: ${termin.praxis}
-- Arzt: ${termin.doctor}
-
-Patienten-Angaben (Pre-Check-In):
-- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
-- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
-- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
-- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
-- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
-- Medikamente: ${JSON.stringify(medikamente.list || [])}
-- Allergien: ${JSON.stringify(allergien.list || [])}
-- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
-- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
-
-Erstelle eine präzise Einschätzung mit möglichen Verdachtsdiagnosen oder Empfehlungen. Antworte direkt als Fließtext ohne Markdown-Formatierungen, HTML-Tags oder Begleittext.
-`;
-
-      const result = await model.generateContent(prompt);
-      anamnesis_assessment = result.response.text().trim();
+      let anamnesis_assessment = await callGeminiWithFallback(prompt);
     } catch (aiErr) {
       console.warn('Gemini API call failed for anamnesis-assessment, falling back to rule-based generation:', aiErr.message);
       // Fallback rule-based generation
