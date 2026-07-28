@@ -4627,13 +4627,14 @@ app.get('/api/queue/:praxisName', async (req, res) => {
     }
 
     // Determine if caller is praxis or patient
-    const isPraxis = req.session.user?.role === 'praxis';
+    const isPraxis = req.session?.user?.role === 'praxis';
+    const currentUserId = req.session?.userId;
 
     // Calculate dynamic wait times per patient based on effective duration of front queue items
     let cumulativeWait = 0;
 
     const queue = todayAppointments.map((appt, idx) => {
-      const isOwnAppointment = appt.user_id === req.session.userId;
+      const isOwnAppointment = currentUserId ? appt.user_id === currentUserId : false;
       const status = appt.queue_status || 'waiting';
       const effectiveDuration = getEffectiveDurationForArt(decodedPraxisName, appt.art);
 
