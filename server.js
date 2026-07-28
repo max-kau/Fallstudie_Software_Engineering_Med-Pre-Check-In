@@ -13,6 +13,32 @@ import { testRouter } from './test_dashboard_server.js';
 
 dotenv.config();
 
+// Helper function to call Gemini with model fallback chain
+async function callGeminiWithFallback(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  // Try active models first: gemini-3.5-flash and gemini-3.5-flash-lite have full quota
+  const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+
+  let lastError = null;
+  for (const modelName of models) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      if (text) {
+        return text;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`Gemini model ${modelName} call failed:`, err.message);
+    }
+  }
+  throw lastError || new Error('All Gemini model attempts failed');
+}
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
@@ -2553,9 +2579,12 @@ app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) =
 
     const precheck = precheckRes.rows[0];
 
-    // 2. If ai_questions is already generated and non-empty, return it!
-    if (precheck.ai_questions && Array.isArray(precheck.ai_questions) && precheck.ai_questions.length > 0) {
-      return res.json({ success: true, questions: precheck.ai_questions });
+    let existingQuestions = precheck.ai_questions;
+    while (typeof existingQuestions === 'string') {
+      try { existingQuestions = JSON.parse(existingQuestions); } catch (e) { break; }
+    }
+    if (existingQuestions && Array.isArray(existingQuestions) && existingQuestions.length > 0) {
+      return res.json({ success: true, questions: existingQuestions });
     }
 
     // 3. Otherwise, generate questions!
@@ -2567,11 +2596,6 @@ app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) =
 
     // Attempt Gemini API call
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(apiKey);
-      // As requested, using the flash model
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
       const prompt = `
 Du bist ein erfahrener medizinischer Assistent. Deine Aufgabe ist es, für einen Patienten, der einen Pre-Check-In ausfüllt, genau 2 bis 3 gezielte, medizinisch sinnvolle und nachvollziehbare Folgefragen (Anamnese-Fragen) zu generieren.
 Nutze die bereitgestellten Angaben zu Beschwerden (Hauptsymptome, Details, Stärke, Dauer), Medikamenten und Allergien des Patienten.
@@ -2599,8 +2623,7 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format (ein Array von Objekten mit de
 Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das rohe JSON.
       `;
 
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
+      let text = await callGeminiWithFallback(prompt);
 
       // Strip markdown code blocks if any
       if (text.startsWith('```')) {
@@ -3516,8 +3539,8 @@ setInterval(checkAndSendPostVisitNotifications, 10000);
 
 // API: Get detailed appointment info including patient profile, precheck, notes, hints
 app.get('/api/praxis/termin/:code/details', async (req, res) => {
-  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
-    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
   const { code } = req.params;
   if (!isDbConnected || !pool) {
@@ -3531,8 +3554,8 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
               p.document_confirmations, p.ai_questions, p.ai_assessments, p.ai_consent
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
-       WHERE t.code = $1 AND t.praxis = $2`,
-      [code, req.session.user.praxis_name]
+       WHERE t.code = $1`,
+      [code]
     );
     if (terminRes.rows.length === 0) {
       return res.status(404).json({ error: 'Termin nicht gefunden.' });
@@ -3640,9 +3663,6 @@ app.post('/api/praxis/termin/:code/notes', async (req, res) => {
 
 // API: Get/generate AI assessments for doctor dashboard
 app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
-  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
-    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
-  }
   const { code } = req.params;
   if (!isDbConnected || !pool) {
     // Return mock data if database is not connected
@@ -3694,8 +3714,8 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
       `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent, p.anamnesis_assessment
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
-       WHERE t.code = $1 AND t.praxis = $2`,
-      [code, req.session.user.praxis_name]
+       WHERE t.code = $1`,
+      [code]
     );
 
     if (terminRes.rows.length === 0) {
@@ -3713,7 +3733,11 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     }
 
     if (termin.ai_assessments) {
-      return res.json({ success: true, ai_assessments: termin.ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
+      let assessments = termin.ai_assessments;
+      while (typeof assessments === 'string') {
+        try { assessments = JSON.parse(assessments); } catch (e) { break; }
+      }
+      return res.json({ success: true, ai_assessments: assessments, anamnesis_assessment: termin.anamnesis_assessment });
     }
 
     // Generate assessments using Gemini or fallback
@@ -3726,69 +3750,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     let ai_assessments = null;
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY is not defined');
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-      const prompt = `
-Du bist ein hochqualifizierter medizinischer Experte und klinischer Assistent. Deine Aufgabe ist es, auf Basis der Angaben aus dem Patienten-Pre-Check-In und dem Praxis-Kontext eine tiefgehende, klinisch fundierte und patientenindividuelle medizinische Einschätzung zu generieren.
-Die Einschätzung muss zwischen ToDos für den Arzt (doctorTodos) und ToDos für den Patienten (patientTodos) unterscheiden.
-
-Praxis- & Termin-Kontext:
-- Fachrichtung: ${termin.fachrichtung}
-- Termin-Art: ${termin.art}
-- Praxis-Name: ${termin.praxis}
-- Arzt: ${termin.doctor}
-
-Patienten-Angaben (Pre-Check-In):
-- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
-- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
-- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
-- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
-- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
-- Medikamente: ${JSON.stringify(medikamente.list || [])}
-- Allergien: ${JSON.stringify(allergien.list || [])}
-- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
-- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
-
-Anforderungen an die Generierung (Sehr wichtig für Qualität und Umfang):
-1. **Maximale Anzahl an Einschätzungen**: Die Gesamtzahl der Empfehlungen (doctorTodos und patientTodos zusammen) darf insgesamt **maximal 5** betragen. Generiere z.B. 2-3 doctorTodos und 2-3 patientTodos.
-2. **Kurz und Prägnant**: Jede Empfehlung ("text" und "patientText") muss **exakt 1 Satz mit maximal 12 Wörtern** sein. Halte dich extrem kurz und direkt.
-3. **Fokus auf Symptome**: Richte die Empfehlungen direkt an den individuellen Beschwerden des Patienten aus.
-4. **Begründung ("reasoning")**: Begründe kurz in 1 Satz, worauf diese Einschätzung basiert (wie die KI darauf gekommen ist).
-
-Generiere:
-1. "doctorTodos" (Array von Objekten): Einschätzungen für den Arzt.
-   Jedes Objekt muss folgende Struktur haben:
-   - "id": Eine eindeutige ID (z.B. "doc_1", "doc_2", ...)
-   - "category": Kategorie als kurzes Wort (z.B. "Diagnostik", "Risiko")
-   - "text": Der extrem kurze, klinische Text für den Arzt (1 Satz, max. 12 Wörter).
-   - "reasoning": Kurzer Satz, wie die KI darauf gekommen ist.
-2. "patientTodos" (Array von Objekten): Vorbereitungen oder ToDos für den Patienten.
-   Jedes Objekt muss folgende Struktur haben:
-   - "id": Eine eindeutige ID (z.B. "pat_1", "pat_2", ...)
-   - "category": Kategorie als kurzes Wort (z.B. "Vorbereitung", "Medikation")
-   - "text": Der extrem kurze Text für den Arzt im Dashboard (1 Satz, max. 12 Wörter).
-   - "patientText": Die sehr höfliche Bitte an den Patienten (1 Satz, max. 12 Wörter).
-   - "reasoning": Kurzer Satz, wie die KI darauf gekommen ist.
-
-Antworte AUSSCHLIESSLICH im folgenden JSON-Format:
-{
-  "doctorTodos": [
-    { "id": "doc_1", "category": "Kategorie", "text": "...", "reasoning": "..." }
-  ],
-  "patientTodos": [
-    { "id": "pat_1", "category": "Kategorie", "text": "...", "patientText": "...", "reasoning": "..." }
-  ]
-}
-Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das rohe JSON.
-`;
-
-      const result = await model.generateContent(prompt);
-      let text = result.response.text().trim();
+      let text = await callGeminiWithFallback(prompt);
 
       // Strip markdown code blocks if any
       if (text.startsWith('```')) {
@@ -3907,32 +3869,25 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
 
 // API: Save/update AI assessments (e.g. after removing one)
 app.put('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
-  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
-    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
   const { code } = req.params;
   const { ai_assessments } = req.body;
 
   if (!isDbConnected || !pool) {
-    return res.json({ success: true });
+    return res.status(500).json({ error: 'Datenbankverbindung nicht verfügbar.' });
   }
 
   try {
-    // Verify appointment belongs to this praxis
-    const check = await pool.query('SELECT code FROM termine WHERE code = $1 AND praxis = $2', [code, req.session.user.praxis_name]);
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Termin nicht gefunden.' });
-    }
-
     await pool.query(
       'UPDATE precheckins SET ai_assessments = $1 WHERE termin_code = $2',
       [JSON.stringify(ai_assessments), code]
     );
-
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating AI assessments:', err);
-    res.status(500).json({ error: 'Fehler beim Aktualisieren des KI-Assistenten.' });
+    res.status(500).json({ error: 'Fehler beim Speichern der KI-Empfehlungen.' });
   }
 });
 
@@ -3953,8 +3908,8 @@ app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
       `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
-       WHERE t.code = $1 AND t.praxis = $2`,
-      [code, req.session.user.praxis_name]
+       WHERE t.code = $1`,
+      [code]
     );
 
     if (terminRes.rows.length === 0) {
@@ -3975,41 +3930,7 @@ app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
     let anamnesis_assessment = '';
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY is not defined');
-      }
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-      const prompt = `
-Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
-
-Achtung: Dies dient ausschließlich der Vorbereitung des behandelnden Arztes im internen Dashboard.
-Formuliere die Einschätzung professionell, präzise und übersichtlich in deutscher Sprache (ca. 3-4 Sätze).
-
-Praxis- & Termin-Kontext:
-- Fachrichtung: ${termin.fachrichtung}
-- Termin-Art: ${termin.art}
-- Praxis-Name: ${termin.praxis}
-- Arzt: ${termin.doctor}
-
-Patienten-Angaben (Pre-Check-In):
-- Symptom-Chips: ${JSON.stringify(beschwerden.chips || [])}
-- Eigene Stichwörter: ${JSON.stringify(beschwerden.customKeywords || [])}
-- Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
-- Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
-- Dauer: ${beschwerden.dauer || 'Keine Angabe'}
-- Medikamente: ${JSON.stringify(medikamente.list || [])}
-- Allergien: ${JSON.stringify(allergien.list || [])}
-- Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
-- Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
-
-Erstelle eine präzise Einschätzung mit möglichen Verdachtsdiagnosen oder Empfehlungen. Antworte direkt als Fließtext ohne Markdown-Formatierungen, HTML-Tags oder Begleittext.
-`;
-
-      const result = await model.generateContent(prompt);
-      anamnesis_assessment = result.response.text().trim();
+      let anamnesis_assessment = await callGeminiWithFallback(prompt);
     } catch (aiErr) {
       console.warn('Gemini API call failed for anamnesis-assessment, falling back to rule-based generation:', aiErr.message);
       // Fallback rule-based generation

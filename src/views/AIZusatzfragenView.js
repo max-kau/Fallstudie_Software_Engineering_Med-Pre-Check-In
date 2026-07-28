@@ -146,8 +146,12 @@ export function initAIZusatzfragenView() {
         return res.json();
       })
       .then(data => {
-        if (data.success && Array.isArray(data.questions)) {
-          store.set('aiQuestions', data.questions);
+        let qList = data.questions;
+        while (typeof qList === 'string') {
+          try { qList = JSON.parse(qList); } catch (e) { break; }
+        }
+        if (data.success && Array.isArray(qList)) {
+          store.set('aiQuestions', qList);
           const appEl = document.getElementById('app');
           if (appEl) {
             appEl.innerHTML = renderAIZusatzfragenView();

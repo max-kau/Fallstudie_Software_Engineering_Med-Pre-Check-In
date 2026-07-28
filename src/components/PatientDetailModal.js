@@ -11,6 +11,7 @@ function getDefaultHints() {
 }
 
 let currentActiveTab = 'patient';
+let currentAiAssessments = null;
 
 export function openPatientDetailModal(terminCode) {
   currentActiveTab = 'patient';
@@ -495,6 +496,9 @@ function attachDetailListeners(terminCode, existingNote, existingHints, sharedDo
       const activeEl = document.getElementById(`pdm-tab-content-${tabKey}`);
       if (activeEl) {
         activeEl.style.display = 'block';
+        if (tabKey === 'ai' && document.getElementById('ai-assessments-container')) {
+          fetchAiAssessments(terminCode);
+        }
       }
     });
   });
@@ -984,7 +988,11 @@ async function fetchAiAssessments(terminCode) {
       const diagSection = document.getElementById('anamnesis-assessment-section');
       if (diagSection) diagSection.style.display = 'none';
     } else if (data.success && data.ai_assessments) {
-      currentAiAssessments = data.ai_assessments;
+      let assessments = data.ai_assessments;
+      while (typeof assessments === 'string') {
+        try { assessments = JSON.parse(assessments); } catch (e) { break; }
+      }
+      currentAiAssessments = assessments;
       renderAiAssessments(terminCode);
 
       const diagSection = document.getElementById('anamnesis-assessment-section');
