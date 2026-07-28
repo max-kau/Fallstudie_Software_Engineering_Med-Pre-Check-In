@@ -987,7 +987,11 @@ async function fetchAiAssessments(terminCode) {
       const diagSection = document.getElementById('anamnesis-assessment-section');
       if (diagSection) diagSection.style.display = 'none';
     } else if (data.success && data.ai_assessments) {
-      currentAiAssessments = data.ai_assessments;
+      let assessments = data.ai_assessments;
+      if (typeof assessments === 'string') {
+        try { assessments = JSON.parse(assessments); } catch (e) {}
+      }
+      currentAiAssessments = assessments;
       renderAiAssessments(terminCode);
 
       const diagSection = document.getElementById('anamnesis-assessment-section');

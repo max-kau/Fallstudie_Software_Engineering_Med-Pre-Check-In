@@ -3710,7 +3710,11 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     }
 
     if (termin.ai_assessments) {
-      return res.json({ success: true, ai_assessments: termin.ai_assessments, anamnesis_assessment: termin.anamnesis_assessment });
+      let assessments = termin.ai_assessments;
+      if (typeof assessments === 'string') {
+        try { assessments = JSON.parse(assessments); } catch (e) {}
+      }
+      return res.json({ success: true, ai_assessments: assessments, anamnesis_assessment: termin.anamnesis_assessment });
     }
 
     // Generate assessments using Gemini or fallback
