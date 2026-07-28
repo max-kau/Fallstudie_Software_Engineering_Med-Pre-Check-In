@@ -3516,8 +3516,8 @@ setInterval(checkAndSendPostVisitNotifications, 10000);
 
 // API: Get detailed appointment info including patient profile, precheck, notes, hints
 app.get('/api/praxis/termin/:code/details', async (req, res) => {
-  if (!req.session || !req.session.userId || req.session.user?.role !== 'praxis') {
-    return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Nicht angemeldet.' });
   }
   const { code } = req.params;
   if (!isDbConnected || !pool) {
@@ -3531,8 +3531,8 @@ app.get('/api/praxis/termin/:code/details', async (req, res) => {
               p.document_confirmations, p.ai_questions, p.ai_assessments, p.ai_consent
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
-       WHERE t.code = $1 AND t.praxis = $2`,
-      [code, req.session.user.praxis_name]
+       WHERE t.code = $1`,
+      [code]
     );
     if (terminRes.rows.length === 0) {
       return res.status(404).json({ error: 'Termin nicht gefunden.' });
@@ -3711,8 +3711,8 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
 
     if (termin.ai_assessments) {
       let assessments = termin.ai_assessments;
-      if (typeof assessments === 'string') {
-        try { assessments = JSON.parse(assessments); } catch (e) {}
+      while (typeof assessments === 'string') {
+        try { assessments = JSON.parse(assessments); } catch (e) { break; }
       }
       return res.json({ success: true, ai_assessments: assessments, anamnesis_assessment: termin.anamnesis_assessment });
     }

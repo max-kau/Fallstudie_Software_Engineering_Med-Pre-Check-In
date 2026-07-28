@@ -988,8 +988,8 @@ async function fetchAiAssessments(terminCode) {
       if (diagSection) diagSection.style.display = 'none';
     } else if (data.success && data.ai_assessments) {
       let assessments = data.ai_assessments;
-      if (typeof assessments === 'string') {
-        try { assessments = JSON.parse(assessments); } catch (e) {}
+      while (typeof assessments === 'string') {
+        try { assessments = JSON.parse(assessments); } catch (e) { break; }
       }
       currentAiAssessments = assessments;
       renderAiAssessments(terminCode);
