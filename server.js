@@ -3640,9 +3640,6 @@ app.post('/api/praxis/termin/:code/notes', async (req, res) => {
 
 // API: Get/generate AI assessments for doctor dashboard
 app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ error: 'Nicht angemeldet.' });
-  }
   const { code } = req.params;
   if (!isDbConnected || !pool) {
     // Return mock data if database is not connected
