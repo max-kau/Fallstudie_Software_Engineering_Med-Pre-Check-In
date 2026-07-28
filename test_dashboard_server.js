@@ -171,10 +171,13 @@ function recordRun(runData) {
 
 loadHistory();
 
+export const testRouter = express.Router();
+
 // ─── API Endpoints ─────────────────────────────────────────────────────────────
 
 // Return metadata about available tests + feature areas
-app.get('/api/tests/suites', (req, res) => {
+testRouter.get('/api/tests/suites', (req, res) => {
+  TEST_SUITES = buildTestSuites();
   res.json({
     suites: TEST_SUITES,
     featureAreas: FEATURE_AREAS,
@@ -182,19 +185,19 @@ app.get('/api/tests/suites', (req, res) => {
 });
 
 // Return test run history
-app.get('/api/tests/history', (req, res) => {
+testRouter.get('/api/tests/history', (req, res) => {
   res.json(testHistory);
 });
 
 // Clear test run history
-app.delete('/api/tests/history/clear', (req, res) => {
+testRouter.delete('/api/tests/history/clear', (req, res) => {
   testHistory = [];
   saveHistory();
   res.json({ ok: true, message: 'History cleared.' });
 });
 
 // Run tests endpoint using Server-Sent Events (SSE) for real-time progress
-app.get('/api/tests/run', async (req, res) => {
+testRouter.get('/api/tests/run', async (req, res) => {
   const categoryFilter = req.query.category || 'all'; // 'all', 'unit', 'integration', 'e2e', or specific file
 
   let suitesToRun = [];
@@ -469,6 +472,8 @@ function runSingleSuite(suite) {
     });
   });
 }
+
+app.use(testRouter);
 
 // Serve dashboard HTML at root and aliases
 app.get(['/', '/test-dashboard', '/test-dashboard.html'], (req, res) => {

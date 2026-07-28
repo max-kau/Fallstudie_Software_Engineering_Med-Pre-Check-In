@@ -33,7 +33,7 @@ export function renderTestDashboardView() {
         </div>
 
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <a href="http://localhost:3030" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.08); color: #E2E8F0; border: 1px solid rgba(255,255,255,0.2); font-size: 0.8rem; text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; transition: all 0.2s ease;">
+          <a href="/test-dashboard.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.08); color: #E2E8F0; border: 1px solid rgba(255,255,255,0.2); font-size: 0.8rem; text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; transition: all 0.2s ease;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             ${t('test.open_tab')}
           </a>

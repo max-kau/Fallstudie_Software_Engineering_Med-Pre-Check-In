@@ -9,6 +9,7 @@ import session from 'express-session';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { testRouter } from './test_dashboard_server.js';
 
 dotenv.config();
 
@@ -5043,6 +5044,7 @@ async function sendEarlyRequestEmail(email, appointment, praxisName, earlyMinute
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+app.use(testRouter);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'dist')));
 
