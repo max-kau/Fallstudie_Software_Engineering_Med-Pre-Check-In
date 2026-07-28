@@ -4580,9 +4580,6 @@ function isTerminToday(dateVal) {
 
 // API: Get queue status for a praxis (today only)
 app.get('/api/queue/:praxisName', async (req, res) => {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ error: 'Nicht angemeldet.' });
-  }
   const { praxisName } = req.params;
   const decodedPraxisName = decodeURIComponent(praxisName);
 
