@@ -2553,9 +2553,12 @@ app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) =
 
     const precheck = precheckRes.rows[0];
 
-    // 2. If ai_questions is already generated and non-empty, return it!
-    if (precheck.ai_questions && Array.isArray(precheck.ai_questions) && precheck.ai_questions.length > 0) {
-      return res.json({ success: true, questions: precheck.ai_questions });
+    let existingQuestions = precheck.ai_questions;
+    while (typeof existingQuestions === 'string') {
+      try { existingQuestions = JSON.parse(existingQuestions); } catch (e) { break; }
+    }
+    if (existingQuestions && Array.isArray(existingQuestions) && existingQuestions.length > 0) {
+      return res.json({ success: true, questions: existingQuestions });
     }
 
     // 3. Otherwise, generate questions!
