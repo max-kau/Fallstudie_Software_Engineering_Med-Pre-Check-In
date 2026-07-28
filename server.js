@@ -2570,7 +2570,7 @@ app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) =
       const apiKey = process.env.GEMINI_API_KEY;
       const genAI = new GoogleGenerativeAI(apiKey);
       // As requested, using the flash model
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
       const prompt = `
 Du bist ein erfahrener medizinischer Assistent. Deine Aufgabe ist es, für einen Patienten, der einen Pre-Check-In ausfüllt, genau 2 bis 3 gezielte, medizinisch sinnvolle und nachvollziehbare Folgefragen (Anamnese-Fragen) zu generieren.
@@ -3694,8 +3694,8 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
       `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions, p.ai_assessments, p.ai_consent, p.anamnesis_assessment
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
-       WHERE t.code = $1 AND t.praxis = $2`,
-      [code, req.session.user.praxis_name]
+       WHERE t.code = $1`,
+      [code]
     );
 
     if (terminRes.rows.length === 0) {
@@ -3731,7 +3731,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
         throw new Error('GEMINI_API_KEY is not defined');
       }
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
       const prompt = `
 Du bist ein hochqualifizierter medizinischer Experte und klinischer Assistent. Deine Aufgabe ist es, auf Basis der Angaben aus dem Patienten-Pre-Check-In und dem Praxis-Kontext eine tiefgehende, klinisch fundierte und patientenindividuelle medizinische Einschätzung zu generieren.
@@ -3953,8 +3953,8 @@ app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
       `SELECT t.*, p.submitted, p.beschwerden, p.medikamente, p.allergien, p.custom_answers, p.ai_questions
        FROM termine t
        LEFT JOIN precheckins p ON t.code = p.termin_code
-       WHERE t.code = $1 AND t.praxis = $2`,
-      [code, req.session.user.praxis_name]
+       WHERE t.code = $1`,
+      [code]
     );
 
     if (terminRes.rows.length === 0) {
@@ -3980,7 +3980,7 @@ app.post('/api/praxis/termin/:code/anamnesis-assessment', async (req, res) => {
         throw new Error('GEMINI_API_KEY is not defined');
       }
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
       const prompt = `
 Du bist ein hochqualifizierter klinischer Assistent. Deine Aufgabe ist es, basierend auf den Angaben aus dem Patienten-Pre-Check-In eine fundierte medizinische Verdachtseinschätzung zu erstellen, was der Patient haben könnte (Differenzialdiagnosen, mögliche Ursachen).
