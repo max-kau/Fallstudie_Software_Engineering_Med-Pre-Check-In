@@ -627,15 +627,19 @@ export async function initPraxisDashboardView() {
 
       rows.forEach(item => {
         const minUnit = t('create_appt.min_abbr', 'Min.');
-        const trendBadge = item.diff > 2
-          ? `<span style="background: #FEE2E2; color: #DC2626; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔴 +${item.diff} ${minUnit}</span>`
-          : (item.diff < -2
-            ? `<span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔵 ${item.diff} ${minUnit}</span>`
-            : `<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🟢 ${t('praxis.on_target', 'Im Soll')}</span>`);
+        const hasData = item.sampleCount > 0;
+        const trendBadge = !hasData
+          ? `<span style="background: var(--bg-gray); color: var(--gray-500); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">– Keine Daten</span>`
+          : (item.diff > 2
+            ? `<span style="background: #FEE2E2; color: #DC2626; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔴 +${item.diff} ${minUnit}</span>`
+            : (item.diff < -2
+              ? `<span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🔵 ${item.diff} ${minUnit}</span>`
+              : `<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;">🟢 ${t('praxis.on_target', 'Im Soll')}</span>`));
 
         const manualTdBg = !item.useAuto ? 'background: #FEF3C7; font-weight: 700;' : '';
-        const avgTdBg = item.useAuto ? 'background: #E8F4FD; font-weight: 700; color: #0063BE;' : '';
+        const avgTdBg = item.useAuto && hasData ? 'background: #E8F4FD; font-weight: 700; color: #0063BE;' : '';
         const artDisplay = t('appt_type.' + item.art, item.art);
+        const avgDisplay = hasData ? `${item.calculatedAvg} ${minUnit}` : '–';
 
         html += `
           <tr style="border-bottom: 1px solid var(--gray-100);">
@@ -646,7 +650,7 @@ export async function initPraxisDashboardView() {
                 <span style="color: var(--gray-700); font-size: 12px; font-weight: 600;">${minUnit}</span>
               </div>
             </td>
-            <td style="padding: var(--space-3) var(--space-4); ${avgTdBg}">${item.calculatedAvg} ${minUnit}</td>
+            <td style="padding: var(--space-3) var(--space-4); ${avgTdBg}">${avgDisplay}</td>
             <td style="padding: var(--space-3) var(--space-4); color: var(--gray-600); font-size: 12px;">${item.sampleCount} ${t('praxis.treatments_count', 'Behandlungen')}</td>
             <td style="padding: var(--space-3) var(--space-4);">${trendBadge}</td>
             <td style="padding: var(--space-3) var(--space-4); text-align: center;">
