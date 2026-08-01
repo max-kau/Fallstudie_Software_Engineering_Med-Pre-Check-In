@@ -4519,7 +4519,7 @@ async function getEffectiveDurationForArt(praxisName, art) {
 
 // API: Get treatment duration analysis for a praxis
 app.get('/api/praxis/terminarten/analyse', async (req, res) => {
-  const praxisName = req.session.user?.praxis_name || req.query.praxis || '';
+  const praxisName = req.session.user?.praxis_name || req.query.praxis || 'Zahnarztpraxis Dr. Müller';
   const analysis = await calculateTerminartAnalysis(praxisName);
   res.json({ success: true, analysis });
 });
