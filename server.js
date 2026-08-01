@@ -4411,16 +4411,21 @@ const DEFAULT_TERMINART_STANDARDS = {
 
 // In-memory store for completed treatments & active timers
 let treatmentHistoryStore = [
-  { praxisName: 'all', art: 'Routineuntersuchung', durationMinutes: 14, timestamp: new Date(Date.now() - 36000000).toISOString() },
-  { praxisName: 'all', art: 'Routineuntersuchung', durationMinutes: 15, timestamp: new Date(Date.now() - 32000000).toISOString() },
-  { praxisName: 'all', art: 'Routineuntersuchung', durationMinutes: 13, timestamp: new Date(Date.now() - 28000000).toISOString() },
-  { praxisName: 'all', art: 'Erstgespräch', durationMinutes: 28, timestamp: new Date(Date.now() - 24000000).toISOString() },
-  { praxisName: 'all', art: 'Erstgespräch', durationMinutes: 32, timestamp: new Date(Date.now() - 20000000).toISOString() },
-  { praxisName: 'all', art: 'Erstgespräch', durationMinutes: 26, timestamp: new Date(Date.now() - 16000000).toISOString() },
-  { praxisName: 'all', art: 'Akutbeschwerden', durationMinutes: 12, timestamp: new Date(Date.now() - 12000000).toISOString() },
-  { praxisName: 'all', art: 'Akutbeschwerden', durationMinutes: 11, timestamp: new Date(Date.now() - 8000000).toISOString() },
-  { praxisName: 'all', art: 'Besprechung', durationMinutes: 22, timestamp: new Date(Date.now() - 4000000).toISOString() },
-  { praxisName: 'all', art: 'Besprechung', durationMinutes: 24, timestamp: new Date(Date.now() - 2000000).toISOString() }
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 18, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 20, timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 19, timestamp: new Date(Date.now() - 86400000 * 1).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 28, timestamp: new Date(Date.now() - 86400000 * 4).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 32, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 30, timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 14, timestamp: new Date(Date.now() - 86400000 * 5).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 16, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 15, timestamp: new Date(Date.now() - 86400000 * 1).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 22, timestamp: new Date(Date.now() - 86400000 * 4).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 25, timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 38, timestamp: new Date(Date.now() - 86400000 * 5).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 42, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 19, timestamp: new Date(Date.now() - 86400000 * 4).toISOString() },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 21, timestamp: new Date(Date.now() - 86400000 * 1).toISOString() }
 ];
 
 let activeTreatmentTimers = {}; // { terminCode: startTimeMs }
@@ -4445,27 +4450,26 @@ function calculateTerminartAnalysis(praxisName) {
   for (const art of allArts) {
     const settings = getPraxisSettings(praxisName, art);
     const entries = treatmentHistoryStore.filter(e => 
-      e.art === art && (e.praxisName === 'all' || !praxisName || e.praxisName === praxisName) &&
+      e.art === art && e.praxisName === praxisName &&
       e.durationMinutes >= 2 && e.durationMinutes <= 120
     );
 
     const sampleCount = entries.length;
-    let calculatedAvg = DEFAULT_TERMINART_STANDARDS[art]?.defaultAvg || settings.manualDuration;
-    if (sampleCount > 0) {
-      const sum = entries.reduce((acc, curr) => acc + curr.durationMinutes, 0);
-      calculatedAvg = Math.round(sum / sampleCount);
-    }
-
+    let calculatedAvg = sampleCount > 0 
+      ? Math.round(entries.reduce((acc, curr) => acc + curr.durationMinutes, 0) / sampleCount)
+      : settings.manualDuration;
     const effectiveDuration = settings.useAuto ? calculatedAvg : settings.manualDuration;
-    const diff = calculatedAvg - settings.manualDuration;
+    const diff = sampleCount > 0 ? calculatedAvg - settings.manualDuration : 0;
     let statusTrend = 'neutral';
-    if (diff > 2) statusTrend = 'higher';
-    else if (diff < -2) statusTrend = 'lower';
+    if (sampleCount > 0) {
+      if (diff > 2) statusTrend = 'higher';
+      else if (diff < -2) statusTrend = 'lower';
+    }
 
     result.push({
       art,
       manualDuration: settings.manualDuration,
-      calculatedAvg,
+      calculatedAvg: sampleCount > 0 ? calculatedAvg : settings.manualDuration,
       sampleCount,
       useAuto: settings.useAuto,
       effectiveDuration,
@@ -4482,7 +4486,7 @@ function getEffectiveDurationForArt(praxisName, art) {
   if (!settings.useAuto) return settings.manualDuration;
   
   const entries = treatmentHistoryStore.filter(e => 
-    e.art === art && (e.praxisName === 'all' || !praxisName || e.praxisName === praxisName) &&
+    e.art === art && e.praxisName === praxisName &&
     e.durationMinutes >= 2 && e.durationMinutes <= 120
   );
   if (entries.length === 0) {
