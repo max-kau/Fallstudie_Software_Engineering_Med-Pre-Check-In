@@ -4411,21 +4411,21 @@ const DEFAULT_TERMINART_STANDARDS = {
 
 // In-memory store for completed treatments & active timers
 let treatmentHistoryStore = [
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 18, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 20, timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 19, timestamp: new Date(Date.now() - 86400000 * 1).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 28, timestamp: new Date(Date.now() - 86400000 * 4).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 32, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 30, timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 14, timestamp: new Date(Date.now() - 86400000 * 5).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 16, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 15, timestamp: new Date(Date.now() - 86400000 * 1).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 22, timestamp: new Date(Date.now() - 86400000 * 4).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 25, timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 38, timestamp: new Date(Date.now() - 86400000 * 5).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 42, timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 19, timestamp: new Date(Date.now() - 86400000 * 4).toISOString() },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 21, timestamp: new Date(Date.now() - 86400000 * 1).toISOString() }
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 18, timestamp: '2026-07-27T09:18:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 20, timestamp: '2026-07-29T10:20:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 19, timestamp: '2026-07-30T09:49:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 28, timestamp: '2026-07-27T10:28:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 32, timestamp: '2026-07-28T11:32:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 30, timestamp: '2026-07-30T13:30:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 14, timestamp: '2026-07-28T14:14:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 16, timestamp: '2026-07-29T15:16:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 15, timestamp: '2026-07-30T16:15:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 22, timestamp: '2026-07-28T08:52:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 25, timestamp: '2026-07-31T08:25:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 38, timestamp: '2026-07-29T11:38:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 42, timestamp: '2026-07-31T11:12:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 19, timestamp: '2026-07-29T15:19:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 21, timestamp: '2026-07-31T14:51:00.000Z' }
 ];
 
 let activeTreatmentTimers = {}; // { terminCode: startTimeMs }
