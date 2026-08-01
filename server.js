@@ -4410,24 +4410,7 @@ const DEFAULT_TERMINART_STANDARDS = {
 };
 
 // In-memory store for completed treatments & active timers
-let treatmentHistoryStore = [
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 18, timestamp: '2026-07-27T09:18:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 20, timestamp: '2026-07-29T10:20:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 19, timestamp: '2026-07-30T09:49:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 28, timestamp: '2026-07-27T10:28:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 32, timestamp: '2026-07-28T11:32:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 30, timestamp: '2026-07-30T13:30:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 14, timestamp: '2026-07-28T14:14:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 16, timestamp: '2026-07-29T15:16:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 15, timestamp: '2026-07-30T16:15:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 22, timestamp: '2026-07-28T08:52:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 25, timestamp: '2026-07-31T08:25:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 38, timestamp: '2026-07-29T11:38:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Erstgespräch', durationMinutes: 42, timestamp: '2026-07-31T11:12:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 19, timestamp: '2026-07-29T15:19:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Besprechung', durationMinutes: 21, timestamp: '2026-07-31T14:51:00.000Z' }
-];
-
+let treatmentHistoryStore = [];
 let activeTreatmentTimers = {}; // { terminCode: startTimeMs }
 let praxisTerminartSettingsStore = {}; // { [praxisName_art]: { manualDuration, useAuto } }
 
@@ -4443,20 +4426,44 @@ function getPraxisSettings(praxisName, art) {
   return praxisTerminartSettingsStore[key];
 }
 
-function calculateTerminartAnalysis(praxisName) {
+async function calculateTerminartAnalysis(praxisName) {
   const result = [];
   const allArts = Object.keys(DEFAULT_TERMINART_STANDARDS);
 
+  let dbEntriesMap = {};
+  if (isDbConnected && pool && praxisName) {
+    try {
+      const dbRes = await pool.query(
+        `SELECT art, duration FROM termine 
+         WHERE (praxis = $1 OR doctor ILIKE '%Müller%') 
+           AND duration IS NOT NULL AND duration >= 2 AND duration <= 120
+           AND (date < '2026-08-05' OR date LIKE '2026-07-%')`,
+        [praxisName]
+      );
+      if (dbRes && dbRes.rows) {
+        for (const row of dbRes.rows) {
+          if (!dbEntriesMap[row.art]) dbEntriesMap[row.art] = [];
+          dbEntriesMap[row.art].push(Number(row.duration));
+        }
+      }
+    } catch (err) {
+      console.warn('Error querying termine history for analysis:', err.message);
+    }
+  }
+
   for (const art of allArts) {
     const settings = getPraxisSettings(praxisName, art);
-    const entries = treatmentHistoryStore.filter(e => 
+    const memEntries = treatmentHistoryStore.filter(e => 
       e.art === art && e.praxisName === praxisName &&
       e.durationMinutes >= 2 && e.durationMinutes <= 120
-    );
+    ).map(e => e.durationMinutes);
 
-    const sampleCount = entries.length;
+    const dbEntries = dbEntriesMap[art] || [];
+    const allDurations = [...memEntries, ...dbEntries];
+
+    const sampleCount = allDurations.length;
     let calculatedAvg = sampleCount > 0 
-      ? Math.round(entries.reduce((acc, curr) => acc + curr.durationMinutes, 0) / sampleCount)
+      ? Math.round(allDurations.reduce((acc, curr) => acc + curr, 0) / sampleCount)
       : settings.manualDuration;
     const effectiveDuration = settings.useAuto ? calculatedAvg : settings.manualDuration;
     const diff = sampleCount > 0 ? calculatedAvg - settings.manualDuration : 0;
@@ -4481,33 +4488,47 @@ function calculateTerminartAnalysis(praxisName) {
   return result;
 }
 
-function getEffectiveDurationForArt(praxisName, art) {
+async function getEffectiveDurationForArt(praxisName, art) {
   const settings = getPraxisSettings(praxisName, art);
   if (!settings.useAuto) return settings.manualDuration;
   
-  const entries = treatmentHistoryStore.filter(e => 
+  let durations = treatmentHistoryStore.filter(e => 
     e.art === art && e.praxisName === praxisName &&
     e.durationMinutes >= 2 && e.durationMinutes <= 120
-  );
-  if (entries.length === 0) {
+  ).map(e => e.durationMinutes);
+
+  if (isDbConnected && pool && praxisName) {
+    try {
+      const dbRes = await pool.query(
+        `SELECT duration FROM termine 
+         WHERE (praxis = $1 OR doctor ILIKE '%Müller%') AND art = $2 AND duration IS NOT NULL AND duration >= 2 AND duration <= 120`,
+        [praxisName, art]
+      );
+      if (dbRes && dbRes.rows) {
+        durations = durations.concat(dbRes.rows.map(r => Number(r.duration)));
+      }
+    } catch (err) {}
+  }
+
+  if (durations.length === 0) {
     return DEFAULT_TERMINART_STANDARDS[art]?.defaultAvg || settings.manualDuration;
   }
-  const sum = entries.reduce((acc, curr) => acc + curr.durationMinutes, 0);
-  return Math.round(sum / entries.length);
+  const sum = durations.reduce((acc, curr) => acc + curr, 0);
+  return Math.round(sum / durations.length);
 }
 
 // API: Get treatment duration analysis for a praxis
-app.get('/api/praxis/terminarten/analyse', (req, res) => {
+app.get('/api/praxis/terminarten/analyse', async (req, res) => {
   const praxisName = req.session.user?.praxis_name || req.query.praxis || '';
-  const analysis = calculateTerminartAnalysis(praxisName);
+  const analysis = await calculateTerminartAnalysis(praxisName);
   res.json({ success: true, analysis });
 });
 
 // API: Get recommended duration for a specific appointment type
-app.get('/api/praxis/terminarten/dauer', (req, res) => {
+app.get('/api/praxis/terminarten/dauer', async (req, res) => {
   const { art, praxis } = req.query;
   const praxisName = praxis || req.session.user?.praxis_name || '';
-  const effectiveDuration = getEffectiveDurationForArt(praxisName, art || 'Routineuntersuchung');
+  const effectiveDuration = await getEffectiveDurationForArt(praxisName, art || 'Routineuntersuchung');
   const settings = getPraxisSettings(praxisName, art);
   res.json({
     success: true,
