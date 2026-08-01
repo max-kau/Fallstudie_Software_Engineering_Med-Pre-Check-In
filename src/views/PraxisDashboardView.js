@@ -50,9 +50,6 @@ export function renderPraxisDashboardView() {
           <button id="tab-dashboard-zeiten" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             ⏱️ ${t('praxis.tab_treatment_times')}
           </button>
-          <button id="tab-dashboard-activity" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
-            📜 ${t('praxis.tab_activity_log')}
-          </button>
           <button id="tab-dashboard-gestaltung" class="dashboard-tab" style="background: none; border: none; font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-500); border-bottom: 3px solid transparent; padding: var(--space-2) var(--space-3); cursor: pointer; transition: all 0.15s; margin-bottom: -3px; white-space: nowrap; flex: 1; text-align: center; min-width: max-content;">
             🎨 ${t('praxis.tab_design')}
           </button>
@@ -70,6 +67,23 @@ export function renderPraxisDashboardView() {
             <div style="text-align: center; padding: var(--space-8) 0;">
               <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
               <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
+            </div>
+          </div>
+
+          <!-- Aktivitätsprotokoll Filter Bar -->
+          <div class="fade-in-up" style="background: white; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); padding: var(--space-4) var(--space-5); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6); display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center;">
+            <div style="flex: 1; min-width: 200px;">
+              <label for="termine-search-patient" style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Patient / Code suchen</label>
+              <input type="text" id="termine-search-patient" placeholder="🔍 Nach Name, Code oder Art suchen..." style="width: 100%; padding: 7px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 13px; background: white;">
+            </div>
+            <div style="min-width: 170px;">
+              <label for="termine-search-date" style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">Nach Datum filtern</label>
+              <input type="date" id="termine-search-date" style="width: 100%; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 13px; background: white; cursor: pointer;">
+            </div>
+            <div style="display: flex; align-items: flex-end; padding-top: 18px;">
+              <button id="btn-reset-termine-search" class="btn btn-outline" style="padding: 7px 14px; font-size: 12px; border-radius: var(--radius-md); cursor: pointer; display: none; white-space: nowrap;">
+                ✕ Filter zurücksetzen
+              </button>
             </div>
           </div>
 
@@ -91,79 +105,6 @@ export function renderPraxisDashboardView() {
             </p>
 
             <div id="praxis-duration-analysis-container">
-              <div style="text-align: center; padding: var(--space-6) 0;">
-                <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
-                <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab Content: Aktivitätslog -->
-        <div id="tab-content-activity" class="dashboard-tab-content" style="display: none;">
-          <div class="dl-profile-card fade-in-up" style="background: white; border-radius: var(--radius-xl); padding: var(--space-6); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
-              <div>
-                <h2 style="font-size: var(--font-size-lg); font-weight: 800; color: var(--gray-800); margin-bottom: var(--space-1); display: flex; align-items: center; gap: 8px;">
-                  📜 ${t('praxis.activity_title')}
-                </h2>
-                <p class="text-muted" style="font-size: var(--font-size-sm); margin: 0; line-height: 1.5;">
-                  ${t('praxis.activity_subtitle')}
-                </p>
-              </div>
-              <button id="btn-open-manual-log-modal" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); font-size: var(--font-size-xs); font-weight: 700; border-radius: var(--radius-md); cursor: pointer;">
-                ➕ ${t('praxis.add_manual_entry')}
-              </button>
-            </div>
-
-            <!-- Filter & Search Controls -->
-            <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-6); flex-wrap: wrap; align-items: center; background: var(--bg-gray); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
-              <input type="text" id="activity-log-search" placeholder="🔍 ${t('praxis.search_placeholder')}" style="flex: 1; min-width: 200px; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px;">
-              <select id="activity-log-filter-status" style="padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px; background: white; cursor: pointer;">
-                <option value="all">${t('praxis.filter_all_status')}</option>
-                <option value="erschienen">✓ ${t('status.appeared')}</option>
-                <option value="in_treatment">🩺 ${t('status.in_treatment')}</option>
-                <option value="abgesagt">❌ ${t('status.cancelled')}</option>
-                <option value="verzögert">⏱️ ${t('status.delayed')}</option>
-                <option value="verschoben">📅 ${t('status.rescheduled')}</option>
-              </select>
-            </div>
-
-            <!-- Modal for manual log entry (hidden by default) -->
-            <div id="manual-log-modal-container" style="display: none; background: #F8FAFC; border: 1px solid var(--gray-300); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-6);">
-              <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800);">${t('praxis.manual_log_title')}</h4>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3);">
-                <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.patient_id_label')}</label>
-                  <input type="text" id="manual-log-patient" placeholder="${t('praxis.patient_id_placeholder')}" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
-                </div>
-                <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.code_label')}</label>
-                  <input type="text" id="manual-log-code" placeholder="z. B. ABC1234" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
-                </div>
-                <div>
-                  <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.status')} *</label>
-                  <select id="manual-log-status" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px; background: white;">
-                    <option value="erschienen">✓ ${t('status.appeared')}</option>
-                    <option value="in_treatment">🩺 ${t('status.in_treatment')}</option>
-                    <option value="abgesagt">❌ ${t('status.cancelled')}</option>
-                    <option value="verzögert">⏱️ ${t('status.delayed')}</option>
-                    <option value="verschoben">📅 ${t('status.rescheduled')}</option>
-                  </select>
-                </div>
-              </div>
-              <div style="margin-bottom: var(--space-3);">
-                <label style="font-size: 11px; font-weight: 700; color: var(--gray-600); display: block; margin-bottom: 4px;">${t('praxis.action_note_label')}</label>
-                <input type="text" id="manual-log-action" placeholder="${t('praxis.action_note_placeholder')}" style="width: 100%; padding: 6px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 12px;">
-              </div>
-              <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
-                <button id="btn-cancel-manual-log" class="btn btn-outline" style="padding: 4px 12px; font-size: 12px;">${t('common.cancel')}</button>
-                <button id="btn-save-manual-log" class="btn btn-primary" style="padding: 4px 12px; font-size: 12px;">${t('common.save')}</button>
-              </div>
-            </div>
-
-            <!-- Activity Logs Table Container -->
-            <div id="praxis-activity-logs-container">
               <div style="text-align: center; padding: var(--space-6) 0;">
                 <div class="dl-auth-spinner" style="display: inline-block; width: 32px; height: 32px; border-width: 3px;"></div>
                 <p class="text-muted" style="margin-top: var(--space-3); font-size: var(--font-size-sm);">${t('common.loading')}</p>
@@ -285,8 +226,8 @@ function renderTermineTable(termine) {
   return `
     <div class="fade-in-up" style="background: white; border-radius: var(--radius-xl); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); overflow: hidden;">
       <div style="padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--gray-100); display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 0;">${t('praxis.appts_overview', 'Terminübersicht')}</h2>
-        <span style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-400); text-transform: uppercase;">${termine.length} ${t('praxis.appts_count', 'Termine')}</span>
+        <h2 style="font-size: var(--font-size-lg); font-weight: 700; color: var(--gray-800); margin: 0;">📜 ${t('praxis.activity_log', 'Aktivitätsprotokoll')}</h2>
+        <span style="font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-400); text-transform: uppercase;">${termine.length} ${t('praxis.appts_count', 'Einträge')}</span>
       </div>
       <div style="overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse; font-size: var(--font-size-sm);">
@@ -429,12 +370,11 @@ export async function initPraxisDashboardView() {
     navigate('live-queue');
   });
 
-  // Tab switching logic for 5 tabs
+  // Tab switching logic for 4 tabs
   const tabs = [
     { btn: 'tab-dashboard-kalender', content: 'tab-content-kalender' },
     { btn: 'tab-dashboard-termine', content: 'tab-content-termine' },
     { btn: 'tab-dashboard-zeiten', content: 'tab-content-zeiten' },
-    { btn: 'tab-dashboard-activity', content: 'tab-content-activity' },
     { btn: 'tab-dashboard-gestaltung', content: 'tab-content-gestaltung' }
   ];
 
@@ -449,8 +389,6 @@ export async function initPraxisDashboardView() {
           if (c) c.style.display = 'block';
           if (t.btn === 'tab-dashboard-zeiten') {
             loadDurationAnalysis();
-          } else if (t.btn === 'tab-dashboard-activity') {
-            loadActivityLogs();
           }
         } else {
           b?.classList.remove('active');
@@ -778,6 +716,67 @@ export async function initPraxisDashboardView() {
 
   let termineData = [];
 
+  function filterAndRenderTermine() {
+    const searchVal = (document.getElementById('termine-search-patient')?.value || '').toLowerCase().trim();
+    const dateVal = document.getElementById('termine-search-date')?.value || '';
+    const resetBtn = document.getElementById('btn-reset-termine-search');
+
+    if (resetBtn) {
+      resetBtn.style.display = (searchVal || dateVal) ? 'inline-block' : 'none';
+    }
+
+    const filtered = termineData.filter(tItem => {
+      const vorname = (tItem.patient_vorname || '').toLowerCase();
+      const nachname = (tItem.patient_nachname || '').toLowerCase();
+      const fullName = `${vorname} ${nachname}`.trim();
+      const code = (tItem.code || '').toLowerCase();
+      const art = (tItem.art || '').toLowerCase();
+
+      const matchesSearch = !searchVal || fullName.includes(searchVal) || vorname.includes(searchVal) || nachname.includes(searchVal) || code.includes(searchVal) || art.includes(searchVal);
+
+      let matchesDate = true;
+      if (dateVal) {
+        const itemDateStr = String(tItem.date || '').trim();
+        if (itemDateStr.includes(dateVal)) {
+          matchesDate = true;
+        } else {
+          const parts = dateVal.split('-');
+          if (parts.length === 3) {
+            const [yyyy, mm, dd] = parts;
+            const GermanFormat = `${dd}.${mm}.${yyyy}`;
+            const GermanShort = `${parseInt(dd, 10)}.${parseInt(mm, 10)}.`;
+            matchesDate = itemDateStr.includes(GermanFormat) || itemDateStr.includes(GermanShort);
+          } else {
+            matchesDate = false;
+          }
+        }
+      }
+
+      return matchesSearch && matchesDate;
+    });
+
+    if (termineContainer) {
+      termineContainer.innerHTML = renderTermineTable(filtered);
+      termineContainer.querySelectorAll('.btn-view-details').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const code = btn.dataset.code;
+          if (code) openPatientDetailModal(code);
+        });
+      });
+    }
+  }
+
+  document.getElementById('termine-search-patient')?.addEventListener('input', filterAndRenderTermine);
+  document.getElementById('termine-search-date')?.addEventListener('change', filterAndRenderTermine);
+  document.getElementById('termine-search-date')?.addEventListener('input', filterAndRenderTermine);
+  document.getElementById('btn-reset-termine-search')?.addEventListener('click', () => {
+    const patientInput = document.getElementById('termine-search-patient');
+    const dateInput = document.getElementById('termine-search-date');
+    if (patientInput) patientInput.value = '';
+    if (dateInput) dateInput.value = '';
+    filterAndRenderTermine();
+  });
+
   // Load stats
   try {
     const statsRes = await fetch('/api/praxis/stats');
@@ -796,16 +795,8 @@ export async function initPraxisDashboardView() {
     if (data.success) {
       termineData = data.termine || [];
       
-      // Render table in Statistik tab
-      termineContainer.innerHTML = renderTermineTable(termineData);
-
-      // Attach click handlers for table "Details" buttons
-      termineContainer.querySelectorAll('.btn-view-details').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const code = btn.dataset.code;
-          if (code) openPatientDetailModal(code);
-        });
-      });
+      // Render table in Statistik tab with filters
+      filterAndRenderTermine();
 
       // Load buffer times
       let bufferTimes = [];

@@ -4,4 +4,4 @@ node_modules/
 dist/
 test-results/
 test_history.json
-
+.vite/

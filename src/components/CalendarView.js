@@ -1068,10 +1068,10 @@ export function initCalendarView(appointments, onAppointmentClick, openingHours,
       btn.disabled = true;
       btn.textContent = 'Wird gesendet...';
       try {
-        await fetch(`/api/praxis/termin/${appt.code}/delay-notify`, {
+        await fetch(`/api/queue/${appt.code}/delay`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ delay_minutes: delayMin })
+          body: JSON.stringify({ delay_minutes: delayMin, reason: 'Verzögerung durch vorherigen Termin' })
         });
         btn.textContent = '✓ Gesendet';
         btn.style.background = '#059669';
