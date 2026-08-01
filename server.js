@@ -4845,6 +4845,13 @@ app.post('/api/queue/:terminCode/delay', async (req, res) => {
   }
 });
 
+// Endpoint alias for delay notification from calendar view
+app.post('/api/praxis/termin/:code/delay-notify', async (req, res) => {
+  req.params.terminCode = req.params.code;
+  req.body.reason = req.body.reason || 'Verspätung durch vorherigen Termin (Kalenderanpassung)';
+  return app._router.handle({ ...req, url: `/api/queue/${req.params.code}/delay` }, res);
+});
+
 // API: Get Activity Logs for Praxis (Strictly scoped by praxis, auto-purges >90 days)
 app.get('/api/praxis/activity-logs', async (req, res) => {
   const isPraxis = req.session?.userId && req.session?.user?.role === 'praxis';
