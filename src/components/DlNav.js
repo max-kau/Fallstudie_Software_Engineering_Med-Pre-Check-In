@@ -1,5 +1,5 @@
 import { auth } from '../utils/auth.js';
-import { navigate } from '../utils/router.js';
+import { navigate, handleRoute } from '../utils/router.js';
 import { t, getLanguage, setLanguage } from '../utils/i18n.js';
 
 export function renderDlNav() {
@@ -165,11 +165,13 @@ export function initDlNav() {
     }
 
     // Logout button in dropdown
-    newWrapper.querySelector('#btn-menu-logout')?.addEventListener('click', async () => {
+    newWrapper.querySelector('#btn-menu-logout')?.addEventListener('click', async (e) => {
+      e.preventDefault();
       await auth.logout();
       // Remove profile modal from DOM
       document.getElementById('profile-modal')?.remove();
       navigate('home');
+      handleRoute();
     });
 
     // Appointments / Dashboard button in dropdown

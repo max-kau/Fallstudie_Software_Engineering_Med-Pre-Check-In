@@ -105,8 +105,12 @@ window.addEventListener('viewChanged', (e) => {
 // Start the app
 initRouter();
 
-// Re-render view on language change
+// Re-render view on language or auth change
 window.addEventListener('languageChanged', () => {
+  handleRoute();
+});
+
+window.addEventListener('authChanged', () => {
   handleRoute();
 });
 
