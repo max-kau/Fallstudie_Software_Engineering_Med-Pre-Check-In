@@ -434,7 +434,7 @@ function markConflicts(appointments, bufferTimes = []) {
   for (const appt of appointments) {
     const d = parseGermanDate(appt.date);
     if (!d) continue;
-    const key = d.toISOString().slice(0, 10);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!byDate[key]) byDate[key] = [];
     byDate[key].push(appt);
   }
