@@ -4508,8 +4508,8 @@ const DEFAULT_TERMINART_STANDARDS = {
 let treatmentHistoryStore = [
   { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 11, timestamp: '2026-07-27T09:18:00.000Z' },
   { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 13, timestamp: '2026-07-30T09:49:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 14, timestamp: '2026-07-27T10:28:00.000Z' },
-  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Allgemeine Untersuchung', durationMinutes: 16, timestamp: '2026-07-30T13:30:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 11, timestamp: '2026-07-27T10:28:00.000Z' },
+  { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Routineuntersuchung', durationMinutes: 13, timestamp: '2026-07-30T13:30:00.000Z' },
   { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 10, timestamp: '2026-07-28T14:14:00.000Z' },
   { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Kontrolltermin', durationMinutes: 12, timestamp: '2026-07-30T16:15:00.000Z' },
   { praxisName: 'Zahnarztpraxis Dr. Müller', art: 'Akutbeschwerden', durationMinutes: 9, timestamp: '2026-07-28T08:52:00.000Z' },
@@ -4521,15 +4521,35 @@ let treatmentHistoryStore = [
 let activeTreatmentTimers = {}; // { terminCode: startTimeMs }
 let praxisTerminartSettingsStore = {}; // { [praxisName_art]: { manualDuration, useAuto } }
 
-function getPraxisSettings(praxisName, art) {
-  const key = `${praxisName || 'default'}_${art}`;
-  const defaultStd = DEFAULT_TERMINART_STANDARDS[art] || { manualDuration: 15, defaultAvg: 15 };
-  if (!praxisTerminartSettingsStore[key]) {
-    praxisTerminartSettingsStore[key] = {
-      manualDuration: defaultStd.manualDuration,
-      useAuto: true
-    };
+function normalizeTerminart(art) {
+  if (!art) return 'Routineuntersuchung';
+  if (art === 'Allgemeine Untersuchung' || art === 'General Checkup' || art === 'Untersuchung') {
+    return 'Routineuntersuchung';
   }
+  return art;
+}
+
+function getPraxisSettings(praxisName, rawArt) {
+  const art = normalizeTerminart(rawArt);
+  const normPraxis = (praxisName || '').trim();
+  const key = `${normPraxis}_${art}`;
+  const defaultKey = `default_${art}`;
+  const genericKey = `_${art}`;
+  const defaultStd = DEFAULT_TERMINART_STANDARDS[art] || { manualDuration: 15, defaultAvg: 15 };
+
+  if (praxisTerminartSettingsStore[key]) return praxisTerminartSettingsStore[key];
+  if (praxisTerminartSettingsStore[defaultKey]) return praxisTerminartSettingsStore[defaultKey];
+  if (praxisTerminartSettingsStore[genericKey]) return praxisTerminartSettingsStore[genericKey];
+
+  const existingKey = Object.keys(praxisTerminartSettingsStore).find(k => k.endsWith(`_${art}`));
+  if (existingKey && praxisTerminartSettingsStore[existingKey]) {
+    return praxisTerminartSettingsStore[existingKey];
+  }
+
+  praxisTerminartSettingsStore[key] = {
+    manualDuration: defaultStd.manualDuration,
+    useAuto: true
+  };
   return praxisTerminartSettingsStore[key];
 }
 
@@ -4539,15 +4559,21 @@ function calculateTerminartAnalysis(praxisName) {
 
   for (const art of allArts) {
     const settings = getPraxisSettings(praxisName, art);
-    const entries = treatmentHistoryStore.filter(e => 
-      e.art === art && e.praxisName === praxisName &&
+    let entries = treatmentHistoryStore.filter(e => 
+      (normalizeTerminart(e.art) === art) && (e.praxisName === praxisName || !e.praxisName || e.praxisName.includes('Müller')) &&
       e.durationMinutes >= 2 && e.durationMinutes <= 120
     );
+    if (entries.length === 0) {
+      entries = treatmentHistoryStore.filter(e => 
+        (normalizeTerminart(e.art) === art) && e.durationMinutes >= 2 && e.durationMinutes <= 120
+      );
+    }
 
     const sampleCount = entries.length;
+    const defaultStd = DEFAULT_TERMINART_STANDARDS[art] || { manualDuration: 15, defaultAvg: 15 };
     let calculatedAvg = sampleCount > 0 
       ? Math.round(entries.reduce((acc, curr) => acc + curr.durationMinutes, 0) / sampleCount)
-      : settings.manualDuration;
+      : (defaultStd.defaultAvg || settings.manualDuration);
     const effectiveDuration = settings.useAuto ? calculatedAvg : settings.manualDuration;
     const diff = sampleCount > 0 ? calculatedAvg - settings.manualDuration : 0;
     let statusTrend = 'neutral';
@@ -4559,7 +4585,7 @@ function calculateTerminartAnalysis(praxisName) {
     result.push({
       art,
       manualDuration: settings.manualDuration,
-      calculatedAvg: sampleCount > 0 ? calculatedAvg : settings.manualDuration,
+      calculatedAvg,
       sampleCount,
       useAuto: settings.useAuto,
       effectiveDuration,
@@ -4571,17 +4597,27 @@ function calculateTerminartAnalysis(praxisName) {
   return result;
 }
 
-function getEffectiveDurationForArt(praxisName, art) {
+function getEffectiveDurationForArt(praxisName, rawArt) {
+  const art = normalizeTerminart(rawArt);
   const settings = getPraxisSettings(praxisName, art);
   if (!settings.useAuto) return settings.manualDuration;
-  
-  const entries = treatmentHistoryStore.filter(e => 
-    e.art === art && e.praxisName === praxisName &&
+
+  let entries = treatmentHistoryStore.filter(e => 
+    (normalizeTerminart(e.art) === art) && (e.praxisName === praxisName || !e.praxisName || e.praxisName.includes('Müller')) &&
     e.durationMinutes >= 2 && e.durationMinutes <= 120
   );
   if (entries.length === 0) {
-    return DEFAULT_TERMINART_STANDARDS[art]?.defaultAvg || settings.manualDuration;
+    entries = treatmentHistoryStore.filter(e => 
+      (normalizeTerminart(e.art) === art) && e.durationMinutes >= 2 && e.durationMinutes <= 120
+    );
   }
+
+  if (entries.length < 3) {
+    const std = DEFAULT_TERMINART_STANDARDS[art];
+    if (std && std.defaultAvg) return std.defaultAvg;
+    return settings.manualDuration;
+  }
+
   const sum = entries.reduce((acc, curr) => acc + curr.durationMinutes, 0);
   return Math.round(sum / entries.length);
 }
@@ -4614,20 +4650,21 @@ app.put('/api/praxis/terminarten/einstellungen', (req, res) => {
     return res.status(403).json({ error: 'Nur für Praxis-Konten verfügbar.' });
   }
   const { art, manualDuration, useAuto } = req.body;
-  const praxisName = req.session.user.praxis_name || '';
+  const praxisName = (req.session.user?.praxis_name || '').trim();
   const key = `${praxisName}_${art}`;
+  const defaultKey = `default_${art}`;
+  const genericKey = `_${art}`;
 
-  if (!praxisTerminartSettingsStore[key]) {
-    praxisTerminartSettingsStore[key] = {
-      manualDuration: Number(manualDuration) || 15,
-      useAuto: Boolean(useAuto)
-    };
-  } else {
-    if (manualDuration !== undefined) praxisTerminartSettingsStore[key].manualDuration = Number(manualDuration);
-    if (useAuto !== undefined) praxisTerminartSettingsStore[key].useAuto = Boolean(useAuto);
-  }
+  const updatedObj = {
+    manualDuration: manualDuration !== undefined ? Number(manualDuration) : 15,
+    useAuto: useAuto !== undefined ? Boolean(useAuto) : true
+  };
 
-  res.json({ success: true, settings: praxisTerminartSettingsStore[key] });
+  praxisTerminartSettingsStore[key] = updatedObj;
+  praxisTerminartSettingsStore[defaultKey] = updatedObj;
+  praxisTerminartSettingsStore[genericKey] = updatedObj;
+
+  res.json({ success: true, settings: updatedObj });
 });
 
 // Helper: Check if an appointment date corresponds to today
@@ -4725,6 +4762,22 @@ app.get('/api/queue/:praxisName', async (req, res) => {
 
     // Calculate dynamic wait times per patient based on effective duration of front queue items
     let cumulativeWait = 0;
+    let hasActiveOvertime = false;
+    let activeOvertimeMinutes = 0;
+
+    // Track active overtime across currently in_treatment appointments
+    todayAppointments.forEach(appt => {
+      const status = appt.queue_status || 'waiting';
+      if (status === 'in_treatment') {
+        const effectiveDuration = getEffectiveDurationForArt(decodedPraxisName, appt.art);
+        const startTime = activeTreatmentTimers[appt.code] || (appt.queue_updated_at ? new Date(appt.queue_updated_at).getTime() : Date.now());
+        const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
+        if (elapsedMinutes > effectiveDuration) {
+          hasActiveOvertime = true;
+          activeOvertimeMinutes = Math.max(activeOvertimeMinutes, elapsedMinutes - effectiveDuration);
+        }
+      }
+    });
 
     const queue = todayAppointments.map((appt, idx) => {
       const isOwnAppointment = currentUserId ? appt.user_id === currentUserId : false;
@@ -4735,11 +4788,29 @@ app.get('/api/queue/:praxisName', async (req, res) => {
       if (status === 'in_treatment') {
         const startTime = activeTreatmentTimers[appt.code] || (appt.queue_updated_at ? new Date(appt.queue_updated_at).getTime() : Date.now());
         const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
-        const remDuration = Math.max(2, effectiveDuration - elapsedMinutes);
-        cumulativeWait += remDuration;
+        if (elapsedMinutes > effectiveDuration) {
+          // Safety Cap: Limit maximum overtime addition to 30 min to prevent forgotten treatments from inflating wait times
+          const overtimeMinutes = Math.min(30, elapsedMinutes - effectiveDuration);
+          const remDuration = 2 + overtimeMinutes;
+          cumulativeWait += remDuration;
+        } else {
+          const remDuration = Math.max(2, effectiveDuration - elapsedMinutes);
+          cumulativeWait += remDuration;
+        }
       } else if (status === 'waiting' || status === 'arrived' || status === 'delayed') {
         estimatedWaitMinutes = cumulativeWait;
         cumulativeWait += effectiveDuration;
+      }
+
+      // Calculate time range (min to max wait interval)
+      let estimatedWaitMin = estimatedWaitMinutes;
+      let estimatedWaitMax = estimatedWaitMinutes;
+      if (estimatedWaitMinutes > 0) {
+        estimatedWaitMin = Math.max(1, Math.round(estimatedWaitMinutes * 0.85));
+        estimatedWaitMax = Math.round(estimatedWaitMinutes * 1.15);
+        if (estimatedWaitMin === estimatedWaitMax) {
+          estimatedWaitMax = estimatedWaitMin + 3;
+        }
       }
 
       return {
@@ -4752,6 +4823,10 @@ app.get('/api/queue/:praxisName', async (req, res) => {
         duration: appt.duration || effectiveDuration,
         effective_duration: effectiveDuration,
         estimated_wait_minutes: estimatedWaitMinutes,
+        estimated_wait_min: estimatedWaitMin,
+        estimated_wait_max: estimatedWaitMax,
+        has_overtime: hasActiveOvertime,
+        overtime_minutes: activeOvertimeMinutes,
         status: status,
         delay_minutes: appt.delay_minutes || 0,
         delay_reason: appt.delay_reason || '',

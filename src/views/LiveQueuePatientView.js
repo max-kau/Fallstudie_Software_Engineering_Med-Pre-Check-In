@@ -163,6 +163,11 @@ function renderOwnPosition(queue) {
 
   // Estimate wait time based on backend dynamic calculation per appointment type
   const estimatedWait = own.estimated_wait_minutes !== undefined ? own.estimated_wait_minutes : (waitingBefore * 20);
+  const estimatedWaitMin = own.estimated_wait_min !== undefined ? own.estimated_wait_min : Math.max(1, Math.round(estimatedWait * 0.85));
+  const estimatedWaitMax = own.estimated_wait_max !== undefined ? own.estimated_wait_max : Math.round(estimatedWait * 1.15);
+  const waitDisplayStr = (estimatedWaitMin && estimatedWaitMax && estimatedWaitMin !== estimatedWaitMax)
+    ? `${estimatedWaitMin} – ${estimatedWaitMax}`
+    : `${estimatedWait}`;
 
   let delayNote = '';
   if (own.status === 'delayed' && own.delay_minutes > 0) {
@@ -173,19 +178,29 @@ function renderOwnPosition(queue) {
     `;
   }
 
+  let overtimeNote = '';
+  if (own.has_overtime) {
+    overtimeNote = `
+      <div class="queue-overtime-info" style="display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-2); padding: 8px 12px; background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 8px; font-size: 13px; color: #92400E; font-weight: 600;">
+        ⚠️ Die laufende Behandlung dauert derzeit etwas länger als geplant. Ihre Wartezeit wird automatisch in Echtzeit angepasst.
+      </div>
+    `;
+  }
+
   return `
     <div class="queue-own-position">
       <div class="queue-own-position-number">${position}</div>
       <div class="queue-own-position-label">Ihre Position in der Warteschlange</div>
       ${estimatedWait > 0 ? `
         <div class="queue-wait-estimate">
-          ⏱️ Voraussichtliche Wartezeit: ca. <strong>${estimatedWait} Minuten</strong> (berechnet aus den Behandlungsarten der ${waitingBefore} Patient${waitingBefore > 1 ? 'en' : ''} vor Ihnen)
+          ⏱️ Voraussichtliche Wartezeit: ca. <strong>${waitDisplayStr} Minuten</strong> (berechnet aus den Behandlungsarten der ${waitingBefore} Patient${waitingBefore > 1 ? 'en' : ''} vor Ihnen)
         </div>
       ` : `
         <div class="queue-wait-estimate" style="color: var(--success);">
           🎉 Sie sind als nächstes dran!
         </div>
       `}
+      ${overtimeNote}
       ${delayNote}
     </div>
   `;
