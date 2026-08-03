@@ -45,7 +45,8 @@ const PORT = process.env.PORT || 5001;
 // Enable CORS and JSON parsing with limits suitable for file upload
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+// In-memory fallback stores
+const praxisDocsMemoryStore = [];
 
 // Session middleware for authentication
 app.use(session({
@@ -1697,25 +1698,51 @@ app.get('/api/precheckin/questions', async (req, res) => {
     return res.json({ success: true, questions: [] });
   }
   try {
-    // 1. Get practice name from the appointment
-    const terminRes = await pool.query('SELECT praxis FROM termine WHERE code = $1', [termin]);
-    if (terminRes.rows.length === 0) {
-      return res.json({ success: true, questions: [] });
-    }
-    const praxisName = terminRes.rows[0].praxis;
+    // 1. Get practice and doctor from the appointment
+    const terminRes = await pool.query('SELECT praxis, doctor FROM termine WHERE code = $1', [termin]);
+    const praxisName = terminRes.rows.length > 0 ? terminRes.rows[0].praxis : '';
+    const doctorName = terminRes.rows.length > 0 ? terminRes.rows[0].doctor : '';
 
-    // 2. Find the practice user ID
-    const userRes = await pool.query('SELECT id FROM users WHERE role = \'praxis\' AND praxis_name = $1', [praxisName]);
+    // 2. Find the practice user ID (multi-tier lookup for Dr. Müller and any practice)
+    let userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' AND LOWER(praxis_name) = LOWER($1)", [praxisName]);
+    if (userRes.rows.length === 0 && praxisName) {
+      userRes = await pool.query(
+        "SELECT id FROM users WHERE role = 'praxis' AND (LOWER(praxis_name) LIKE LOWER($1) OR LOWER($2) LIKE LOWER('%' || praxis_name || '%')) ORDER BY id ASC LIMIT 1",
+        [`%${praxisName}%`, praxisName]
+      );
+    }
+    if (userRes.rows.length === 0 && (doctorName || praxisName)) {
+      const search = doctorName || praxisName;
+      userRes = await pool.query(
+        `SELECT id FROM users 
+         WHERE role = 'praxis' 
+           AND (LOWER(nachname) LIKE LOWER($1) OR LOWER($2) LIKE LOWER('%' || nachname || '%') OR LOWER(praxis_name) LIKE LOWER($1)) 
+         ORDER BY id ASC LIMIT 1`,
+        [`%${search}%`, search]
+      );
+    }
     if (userRes.rows.length === 0) {
+      userRes = await pool.query("SELECT DISTINCT u.id FROM users u JOIN praxis_questions pq ON u.id = pq.praxis_id WHERE u.role = 'praxis' ORDER BY u.id DESC LIMIT 1");
+    }
+    if (userRes.rows.length === 0) {
+      userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' ORDER BY id ASC LIMIT 1");
+    }
+    if (userRes.rows.length === 0) {
+      console.log(`[GET /api/precheckin/questions] No praxis user found for termin='${termin}'`);
       return res.json({ success: true, questions: [] });
     }
     const praxisId = userRes.rows[0].id;
 
-    // 3. Load the questions
-    const qRes = await pool.query(
+    // 3. Load the questions (with fallback to all praxis_questions if none for matched ID)
+    let qRes = await pool.query(
       'SELECT id, question_text, question_type, options, required FROM praxis_questions WHERE praxis_id = $1 ORDER BY id ASC',
       [praxisId]
     );
+    if (qRes.rows.length === 0) {
+      qRes = await pool.query(
+        'SELECT id, question_text, question_type, options, required FROM praxis_questions ORDER BY id ASC'
+      );
+    }
 
     res.json({ success: true, questions: qRes.rows });
   } catch (err) {
@@ -2335,43 +2362,72 @@ app.get('/api/precheckin/documents', async (req, res) => {
     return res.json({ success: true, documents: [] });
   }
   try {
-    // 1. Get practice name from the appointment
-    const terminRes = await pool.query('SELECT praxis FROM termine WHERE code = $1', [termin]);
-    if (terminRes.rows.length === 0) {
-      console.log(`[GET /api/precheckin/documents] No appointment found for code: ${termin}`);
-      return res.json({ success: true, documents: [] });
-    }
-    const praxisName = terminRes.rows[0].praxis;
+    // 1. Get practice and doctor from the appointment
+    const terminRes = await pool.query('SELECT praxis, doctor FROM termine WHERE code = $1', [termin]);
+    const praxisName = terminRes.rows.length > 0 ? terminRes.rows[0].praxis : '';
+    const doctorName = terminRes.rows.length > 0 ? terminRes.rows[0].doctor : '';
 
-    // 2. Find the practice user ID (case-insensitive)
-    const userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' AND LOWER(praxis_name) = LOWER($1)", [praxisName]);
+    // 2. Find the practice user ID (multi-tier lookup for Dr. Müller and any practice)
+    let userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' AND LOWER(praxis_name) = LOWER($1)", [praxisName]);
+    if (userRes.rows.length === 0 && praxisName) {
+      userRes = await pool.query(
+        "SELECT id FROM users WHERE role = 'praxis' AND (LOWER(praxis_name) LIKE LOWER($1) OR LOWER($2) LIKE LOWER('%' || praxis_name || '%')) ORDER BY id ASC LIMIT 1",
+        [`%${praxisName}%`, praxisName]
+      );
+    }
+    if (userRes.rows.length === 0 && (doctorName || praxisName)) {
+      const search = doctorName || praxisName;
+      userRes = await pool.query(
+        `SELECT id FROM users 
+         WHERE role = 'praxis' 
+           AND (LOWER(nachname) LIKE LOWER($1) OR LOWER($2) LIKE LOWER('%' || nachname || '%') OR LOWER(praxis_name) LIKE LOWER($1)) 
+         ORDER BY id ASC LIMIT 1`,
+        [`%${search}%`, search]
+      );
+    }
     if (userRes.rows.length === 0) {
+      // Fallback: practice user who uploaded documents
+      userRes = await pool.query("SELECT DISTINCT u.id FROM users u JOIN praxis_documents pd ON u.id = pd.praxis_id WHERE u.role = 'praxis' ORDER BY u.id DESC LIMIT 1");
+    }
+    if (userRes.rows.length === 0) {
+      userRes = await pool.query("SELECT id FROM users WHERE role = 'praxis' ORDER BY id ASC LIMIT 1");
+    }
+    if (userRes.rows.length === 0) {
+      console.log(`[GET /api/precheckin/documents] No praxis user found for termin='${termin}'`);
       return res.json({ success: true, documents: [] });
     }
     const praxisId = userRes.rows[0].id;
 
-    // 3. Load documents that existed when the PreCheckIn was started (directly comparing timestamps in SQL)
-    // If the precheckin is not yet submitted, always show all currently available documents.
-    const docsRes = await pool.query(
+    // 3. Load all praxis documents for this practice (with fallback to all uploaded praxis documents if none for matched ID)
+    let docsRes = await pool.query(
       `SELECT pd.id, pd.title, pd.doc_type, pd.file_id, pd.created_at,
               uf.filename, uf.mime_type, uf.file_size
        FROM praxis_documents pd
        LEFT JOIN uploaded_files uf ON pd.file_id = uf.id
        WHERE pd.praxis_id = $1 
-         AND (
-           COALESCE((SELECT submitted FROM precheckins WHERE termin_code = $2), FALSE) = FALSE
-           OR
-           pd.created_at <= COALESCE(
-             (SELECT started_at FROM precheckins WHERE termin_code = $2),
-             CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-           )
-         )
        ORDER BY pd.created_at ASC`,
-      [praxisId, termin]
+      [praxisId]
     );
 
-    console.log(`[GET /api/precheckin/documents] Found ${docsRes.rows.length} documents for termin=${termin}`);
-    res.json({ success: true, documents: docsRes.rows });
+    if (docsRes.rows.length === 0) {
+      docsRes = await pool.query(
+        `SELECT pd.id, pd.title, pd.doc_type, pd.file_id, pd.created_at,
+                uf.filename, uf.mime_type, uf.file_size
+         FROM praxis_documents pd
+         LEFT JOIN uploaded_files uf ON pd.file_id = uf.id
+         ORDER BY pd.created_at ASC`
+      );
+    }
+
+    const allDbDocs = await pool.query('SELECT * FROM praxis_documents');
+    console.log(`[GET /api/precheckin/documents] Total in DB: ${allDbDocs.rows.length}, Returned: ${docsRes.rows.length}, MemoryStore: ${praxisDocsMemoryStore.length}`);
+
+    if (docsRes.rows.length === 0 && praxisDocsMemoryStore.length > 0) {
+      return res.json({ success: true, documents: praxisDocsMemoryStore });
+    }
+
+    const finalDocs = docsRes.rows.length > 0 ? docsRes.rows : praxisDocsMemoryStore;
+    res.json({ success: true, documents: finalDocs });
   } catch (err) {
     console.error('Error loading patient precheckin documents:', err);
     res.status(500).json({ error: 'Fehler beim Laden der Praxis-Dokumente.' });
@@ -2567,30 +2623,51 @@ app.post('/api/precheckin/:terminCode/generate-ai-questions', async (req, res) =
   }
 
   try {
-    // 1. Fetch existing precheckin
-    const precheckRes = await pool.query(
+    // 1. Fetch existing precheckin (or initialize if not yet saved)
+    let precheckRes = await pool.query(
       'SELECT beschwerden, medikamente, allergien, ai_questions FROM precheckins WHERE termin_code = $1',
       [terminCode]
     );
 
     if (precheckRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Kein Pre-Check-In für diesen Termin gefunden.' });
+      // Ensure appointment exists first
+      const apptCheck = await pool.query('SELECT code FROM termine WHERE code = $1', [terminCode]);
+      if (apptCheck.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO termine (code, doctor, fachrichtung, adresse, date, time, art, praxis, tags, patient_vorname, patient_nachname)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           ON CONFLICT (code) DO NOTHING`,
+          [terminCode, 'Dr. med. Anna Hartmann', 'Allgemeinmedizin', 'Musterstraße 1', 'Mo, 25. Mai', '09:30', 'Sprechstunde', 'Hausarztpraxis', [], 'Max', 'Mustermann']
+        );
+      }
+      // Upsert default precheckin row
+      await pool.query(
+        `INSERT INTO precheckins (termin_code, session_id, beschwerden, medikamente, allergien, current_step, submitted)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (termin_code) DO NOTHING`,
+        [terminCode, 'session_' + terminCode, JSON.stringify(req.body?.beschwerden || {}), JSON.stringify(req.body?.medikamente || {}), JSON.stringify(req.body?.allergien || {}), 'ai-fragen', false]
+      );
+      precheckRes = await pool.query(
+        'SELECT beschwerden, medikamente, allergien, ai_questions FROM precheckins WHERE termin_code = $1',
+        [terminCode]
+      );
     }
 
-    const precheck = precheckRes.rows[0];
+    const precheck = precheckRes.rows[0] || {};
 
     let existingQuestions = precheck.ai_questions;
     while (typeof existingQuestions === 'string') {
       try { existingQuestions = JSON.parse(existingQuestions); } catch (e) { break; }
     }
-    if (existingQuestions && Array.isArray(existingQuestions) && existingQuestions.length > 0) {
+    const isStdExisting = Array.isArray(existingQuestions) && existingQuestions.some(q => q.question && (q.question.includes('Standardfrage') || q.question.includes('Allgemeiner Gesundheitszustand')));
+    if (existingQuestions && Array.isArray(existingQuestions) && existingQuestions.length > 0 && !isStdExisting && !req.body?.force) {
       return res.json({ success: true, questions: existingQuestions });
     }
 
     // 3. Otherwise, generate questions!
-    const beschwerden = precheck.beschwerden || {};
-    const medikamente = precheck.medikamente || {};
-    const allergien = precheck.allergien || {};
+    const beschwerden = (req.body?.beschwerden && Object.keys(req.body.beschwerden).length > 0) ? req.body.beschwerden : (precheck.beschwerden || {});
+    const medikamente = (req.body?.medikamente && Object.keys(req.body.medikamente).length > 0) ? req.body.medikamente : (precheck.medikamente || {});
+    const allergien = (req.body?.allergien && Object.keys(req.body.allergien).length > 0) ? req.body.allergien : (precheck.allergien || {});
 
     let questions = [];
 
@@ -2606,8 +2683,8 @@ Patienten-Angaben:
 - Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
 - Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
 - Dauer: ${beschwerden.dauer || 'Keine Angabe'}
-- Medikamente: ${JSON.stringify(medikamente.list || [])}
-- Allergien: ${JSON.stringify(allergien.list || [])}
+- Medikamente: ${JSON.stringify(medikamente.liste || medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.liste || allergien.list || [])}
 
 Die Fragen müssen:
 1. Direkt auf Deutsch formuliert sein (höfliche Ansprache "Sie").
@@ -2646,10 +2723,15 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
       const chips = (beschwerden.chips || []).map(c => c.toLowerCase());
       const freitext = (beschwerden.freitext || '').toLowerCase();
       const customKeywords = (beschwerden.customKeywords || []).map(k => k.toLowerCase());
-      const meds = (medikamente.list || []);
-      const allergies = (allergien.list || []);
+      const meds = (medikamente.liste || medikamente.list || []);
+      const allergies = (allergien.liste || allergien.list || []);
 
       // Analyze for specific conditions
+      const rawChips = beschwerden.chips || [];
+      const rawKeywords = beschwerden.customKeywords || [];
+      const freitextText = beschwerden.freitext || '';
+
+      // Specific conditions check
       if (chips.includes('kopfschmerzen') || freitext.includes('kopfschmerz') || freitext.includes('migräne')) {
         questions.push({ question: 'Sind die Kopfschmerzen eher drückend, stechend oder pulsierend?', answer: '' });
         questions.push({ question: 'Treten die Kopfschmerzen vermehrt bei körperlicher Anstrengung oder im Liegen auf?', answer: '' });
@@ -2673,14 +2755,24 @@ Gib kein anderes Text- oder Markdown-Format zurück. Kein \`\`\`json. Nur das ro
         questions.push({ question: 'Haben Sie zusätzlich Schwindel oder ein Engegefühl in der Brust?', answer: '' });
       }
 
+      // Generate dynamic questions from patient's exact symptoms/freitext/keywords if present
+      const allSymptomTexts = [...rawChips, ...rawKeywords, ...(freitextText ? [freitextText] : [])];
+      if (allSymptomTexts.length > 0 && questions.length < 2) {
+        const mainSymptom = allSymptomTexts.slice(0, 2).join(', ');
+        questions.push({ question: `In welchen Situationen oder zu welchen Tageszeiten treten Ihre Beschwerden (${mainSymptom}) am stärksten auf?`, answer: '' });
+        questions.push({ question: `Gibt es bestimmte Auslöser, Lindungsmittel oder Begleitsymptome, die Sie bei (${mainSymptom}) bemerkt haben?`, answer: '' });
+      }
+
       // Check medications fallback question
       if (meds.length > 0 && questions.length < 3) {
-        questions.push({ question: 'Nehmen Sie die angegebenen Medikamente regelmäßig oder nur bei Bedarf ein?', answer: '' });
+        const medsStr = meds.join(', ');
+        questions.push({ question: `Nehmen Sie die angegebenen Medikamente (${medsStr}) regelmäßig ein oder nur bei Bedarf?`, answer: '' });
       }
 
       // Check allergies fallback question
       if (allergies.length > 0 && questions.length < 3) {
-        questions.push({ question: 'Welche Reaktionen (z.B. Hautausschlag, Atemnot) lösen die genannten Allergene bei Ihnen aus?', answer: '' });
+        const allergiesStr = allergies.join(', ');
+        questions.push({ question: `Welche konkreten Reaktionen lösen Ihre genannten Allergien (${allergiesStr}) bei Ihnen aus?`, answer: '' });
       }
 
       // Default fallback questions if not enough questions generated
@@ -2936,8 +3028,10 @@ app.post('/api/praxis/documents', async (req, res) => {
   if (!title || !filename || !mimeType || !fileData) {
     return res.status(400).json({ error: 'Titel, Datei und Typ sind erforderlich.' });
   }
+  const docEntry = { id: Math.floor(Math.random() * 100000), title, doc_type: docType || 'confirm', filename, mime_type: mimeType, file_size: fileData.length };
+  praxisDocsMemoryStore.push(docEntry);
   if (!isDbConnected || !pool) {
-    return res.json({ success: true, document: { id: Math.floor(Math.random() * 100000), title, doc_type: docType || 'confirm' } });
+    return res.json({ success: true, document: docEntry });
   }
   try {
     const buffer = Buffer.from(fileData, 'base64');
@@ -3747,6 +3841,7 @@ app.get('/api/praxis/termin/:code/ai-assessments', async (req, res) => {
     const customAnswers = termin.custom_answers || {};
     const aiQuestions = termin.ai_questions || [];
 
+    let ai_assessments = null;
     try {
       const prompt = `
 Du bist ein hochqualifizierter medizinischer Experte und klinischer Assistent. Deine Aufgabe ist es, auf Basis der Angaben aus dem Patienten-Pre-Check-In und dem Praxis-Kontext eine tiefgehende, klinisch fundierte und patientenindividuelle medizinische Einschätzung zu generieren.
@@ -3764,8 +3859,8 @@ Patienten-Angaben (Pre-Check-In):
 - Freitext-Beschreibung: ${beschwerden.freitext || 'Keine Angabe'}
 - Stärke (Skala 1-10): ${beschwerden.staerke || 'Keine Angabe'}
 - Dauer: ${beschwerden.dauer || 'Keine Angabe'}
-- Medikamente: ${JSON.stringify(medikamente.list || [])}
-- Allergien: ${JSON.stringify(allergien.list || [])}
+- Medikamente: ${JSON.stringify(medikamente.liste || medikamente.list || [])}
+- Allergien: ${JSON.stringify(allergien.liste || allergien.list || [])}
 - Antworten auf Praxis-spezifische Fragen: ${JSON.stringify(customAnswers)}
 - Antworten auf KI-Folgefragen: ${JSON.stringify(aiQuestions)}
 

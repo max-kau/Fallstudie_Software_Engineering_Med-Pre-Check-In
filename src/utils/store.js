@@ -349,19 +349,21 @@ async function loadData() {
     } catch (err) {
       console.warn('Failed to load existing pre-check-in from database:', err);
     }
+  }
 
-    // Load custom questions for this practice/appointment
-    try {
-      const qRes = await fetch(`/api/precheckin/questions?termin=${terminCode}&_t=${Date.now()}`, { cache: 'no-store' });
-      if (qRes.ok) {
-        const qData = await qRes.json();
-        if (qData.success) {
+  // Load custom questions for this practice/appointment (always refresh)
+  try {
+    const qRes = await fetch(`/api/precheckin/questions?termin=${terminCode}&_t=${Date.now()}`, { cache: 'no-store' });
+    if (qRes.ok) {
+      const qData = await qRes.json();
+      if (qData.success) {
+        if (_cachedData) {
           _cachedData.customQuestions = qData.questions || [];
         }
       }
-    } catch (err) {
-      console.warn('Failed to load custom questions for pre-check-in:', err);
     }
+  } catch (err) {
+    console.warn('Failed to load custom questions for pre-check-in:', err);
   }
 
   // Load praxis documents for this practice/appointment (always refresh)
@@ -382,26 +384,33 @@ let _praxisDocuments = null;
 
 async function loadPraxisDocuments() {
   const terminCode = getTerminCode();
-  console.log("DEBUG: loadPraxisDocuments called. terminCode =", terminCode);
   try {
-    console.log("DEBUG: Fetching documents from /api/precheckin/documents for", terminCode);
     const res = await fetch(`/api/precheckin/documents?termin=${terminCode}&_t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data.success) {
         _praxisDocuments = data.documents || [];
+        if (_cachedData) {
+          _cachedData.praxisDocuments = _praxisDocuments;
+        }
         return _praxisDocuments;
       }
     }
   } catch (err) {
     console.warn('Failed to load praxis documents:', err);
   }
-  _praxisDocuments = [];
+  _praxisDocuments = (_cachedData && _cachedData.praxisDocuments) ? _cachedData.praxisDocuments : [];
   return _praxisDocuments;
 }
 
 function getPraxisDocuments() {
-  return _praxisDocuments || [];
+  if (_praxisDocuments && Array.isArray(_praxisDocuments)) {
+    return _praxisDocuments;
+  }
+  if (_cachedData && Array.isArray(_cachedData.praxisDocuments)) {
+    return _cachedData.praxisDocuments;
+  }
+  return [];
 }
 
 function getTerminInfo() {

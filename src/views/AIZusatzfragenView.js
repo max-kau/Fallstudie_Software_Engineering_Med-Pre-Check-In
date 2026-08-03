@@ -110,8 +110,17 @@ function validateAIQuestions() {
 }
 
 export function initAIZusatzfragenView() {
-  const aiQuestions = store.get('aiQuestions') || [];
+  let aiQuestions = store.get('aiQuestions') || [];
   const hasConsent = store.get('aiConsent') !== false;
+
+  // If user granted AI consent, clear any stale standard questions so fresh dynamic AI questions are generated
+  const isStandard = aiQuestions.some(q => q.question && (q.question.includes('Standardfrage') || q.question.includes('Allgemeiner Gesundheitszustand')));
+  if (hasConsent && (aiQuestions.length === 0 || isStandard)) {
+    if (isStandard) {
+      aiQuestions = [];
+      store.set('aiQuestions', []);
+    }
+  }
 
   if (aiQuestions.length === 0) {
     if (!hasConsent) {
@@ -133,45 +142,57 @@ export function initAIZusatzfragenView() {
     }
 
     // Call dynamic AI generation endpoint if consent is granted
+    // IMPORTANT: First save the current progress to DB so the AI generator can find the precheckin record
     const terminCode = store.getTerminCode();
     
-    fetch(`/api/precheckin/${terminCode}/generate-ai-questions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Generation failed');
-        return res.json();
-      })
-      .then(data => {
-        let qList = data.questions;
-        while (typeof qList === 'string') {
-          try { qList = JSON.parse(qList); } catch (e) { break; }
-        }
-        if (data.success && Array.isArray(qList)) {
-          store.set('aiQuestions', qList);
-          const appEl = document.getElementById('app');
-          if (appEl) {
-            appEl.innerHTML = renderAIZusatzfragenView();
-            initAIZusatzfragenView();
-          }
-        }
-      })
-      .catch(err => {
-        console.error('Failed to generate AI questions:', err);
-        // Local fallback
-        const localFallback = [
-          { question: t('ai_zusatzfragen.std_q1'), answer: '' },
-          { question: t('ai_zusatzfragen.std_q2'), answer: '' }
-        ];
-        store.set('aiQuestions', localFallback);
-        const appEl = document.getElementById('app');
-        if (appEl) {
-          appEl.innerHTML = renderAIZusatzfragenView();
-          initAIZusatzfragenView();
-        }
+    // Force an immediate save so the DB has the latest beschwerden/medikamente/allergien data
+    store.saveProgressToServer()
+      .catch(err => console.warn('Pre-save before AI generation failed:', err))
+      .finally(() => {
+        fetch(`/api/precheckin/${terminCode}/generate-ai-questions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            beschwerden: store.get('beschwerden'),
+            medikamente: store.get('medikamente'),
+            allergien: store.get('allergien'),
+            force: true
+          })
+        })
+          .then(res => {
+            if (!res.ok) throw new Error(`Generation failed: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            let qList = data.questions;
+            while (typeof qList === 'string') {
+              try { qList = JSON.parse(qList); } catch (e) { break; }
+            }
+            if (data.success && Array.isArray(qList)) {
+              store.set('aiQuestions', qList);
+              const appEl = document.getElementById('app');
+              if (appEl) {
+                appEl.innerHTML = renderAIZusatzfragenView();
+                initAIZusatzfragenView();
+              }
+            }
+          })
+          .catch(err => {
+            console.error('Failed to generate AI questions:', err);
+            // Local fallback
+            const localFallback = [
+              { question: t('ai_zusatzfragen.std_q1'), answer: '' },
+              { question: t('ai_zusatzfragen.std_q2'), answer: '' }
+            ];
+            store.set('aiQuestions', localFallback);
+            const appEl = document.getElementById('app');
+            if (appEl) {
+              appEl.innerHTML = renderAIZusatzfragenView();
+              initAIZusatzfragenView();
+            }
+          });
       });
     return;
   }

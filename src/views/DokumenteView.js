@@ -255,4 +255,16 @@ export function initDokumenteView() {
 
   // File step is always valid/optional
   initStepNavigation(() => ({ valid: true }));
+
+  // Dynamically ensure next button points to 'praxis-dokumente' if documents are available
+  store.loadPraxisDocuments().then(docs => {
+    if (docs && docs.length > 0) {
+      const btnNext = document.getElementById('btn-next');
+      if (btnNext) {
+        btnNext.dataset.nav = 'praxis-dokumente';
+        const svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+        btnNext.innerHTML = `${t('common.next')} ${svgIcon}`;
+      }
+    }
+  }).catch(err => console.warn('Failed updating praxis docs nav target:', err));
 }

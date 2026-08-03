@@ -112,10 +112,8 @@ export function initIntroView() {
       const isConsentChecked = document.querySelector('input[name="ai-consent-choice"]:checked')?.value === 'true';
       store.set('aiConsent', isConsentChecked);
       
-      // Clear generated AI questions if consent is withdrawn
-      if (!isConsentChecked) {
-        store.set('aiQuestions', []);
-      }
+      // Always reset aiQuestions on intro start so fresh dynamic questions are generated for new symptoms
+      store.set('aiQuestions', []);
       
       window.location.hash = 'beschwerden';
     });
